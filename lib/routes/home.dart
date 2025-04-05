@@ -12,12 +12,22 @@ class _HomePageState extends State<HomePage> {
     List<Widget> items = [];
     for (int i = 0; i < amount; i++) {
       items.add(
-        Card(
-          child: Container(
-            height: 100,
-            color: Colors.blue,
-            child: Center(child: Text("Item $i")),
-          ),
+        Column(
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              color: Colors.blue,
+              child: Center(
+                child: Text(
+                  "Item $i",
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text("Description"),
+          ],
         ),
       );
     }
@@ -29,9 +39,9 @@ class _HomePageState extends State<HomePage> {
     return Center(
       child: GridView(
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
+          crossAxisCount: MediaQuery.sizeOf(context).width ~/ 150,
         ),
-        children: _listItems(20),
+        children: _listItems(MediaQuery.sizeOf(context).width ~/ 150 * 10),
       ),
     );
   }
