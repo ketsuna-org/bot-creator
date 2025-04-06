@@ -8,12 +8,26 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
+  String searchedValue = "";
+
+  void _onChanged(String value) {
+    setState(() {
+      searchedValue = value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[Text("Search Page")],
+        children: [
+          SearchBar(hintText: "Search", onChanged: _onChanged),
+          const SizedBox(height: 20),
+          Text(
+            "Searched value: $searchedValue",
+            style: const TextStyle(fontSize: 20),
+          ),
+        ],
       ),
     );
   }

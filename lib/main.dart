@@ -1,10 +1,20 @@
+import "package:cardia_kexa/database.dart";
 import 'package:flutter/material.dart';
 import "routes/home.dart";
 import "routes/profile.dart";
+import 'package:provider/provider.dart';
+
 import "routes/search.dart";
 
-void main() {
-  runApp(const MyApp());
+late DatabaseProvider db;
+Future main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  db = DatabaseProvider();
+
+  runApp(
+    ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -18,6 +28,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
+      darkTheme: ThemeData.dark(useMaterial3: true),
       home: const MyMainPage(title: 'Cardia Kexa'),
     );
   }
@@ -58,44 +69,6 @@ class _MyMainPageState extends State<MyMainPage> {
       currentIndex: _indexSelected,
     );
 
-    Drawer drawer = Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: <Widget>[
-          const DrawerHeader(
-            decoration: BoxDecoration(color: Color.fromRGBO(106, 15, 162, 1)),
-            child: Text(
-              'Cardia Kexa',
-              style: TextStyle(color: Colors.white, fontSize: 24),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.home),
-            title: const Text('Home'),
-            onTap: () {
-              Navigator.pop(context);
-              _onItemTapped(0);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.search),
-            title: const Text('Search'),
-            onTap: () {
-              Navigator.pop(context);
-              _onItemTapped(1);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.person),
-            title: const Text('Profile'),
-            onTap: () {
-              Navigator.pop(context);
-              _onItemTapped(2);
-            },
-          ),
-        ],
-      ),
-    );
     // should we return either a Drawer or a BottomNavigationBar?
 
     return Scaffold(
@@ -104,14 +77,58 @@ class _MyMainPageState extends State<MyMainPage> {
         title: Text(widget.title),
       ),
       body: Center(child: _widgetOptions.elementAt(_indexSelected)),
-      drawer:
-          platform != TargetPlatform.android || platform != TargetPlatform.iOS
-              ? drawer
-              : null,
       bottomNavigationBar:
           platform == TargetPlatform.android || platform == TargetPlatform.iOS
               ? bottomAppBar
               : null,
+      floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
+      floatingActionButton:
+          _indexSelected == 0
+              ? FloatingActionButton(
+                onPressed: () {
+                  AlertDialog dialog = AlertDialog(
+                    title: const Text("Add new item"),
+                    content: const Text("Do you want to add a new item?"),
+                    actions: [
+                      TextButton(
+                        onPressed: () async {
+                          db.deleteApp(name: "New App"); // Example action
+                          Navigator.of(context).pop(); // Close the dialog
+                        },
+                        child: const Text("Cancel"),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          // Add your action here
+                          await db.addApp("New App");
+                          Navigator.of(context).pop(); // Close the dialog
+                        },
+                        child: const Text("Add"),
+                      ),
+                    ],
+                  );
+
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) => dialog,
+                  );
+                },
+                backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
+                child: const Icon(Icons.add),
+              )
+              : null,
     );
+  }
+}
+
+class ThemeProvider extends ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.light;
+
+  ThemeMode get themeMode => _themeMode;
+
+  void toggleTheme() {
+    _themeMode =
+        _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    notifyListeners();
   }
 }

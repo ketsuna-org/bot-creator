@@ -1,3 +1,5 @@
+import 'package:cardia_kexa/database.dart';
+import 'package:cardia_kexa/main.dart';
 import 'package:flutter/material.dart';
 
 class HomePage extends StatefulWidget {
@@ -8,40 +10,32 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<Widget> _listItems(int amount) {
-    List<Widget> items = [];
-    for (int i = 0; i < amount; i++) {
-      items.add(
-        Column(
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              color: Colors.blue,
-              child: Center(
-                child: Text(
-                  "Item $i",
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text("Description"),
-          ],
-        ),
-      );
-    }
-    return items;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: GridView(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: MediaQuery.sizeOf(context).width ~/ 150,
-        ),
-        children: _listItems(MediaQuery.sizeOf(context).width ~/ 150 * 10),
+      child: StreamBuilder<List<DbApp>>(
+        stream: db.getAppsStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return const Center(child: Text("Error loading data"));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text("No data found"));
+          } else {
+            return GridView.builder(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+              ),
+              itemCount: snapshot.data!.length,
+              itemBuilder: (context, index) {
+                return Card(
+                  child: ListTile(title: Text(snapshot.data![index].name)),
+                );
+              },
+            );
+          }
+        },
       ),
     );
   }
