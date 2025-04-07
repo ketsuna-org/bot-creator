@@ -1,6 +1,7 @@
 import 'package:cardia_kexa/database.dart';
 import 'package:cardia_kexa/main.dart';
 import 'package:flutter/material.dart';
+import 'package:cardia_kexa/routes/app.edit.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -30,7 +31,34 @@ class _HomePageState extends State<HomePage> {
               itemCount: snapshot.data!.length,
               itemBuilder: (context, index) {
                 return Card(
-                  child: ListTile(title: Text(snapshot.data![index].name)),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 8),
+                      Icon(Icons.apps_rounded, color: Colors.blue, size: 64),
+                      const SizedBox(height: 8),
+                      Text(
+                        snapshot.data![index].name,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => AppEditPage(
+                                    appName: snapshot.data![index].name,
+                                  ),
+                            ),
+                          );
+                        },
+                        child: const Text("Open"),
+                      ),
+                    ],
+                  ),
                 );
               },
             );
