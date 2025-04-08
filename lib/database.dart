@@ -28,6 +28,18 @@ class DatabaseProvider {
         version: 1,
         onConfigure: (db) async => await db.execute('PRAGMA foreign_keys = ON'),
         onCreate: _onCreate,
+        onOpen: // This is only called for Debugging purposes
+            (db) async => {
+              // let's remove everything first
+              db.execute('DELETE FROM apps'),
+              db.execute('DELETE FROM components'),
+              // we need to remove the tables too
+              db.execute('DROP TABLE IF EXISTS apps'),
+              db.execute('DROP TABLE IF EXISTS components'),
+
+              // and recreate them
+              await _onCreate(db, 1),
+            },
       );
 
       _databaseCompleter.complete();
@@ -49,6 +61,7 @@ class DatabaseProvider {
       await db.execute(
         'CREATE TABLE apps ('
         'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+        'token TEXT NOT NULL,'
         'name TEXT NOT NULL'
         ')',
       );
@@ -68,11 +81,17 @@ class DatabaseProvider {
     }
   }
 
-  Future<int> addApp(String name) async {
+  Future<int> addApp(String name, String token) async {
+    if (name.isEmpty || token.isEmpty) {
+      throw ArgumentError(
+        'Nom et token requis pour l\'ajout d\'une application',
+      );
+    }
     final db = await database;
     try {
       final int id = await db.insert('apps', {
         'name': name,
+        'token': token,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
       triggerUpdate("addApp");
       return id;
@@ -82,18 +101,11 @@ class DatabaseProvider {
     }
   }
 
-  Future<void> deleteApp({int? id, String? name}) async {
+  Future<void> deleteApp(int id) async {
     final db = await database;
-    if (id == null && name == null) {
-      throw ArgumentError('ID ou nom requis pour la suppression');
-    }
 
     try {
-      await db.delete(
-        'apps',
-        where: id != null ? 'id = ?' : 'name = ?',
-        whereArgs: [id ?? name],
-      );
+      await db.delete('apps', where: 'id = ?', whereArgs: [id]);
       triggerUpdate("deleteApp");
     } catch (e) {
       print("Erreur de suppression d'une application : $e");
@@ -101,14 +113,45 @@ class DatabaseProvider {
     }
   }
 
-  Future<void> updateApp(int id, String name) async {
+  Future<void> updateApp(int id, {String name = "", String token = ""}) async {
     final db = await database;
     try {
-      await db.update('apps', {'name': name}, where: 'id = ?', whereArgs: [id]);
+      if (name.isEmpty && token.isEmpty) {
+        throw ArgumentError(
+          'Nom ou token requis pour la mise à jour d\'une application',
+        );
+      }
+
+      await db.update(
+        'apps',
+        {'token': token, 'name': name},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
       triggerUpdate("updateApp");
     } catch (e) {
       print("Erreur de mise à jour d'une application : $e");
       rethrow;
+    }
+  }
+
+  Future<DbApp> getApp(int id) async {
+    final db = await database;
+    try {
+      final List<Map<String, dynamic>> results = await db.query(
+        'apps',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      if (results.isNotEmpty) {
+        return DbApp.fromJson(results.first);
+      } else {
+        throw Exception('Aucune application trouvée avec cet ID : $id');
+      }
+    } catch (e) {
+      throw Exception(
+        'Erreur de récupération de l\'application avec ID $id : $e',
+      );
     }
   }
 
@@ -168,16 +211,21 @@ class DatabaseProvider {
 @immutable
 class DbApp {
   final int id;
+  final String token;
   final String name;
 
-  const DbApp({required this.id, required this.name});
+  const DbApp({required this.id, required this.name, this.token = ""});
 
   factory DbApp.fromJson(Map<String, dynamic> json) {
-    if (json['id'] == null || json['name'] == null) {
+    if (json['id'] == null || json['name'] == null || json['token'] == null) {
       throw FormatException('JSON invalide pour DbApp');
     }
-    return DbApp(id: json['id'] as int, name: json['name'] as String);
+    return DbApp(
+      id: json['id'] as int,
+      token: json['token'] as String,
+      name: json['name'] as String,
+    );
   }
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name};
+  Map<String, dynamic> toJson() => {'id': id, 'token': token, 'name': name};
 }

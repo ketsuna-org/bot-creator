@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import "routes/home.dart";
 import "routes/profile.dart";
 import 'package:provider/provider.dart';
-
+import 'routes/create.dart';
 import "routes/search.dart";
 
 late DatabaseProvider db;
@@ -86,31 +86,11 @@ class _MyMainPageState extends State<MyMainPage> {
           _indexSelected == 0
               ? FloatingActionButton(
                 onPressed: () {
-                  AlertDialog dialog = AlertDialog(
-                    title: const Text("Add new item"),
-                    content: const Text("Do you want to add a new item?"),
-                    actions: [
-                      TextButton(
-                        onPressed: () async {
-                          db.deleteApp(name: "New App"); // Example action
-                          Navigator.of(context).pop(); // Close the dialog
-                        },
-                        child: const Text("Cancel"),
-                      ),
-                      TextButton(
-                        onPressed: () async {
-                          // Add your action here
-                          await db.addApp("New App");
-                          Navigator.of(context).pop(); // Close the dialog
-                        },
-                        child: const Text("Add"),
-                      ),
-                    ],
-                  );
-
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext context) => dialog,
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AppCreatePage(),
+                    ),
                   );
                 },
                 backgroundColor: const Color.fromRGBO(106, 15, 162, 1),

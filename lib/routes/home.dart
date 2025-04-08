@@ -51,6 +51,7 @@ class _HomePageState extends State<HomePage> {
                               builder:
                                   (context) => AppEditPage(
                                     appName: snapshot.data![index].name,
+                                    id: snapshot.data![index].id,
                                   ),
                             ),
                           );
