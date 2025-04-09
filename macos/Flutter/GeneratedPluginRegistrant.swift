@@ -5,8 +5,10 @@
 import FlutterMacOS
 import Foundation
 
-import sqflite_darwin
+import cbl_flutter_ce
+import path_provider_foundation
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
-  SqflitePlugin.register(with: registry.registrar(forPlugin: "SqflitePlugin"))
+  CblFlutterCe.register(with: registry.registrar(forPlugin: "CblFlutterCe"))
+  PathProviderPlugin.register(with: registry.registrar(forPlugin: "PathProviderPlugin"))
 }

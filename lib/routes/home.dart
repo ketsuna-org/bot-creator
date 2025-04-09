@@ -1,4 +1,3 @@
-import 'package:cardia_kexa/database.dart';
 import 'package:cardia_kexa/main.dart';
 import 'package:flutter/material.dart';
 import 'package:cardia_kexa/routes/app.edit.dart';
@@ -14,8 +13,8 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: StreamBuilder<List<DbApp>>(
-        stream: db.getAppsStream(),
+      child: StreamBuilder<List<Map<String, Object?>>>(
+        stream: appManager.getAppsStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -39,7 +38,7 @@ class _HomePageState extends State<HomePage> {
                       Icon(Icons.apps_rounded, color: Colors.blue, size: 64),
                       const SizedBox(height: 8),
                       Text(
-                        snapshot.data![index].name,
+                        snapshot.data![index]["name"].toString(),
                         style: const TextStyle(fontSize: 16),
                       ),
                       const SizedBox(height: 8),
@@ -50,8 +49,15 @@ class _HomePageState extends State<HomePage> {
                             MaterialPageRoute(
                               builder:
                                   (context) => AppEditPage(
-                                    appName: snapshot.data![index].name,
-                                    id: snapshot.data![index].id,
+                                    appName:
+                                        snapshot.data![index]["name"]
+                                            .toString(),
+                                    id:
+                                        int.tryParse(
+                                          snapshot.data![index]["id"]
+                                              .toString(),
+                                        ) ??
+                                        0,
                                   ),
                             ),
                           );

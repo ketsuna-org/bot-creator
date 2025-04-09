@@ -1,6 +1,8 @@
 import 'package:cardia_kexa/main.dart';
 import 'package:cardia_kexa/models/discord.dart';
+import 'package:cardia_kexa/utils/database.dart';
 import 'package:cardia_kexa/utils/global.dart';
+import 'package:cbl/cbl.dart';
 import 'package:flutter/material.dart';
 
 class AppEditPage extends StatefulWidget {
@@ -15,7 +17,7 @@ class AppEditPage extends StatefulWidget {
 class _AppEditPageState extends State<AppEditPage> {
   String _token = "";
   String _appName = "";
-
+  late Collection appCol;
   @override
   void initState() {
     super.initState();
@@ -23,10 +25,11 @@ class _AppEditPageState extends State<AppEditPage> {
   }
 
   _init() async {
+    appCol = await database.createCollection("apps");
     // Fetch the app data from the database
-    final app = await db.getApp(widget.id);
+    final app = await appCol.document(widget.id.toString());
     setState(() {
-      _appName = app.name;
+      _appName = app?.string("name") ?? widget.appName;
     });
   }
 
@@ -37,8 +40,9 @@ class _AppEditPageState extends State<AppEditPage> {
         title: Text("Edit $_appName"),
         actions: [
           IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: () {
+            icon: const Icon(Icons.delete),
+            onPressed: () async {
+              await appManager.removeApp(widget.id.toString());
               // Handle save action
               Navigator.pop(context);
             },
@@ -66,18 +70,20 @@ class _AppEditPageState extends State<AppEditPage> {
                 // Handle button press
                 try {
                   // Let's fetch the App first.
-                  final app = await db.getApp(widget.id);
+                  final app = await appManager.getApp(widget.id.toString());
+                  if (app == null) {
+                    throw Exception("App not found");
+                  }
                   // Perform any additional actions with the fetched app
-                  DiscordUser discordUser = await getDiscordUser(app.token);
-                  await db.updateApp(
-                    widget.id,
-                    name: discordUser.username ?? "Unknown Name",
-                    token: _token,
+                  DiscordUser discordUser = await getDiscordUser(
+                    app.string("token") ?? _token,
                   );
-                  setState(() {
-                    _appName = discordUser.username ?? "Unknown Name";
-                    _token = _token;
-                  });
+
+                  appManager.updateApp(
+                    discordUser.id.toString(),
+                    discordUser.username.toString(),
+                    _token,
+                  );
                 } catch (e) {
                   // Handle error
                   final errorText = e.toString();
@@ -106,15 +112,32 @@ class _AppEditPageState extends State<AppEditPage> {
                 try {
                   // Let's fetch the App first.
                   DiscordUser discordUser = await getDiscordUser(_token);
-                  await db.updateApp(
-                    widget.id,
-                    name: discordUser.username ?? "Unknown Name",
-                    token: _token,
-                  );
-                  setState(() {
-                    _appName = discordUser.username ?? "Unknown Name";
-                    _token = _token;
-                  });
+                  var app = await appManager.getApp(discordUser.id.toString());
+                  if (app != null) {
+                    // let's remove this app id from the database
+                    await appManager.removeApp(discordUser.id.toString());
+                  }
+                  // Now let's update the app in the database
+                  if (discordUser.id.toString() != widget.id.toString()) {
+                    // let's remove this app id from the database
+                    await appManager.removeApp(widget.id.toString());
+                    await appManager.addApp(
+                      discordUser.id.toString(),
+                      discordUser.username.toString(),
+                      _token,
+                    );
+                    setState(() {
+                      _appName = discordUser.username ?? "Unknown Name";
+                      _token = _token;
+                    });
+                    return;
+                  } else {
+                    appManager.updateApp(
+                      discordUser.id.toString(),
+                      discordUser.username.toString(),
+                      _token,
+                    );
+                  }
                   // Let's show the Username found
                   final dialog = AlertDialog(
                     title: const Text("Success"),

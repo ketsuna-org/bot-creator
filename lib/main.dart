@@ -1,17 +1,23 @@
-import "package:cardia_kexa/database.dart";
 import 'package:flutter/material.dart';
 import "routes/home.dart";
 import "routes/profile.dart";
 import 'package:provider/provider.dart';
 import 'routes/create.dart';
 import "routes/search.dart";
+import 'package:cbl/cbl.dart';
+import 'utils/database.dart';
+import 'package:cbl_flutter/cbl_flutter.dart';
 
-late DatabaseProvider db;
+late Database database;
+late AppManager appManager;
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  db = DatabaseProvider();
+  // Initialize the CBL database
+  await CouchbaseLiteFlutter.init();
+  database = await Database.openAsync("cardia_kexa");
 
+  appManager = AppManager();
   runApp(
     ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),
   );
@@ -28,6 +34,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
+      debugShowCheckedModeBanner: false,
       darkTheme: ThemeData.dark(useMaterial3: true),
       home: const MyMainPage(title: 'Cardia Kexa'),
     );

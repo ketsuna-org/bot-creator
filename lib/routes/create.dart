@@ -38,7 +38,12 @@ class _AppCreatePageState extends State<AppCreatePage> {
                 try {
                   // Let's fetch the App first.
                   DiscordUser discordUser = await getDiscordUser(_token);
-                  db.addApp(discordUser.username ?? "Unknown Name", _token);
+
+                  await appManager.addApp(
+                    discordUser.id.toString(),
+                    discordUser.username.toString(),
+                    _token,
+                  );
                   Navigator.pop(context);
                 } catch (e) {
                   // Handle error
@@ -63,8 +68,6 @@ class _AppCreatePageState extends State<AppCreatePage> {
                     },
                   );
                 }
-
-                // Handle button press
               },
               child: const Text("Save Changes"),
             ),
