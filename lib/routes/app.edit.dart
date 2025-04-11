@@ -18,16 +18,23 @@ class _AppEditPageState extends State<AppEditPage>
   String _token = "";
   String _appName = "";
   late Collection appCol;
-
+  NyxxRest? client; // Changez en nullable
+  bool _isLoading = true;
   @override
   void initState() {
     super.initState();
-
     _init();
   }
 
   _init() async {
     final app = await appManager.getApp(widget.id.toString());
+    final token = app?.string("token");
+    if (token != null) {
+      client = await Nyxx.connectRest(token);
+      setState(() {
+        _isLoading = false;
+      });
+    }
     setState(() {
       _appName = app?.string("name") ?? widget.appName;
     });
@@ -167,9 +174,6 @@ class _AppEditPageState extends State<AppEditPage>
                               }
                               // Perform any additional actions with the fetched app
                               User discordUser = await getDiscordUser(token);
-                              if (discordUser == null) {
-                                throw Exception("Discord user not found");
-                              }
 
                               _appName = discordUser.username;
                               appManager.updateApp(
@@ -289,9 +293,9 @@ class _AppEditPageState extends State<AppEditPage>
       ),
       body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
-            Text("Edit $_appName"),
+            Text("Update the token of ($_appName)"),
             const SizedBox(height: 20),
             TextField(
               decoration: InputDecoration(
@@ -303,6 +307,60 @@ class _AppEditPageState extends State<AppEditPage>
                     _token = value;
                   }),
             ),
+            const SizedBox(height: 20),
+            const Text(
+              "Commands",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            if (_isLoading)
+              const CircularProgressIndicator()
+            else
+              FutureBuilder(
+                future: client?.commands.list(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const CircularProgressIndicator();
+                  } else if (snapshot.hasError) {
+                    return Text("Error: ${snapshot.error}");
+                  } else {
+                    final commands = snapshot.data;
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: commands?.length ?? 0,
+                      itemBuilder: (context, index) {
+                        return ListTile(
+                          trailing: const Icon(
+                            Icons.arrow_forward_ios_outlined,
+                          ),
+                          title: Text(commands![index].name),
+                          subtitle: Text(commands[index].description),
+                          onTap: () {
+                            // Handle command tap
+                            final dialog = AlertDialog(
+                              title: const Text("Command Details"),
+                              content: Text(
+                                "Name: ${commands[index].name}\nDescription: ${commands[index].description}",
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                  child: const Text("OK"),
+                                ),
+                              ],
+                            );
+                            showDialog(
+                              context: context,
+                              builder: (context) => dialog,
+                            );
+                          },
+                        );
+                      },
+                    );
+                  }
+                },
+              ),
           ],
         ),
       ),
