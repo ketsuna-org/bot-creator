@@ -32,16 +32,15 @@ class _HomePageState extends State<HomePage> {
                 return Card(
                   clipBehavior: Clip.antiAlias,
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       const SizedBox(height: 8),
                       Icon(Icons.apps_rounded, color: Colors.blue, size: 64),
                       const SizedBox(height: 8),
-                      Text(
-                        snapshot.data![index]["name"].toString(),
-                        style: const TextStyle(fontSize: 16),
+                      Expanded(
+                        child: Text(snapshot.data![index]["name"].toString()),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       ElevatedButton(
                         onPressed: () {
                           Navigator.push(
