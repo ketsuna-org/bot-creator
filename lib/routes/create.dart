@@ -1,7 +1,7 @@
 import 'package:cardia_kexa/main.dart';
-import 'package:cardia_kexa/models/discord.dart';
 import 'package:cardia_kexa/utils/global.dart';
 import 'package:flutter/material.dart';
+import 'package:nyxx/nyxx.dart';
 
 class AppCreatePage extends StatefulWidget {
   const AppCreatePage({super.key});
@@ -37,11 +37,11 @@ class _AppCreatePageState extends State<AppCreatePage> {
               onPressed: () async {
                 try {
                   // Let's fetch the App first.
-                  DiscordUser discordUser = await getDiscordUser(_token);
+                  User discordUser = await getDiscordUser(_token);
 
                   await appManager.addApp(
                     discordUser.id.toString(),
-                    discordUser.username.toString(),
+                    discordUser.username,
                     _token,
                   );
                   Navigator.pop(context);

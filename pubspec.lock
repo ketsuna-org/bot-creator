@@ -121,6 +121,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.8"
+  eterl:
+    dependency: transitive
+    description:
+      name: eterl
+      sha256: "5c54d7c4493692b87e9af3bdafb1e4f3dd079f78e0e1fd2617d75449fcd6f1de"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
   fake_async:
     dependency: transitive
     description:
@@ -203,6 +211,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.1.1"
+  logging:
+    dependency: transitive
+    description:
+      name: logging
+      sha256: c8245ada5f1717ed44271ed1c26b8ce85ca3228fd2ffdb75468ab01979309d61
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.3.0"
   matcher:
     dependency: transitive
     description:
@@ -235,6 +251,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  nyxx:
+    dependency: "direct main"
+    description:
+      name: nyxx
+      sha256: a5d1fe79718c3021faddcbca83ca1b10b206a32e7966e39dee526a1c98069d3e
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.6.1"
+  oauth2:
+    dependency: transitive
+    description:
+      name: oauth2
+      sha256: c84470642cbb2bec450ccab2f8520c079cd1ca546a76ffd5c40589e07f4e8bf4
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.3"
   path:
     dependency: transitive
     description:
@@ -323,6 +355,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.4"
+  retry:
+    dependency: transitive
+    description:
+      name: retry
+      sha256: "822e118d5b3aafed083109c72d5f484c6dc66707885e07c0fbcb8b986bba7efc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.2"
+  runtime_type:
+    dependency: transitive
+    description:
+      name: runtime_type
+      sha256: "00e431718064e4512012a46e74ed94977ea4d86d83ae416e635092c50ad1397e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
   sky_engine:
     dependency: transitive
     description: flutter

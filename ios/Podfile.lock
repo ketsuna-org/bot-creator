@@ -1,22 +1,28 @@
 PODS:
+  - cbl_flutter_ce (0.0.1):
+    - Flutter
   - Flutter (1.0.0)
-  - sqflite_darwin (0.0.4):
+  - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
 
 DEPENDENCIES:
+  - cbl_flutter_ce (from `.symlinks/plugins/cbl_flutter_ce/ios`)
   - Flutter (from `Flutter`)
-  - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
+  - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
 
 EXTERNAL SOURCES:
+  cbl_flutter_ce:
+    :path: ".symlinks/plugins/cbl_flutter_ce/ios"
   Flutter:
     :path: Flutter
-  sqflite_darwin:
-    :path: ".symlinks/plugins/sqflite_darwin/darwin"
+  path_provider_foundation:
+    :path: ".symlinks/plugins/path_provider_foundation/darwin"
 
 SPEC CHECKSUMS:
+  cbl_flutter_ce: b5cea5b595e5673db642f46284530594b910cce0
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
-  sqflite_darwin: 5a7236e3b501866c1c9befc6771dfd73ffb8702d
+  path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
 
 PODFILE CHECKSUM: 4305caec6b40dde0ae97be1573c53de1882a07e5
 

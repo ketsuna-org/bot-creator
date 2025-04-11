@@ -1,9 +1,8 @@
 import 'package:cardia_kexa/main.dart';
-import 'package:cardia_kexa/models/discord.dart';
-import 'package:cardia_kexa/utils/database.dart';
 import 'package:cardia_kexa/utils/global.dart';
 import 'package:cbl/cbl.dart';
 import 'package:flutter/material.dart';
+import 'package:nyxx/nyxx.dart';
 
 class AppEditPage extends StatefulWidget {
   final String appName;
@@ -25,9 +24,7 @@ class _AppEditPageState extends State<AppEditPage> {
   }
 
   _init() async {
-    appCol = await database.createCollection("apps");
-    // Fetch the app data from the database
-    final app = await appCol.document(widget.id.toString());
+    final app = await appManager.getApp(widget.id.toString());
     setState(() {
       _appName = app?.string("name") ?? widget.appName;
     });
@@ -75,13 +72,13 @@ class _AppEditPageState extends State<AppEditPage> {
                     throw Exception("App not found");
                   }
                   // Perform any additional actions with the fetched app
-                  DiscordUser discordUser = await getDiscordUser(
+                  User discordUser = await getDiscordUser(
                     app.string("token") ?? _token,
                   );
 
                   appManager.updateApp(
                     discordUser.id.toString(),
-                    discordUser.username.toString(),
+                    discordUser.username,
                     _token,
                   );
                 } catch (e) {
@@ -111,7 +108,7 @@ class _AppEditPageState extends State<AppEditPage> {
                 // Handle button press
                 try {
                   // Let's fetch the App first.
-                  DiscordUser discordUser = await getDiscordUser(_token);
+                  User discordUser = await getDiscordUser(_token);
                   var app = await appManager.getApp(discordUser.id.toString());
                   if (app != null) {
                     // let's remove this app id from the database
@@ -123,7 +120,7 @@ class _AppEditPageState extends State<AppEditPage> {
                     await appManager.removeApp(widget.id.toString());
                     await appManager.addApp(
                       discordUser.id.toString(),
-                      discordUser.username.toString(),
+                      discordUser.username,
                       _token,
                     );
                     setState(() {
