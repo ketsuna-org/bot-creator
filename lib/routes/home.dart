@@ -33,6 +33,7 @@ class _HomePageState extends State<HomePage> {
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       const SizedBox(height: 8),
                       Icon(Icons.apps_rounded, color: Colors.blue, size: 64),
@@ -42,6 +43,10 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 10),
                       ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
                         onPressed: () {
                           Navigator.push(
                             context,
