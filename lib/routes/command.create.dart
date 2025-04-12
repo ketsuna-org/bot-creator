@@ -171,6 +171,17 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               // You can implement the logic to save the command here
             },
           ),
+          if (!widget.id.isZero)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: () async {
+                await widget.client?.commands.delete(widget.id);
+                await appManager.removeCommand(widget.id.toString());
+                Navigator.pop(context);
+                // Handle delete action
+                // You can implement the logic to delete the command here
+              },
+            ),
         ],
       ),
       body: Center(
