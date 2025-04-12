@@ -317,24 +317,25 @@ class _AppEditPageState extends State<AppEditPage>
               "Edit $_appName",
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            _editMode
-                ? Column(
-                  children: [
-                    Text("Edit the token of ($_appName)"),
-                    const SizedBox(height: 20),
-                    TextField(
-                      decoration: InputDecoration(
-                        labelText: "Token App Name",
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged:
-                          (value) => setState(() {
-                            _token = value;
-                          }),
+            if (_editMode)
+              Column(
+                children: [
+                  Text("Edit the token of ($_appName)"),
+                  const SizedBox(height: 20),
+                  TextField(
+                    decoration: InputDecoration(
+                      labelText: "Token App Name",
+                      border: OutlineInputBorder(),
                     ),
-                  ],
-                )
-                : const SizedBox(),
+                    onChanged:
+                        (value) => setState(() {
+                          _token = value;
+                        }),
+                  ),
+                ],
+              )
+            else
+              const SizedBox(),
             const SizedBox(height: 20),
             TextButton(
               onPressed: () async {
@@ -403,6 +404,10 @@ class _AppEditPageState extends State<AppEditPage>
                     return Text("Error: ${snapshot.error}");
                   } else {
                     final commands = snapshot.data;
+
+                    if (commands!.isEmpty) {
+                      return const Text("No commands found");
+                    }
                     return ListView.builder(
                       shrinkWrap: true,
                       itemCount: commands?.length ?? 0,

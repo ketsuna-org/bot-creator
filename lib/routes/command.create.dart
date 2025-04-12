@@ -112,9 +112,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     if (value!.isEmpty) {
       return "Please enter a command name";
     }
-    if (value.length < 3) {
-      return "Command name must be at least 3 characters long";
-    }
     if (value.length > 32) {
       return "Command name must be at most 32 characters long";
     }
@@ -204,6 +201,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                       autocorrect: false,
                       validator: _validateName,
                       initialValue: _commandName,
+                      maxLength: 32,
                       decoration: InputDecoration(
                         labelText: "Command Name",
                         border: OutlineInputBorder(),
@@ -218,6 +216,19 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                     const SizedBox(height: 20),
                     TextFormField(
                       autocorrect: false,
+                      maxLength: 100,
+                      maxLines: 3,
+                      minLines: 1,
+                      keyboardType: TextInputType.multiline,
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return "Please enter a command description";
+                        }
+                        if (value.length > 100) {
+                          return "Command description must be at most 100 characters long";
+                        }
+                        return null; // No error
+                      },
                       initialValue: _commandDescription,
                       decoration: InputDecoration(
                         labelText: "Command Description",
