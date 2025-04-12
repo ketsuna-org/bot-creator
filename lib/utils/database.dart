@@ -6,7 +6,8 @@ import 'package:cbl/cbl.dart';
 class AppManager {
   static final AppManager _instance = AppManager._internal();
   factory AppManager() => _instance;
-  Collection? _col;
+  Collection? _colApps;
+  Collection? _colCommands;
   final StreamController<String> controller =
       StreamController<String>.broadcast();
 
@@ -15,16 +16,62 @@ class AppManager {
   }
 
   Future<void> _init() async {
-    _col = await database.createCollection("apps");
+    _colApps = await database.createCollection("apps");
+    _colCommands = await database.createCollection("commands");
   }
 
-  Future<Collection> getCol() async {
-    _col ??= await database.createCollection("apps");
-    return _col!;
+  Future<Collection> getColApps() async {
+    _colApps ??= await database.createCollection("apps");
+    return _colApps!;
+  }
+
+  Future<Collection> getColCommands() async {
+    _colCommands ??= await database.createCollection("commands");
+    return _colCommands!;
+  }
+
+  Future<void> addCommand(String id, Map<String, dynamic> data) async {
+    final col = await getColCommands();
+    final doc = MutableDocument.withId(id, {
+      "id": id,
+      "data": data,
+      "createdAt": DateTime.now().toIso8601String(),
+    });
+    await col.saveDocument(doc);
+    controller.sink.add("command");
+  }
+
+  Future<void> removeCommand(String id) async {
+    final col = await getColCommands();
+    final doc = await col.document(id);
+    if (doc == null) {
+      throw Exception("Document not found");
+    }
+    await col.deleteDocument(doc);
+    controller.sink.add("command");
+  }
+
+  Future<void> updateCommand(String id, Map<String, dynamic> data) async {
+    final col = await getColCommands();
+    final doc = await col.document(id);
+    if (doc == null) {
+      throw Exception("Document not found");
+    }
+    MutableDocument mutableDoc = doc.toMutable();
+    mutableDoc.setString(id, key: "id");
+    mutableDoc.setValue(data, key: "data");
+    await col.saveDocument(mutableDoc);
+    controller.sink.add("command");
+  }
+
+  Future<Document?> getCommand(String id) async {
+    final col = await getColCommands();
+    final doc = await col.document(id);
+    return doc;
   }
 
   Future<void> addApp(String id, String name, String token) async {
-    final col = await getCol();
+    final col = await getColApps();
     final doc = MutableDocument.withId(id, {
       "name": name,
       "id": id,
@@ -32,21 +79,21 @@ class AppManager {
       "createdAt": DateTime.now().toIso8601String(),
     });
     await col.saveDocument(doc);
-    controller.sink.add("add");
+    controller.sink.add("app");
   }
 
   Future<void> removeApp(String id) async {
-    final col = await getCol();
+    final col = await getColApps();
     final doc = await col.document(id);
     if (doc == null) {
       throw Exception("Document not found");
     }
     await col.deleteDocument(doc);
-    controller.sink.add("remove");
+    controller.sink.add("app");
   }
 
   Future<void> updateApp(String id, String name, String token) async {
-    final col = await getCol();
+    final col = await getColApps();
     final doc = await col.document(id);
     if (doc == null) {
       throw Exception("Document not found");
@@ -56,17 +103,17 @@ class AppManager {
     mutableDoc.setString(id, key: "id");
     mutableDoc.setString(token, key: "token");
     await col.saveDocument(mutableDoc);
-    controller.sink.add("update");
+    controller.sink.add("app");
   }
 
   Future<Document?> getApp(String id) async {
-    final col = await getCol();
+    final col = await getColApps();
     final doc = await col.document(id);
     return doc;
   }
 
   Future<List<Map<String, Object?>>> getApps() async {
-    final col = await getCol();
+    final col = await getColApps();
     final query = const QueryBuilder()
         .select(SelectResult.property("id"), SelectResult.property("name"))
         .from(DataSource.collection(col));
@@ -94,8 +141,10 @@ class AppManager {
         sendUpdate();
 
         /// Listen for trigger
-        triggerSubscription = controller.stream.listen((_) {
-          sendUpdate();
+        triggerSubscription = controller.stream.listen((event) async {
+          if (event == "app") {
+            sendUpdate();
+          }
         });
       },
       onCancel: () {

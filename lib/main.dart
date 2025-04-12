@@ -1,4 +1,6 @@
+import 'package:cardia_kexa/utils/notif.dart';
 import 'package:flutter/material.dart';
+import 'package:nyxx/nyxx.dart';
 import "routes/home.dart";
 import "routes/profile.dart";
 import 'package:provider/provider.dart';
@@ -10,12 +12,15 @@ import 'package:cbl_flutter/cbl_flutter.dart';
 
 late Database database;
 late AppManager appManager;
+List<NyxxGateway> gateways = [];
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize the CBL database
   await CouchbaseLiteFlutter.init();
   database = await Database.openAsync("cardia_kexa");
+  await NotificationController.initializeLocalNotifications();
+  await NotificationController.startListeningNotificationEvents();
 
   appManager = AppManager();
   runApp(
@@ -25,6 +30,8 @@ Future main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
   // This widget is the root of your application.
   @override

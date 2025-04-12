@@ -1,5 +1,8 @@
 import 'package:cardia_kexa/main.dart';
+import 'package:cardia_kexa/routes/command.create.dart';
+import 'package:cardia_kexa/utils/bot.dart';
 import 'package:cardia_kexa/utils/global.dart';
+import 'package:cardia_kexa/utils/notif.dart';
 import 'package:cbl/cbl.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
@@ -20,10 +23,21 @@ class _AppEditPageState extends State<AppEditPage>
   late Collection appCol;
   NyxxRest? client; // Changez en nullable
   bool _isLoading = true;
+  bool _editMode = false;
+  bool _botLaunched = false;
+  NyxxGateway? _gatewayClient;
   @override
   void initState() {
     super.initState();
     _init();
+  }
+
+  Future<List<ApplicationCommand>> getCommands() async {
+    if (client == null) {
+      throw Exception("Client is not initialized");
+    }
+    final commands = await client!.commands.list();
+    return commands;
   }
 
   _init() async {
@@ -35,6 +49,15 @@ class _AppEditPageState extends State<AppEditPage>
         _isLoading = false;
       });
     }
+    for (var bot in gateways) {
+      if (bot.user.id.toString() == widget.id.toString()) {
+        setState(() {
+          _botLaunched = true;
+          _gatewayClient = bot;
+        });
+      }
+    }
+
     setState(() {
       _appName = app?.string("name") ?? widget.appName;
     });
@@ -44,28 +67,23 @@ class _AppEditPageState extends State<AppEditPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Edit $_appName"),
         actions: [
           IconButton(
-            icon: const Icon(Icons.save),
+            icon: _editMode ? const Icon(Icons.check) : const Icon(Icons.edit),
             onPressed: () async {
+              if (_editMode == false) {
+                setState(() {
+                  _editMode = true;
+                });
+                return;
+              }
               // Handle button press
 
               // First we need to check if a Token is provided
               if (_token.isEmpty) {
-                final dialog = AlertDialog(
-                  title: const Text("Error"),
-                  content: const Text("Please provide a token"),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      child: const Text("OK"),
-                    ),
-                  ],
-                );
-                showDialog(context: context, builder: (context) => dialog);
+                setState(() {
+                  _editMode = false;
+                });
                 return;
               }
               try {
@@ -295,19 +313,80 @@ class _AppEditPageState extends State<AppEditPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
-            Text("Update the token of ($_appName)"),
-            const SizedBox(height: 20),
-            TextField(
-              decoration: InputDecoration(
-                labelText: "Token App Name",
-                border: OutlineInputBorder(),
-              ),
-              onChanged:
-                  (value) => setState(() {
-                    _token = value;
-                  }),
+            Text(
+              "Edit $_appName",
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
+            _editMode
+                ? Column(
+                  children: [
+                    Text("Edit the token of ($_appName)"),
+                    const SizedBox(height: 20),
+                    TextField(
+                      decoration: InputDecoration(
+                        labelText: "Token App Name",
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged:
+                          (value) => setState(() {
+                            _token = value;
+                          }),
+                    ),
+                  ],
+                )
+                : const SizedBox(),
             const SizedBox(height: 20),
+            TextButton(
+              onPressed: () async {
+                if (_botLaunched) {
+                  _gatewayClient?.gateway.close();
+                  setState(() {
+                    _botLaunched = false;
+                    _gatewayClient = null;
+                  });
+                  gateways.removeWhere(
+                    (bot) => bot.user.id.toString() == widget.id.toString(),
+                  );
+                  await NotificationController.cancelNotifications();
+                  return;
+                }
+                final app = await appManager.getApp(widget.id.toString());
+                if (app == null) {
+                  throw Exception("App not found");
+                }
+                final token = app.string("token");
+                if (token == null) {
+                  throw Exception("Token not found");
+                }
+                // Perform any additional actions with the fetched app
+                NyxxGateway client = await Nyxx.connectGateway(
+                  token,
+                  GatewayIntents.allUnprivileged,
+                );
+
+                client.onInteractionCreate.listen((event) async {
+                  handleLocalCommands(event);
+                });
+                client.onReady.listen((event) {
+                  setState(() {
+                    _botLaunched = true;
+                    _gatewayClient = client;
+                  });
+                });
+                await NotificationController.createWebSocketNotification(
+                  title: "Bot démarré",
+                  body: "Le bot a été démarré avec succès",
+                  client: client,
+                );
+              },
+              child: Text(
+                _botLaunched ? "Stop Bot" : "Start Bot",
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
             const Text(
               "Commands",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -316,7 +395,7 @@ class _AppEditPageState extends State<AppEditPage>
               const CircularProgressIndicator()
             else
               FutureBuilder(
-                future: client?.commands.list(),
+                future: getCommands(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const CircularProgressIndicator();
@@ -336,23 +415,16 @@ class _AppEditPageState extends State<AppEditPage>
                           subtitle: Text(commands[index].description),
                           onTap: () {
                             // Handle command tap
-                            final dialog = AlertDialog(
-                              title: const Text("Command Details"),
-                              content: Text(
-                                "Name: ${commands[index].name}\nDescription: ${commands[index].description}",
+                            final command = commands[index];
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => CommandCreatePage(
+                                      client: client!,
+                                      id: command.id,
+                                    ),
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                  },
-                                  child: const Text("OK"),
-                                ),
-                              ],
-                            );
-                            showDialog(
-                              context: context,
-                              builder: (context) => dialog,
                             );
                           },
                         );
@@ -364,6 +436,23 @@ class _AppEditPageState extends State<AppEditPage>
           ],
         ),
       ),
+      floatingActionButton:
+          !_isLoading
+              ? FloatingActionButton.extended(
+                onPressed:
+                    () => {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => CommandCreatePage(client: client!),
+                        ),
+                      ),
+                    },
+                label: Text("Create Command"),
+                icon: const Icon(Icons.add),
+              )
+              : null,
     );
   }
 }
