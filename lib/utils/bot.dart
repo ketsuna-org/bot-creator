@@ -1,4 +1,5 @@
 import 'package:cardia_kexa/main.dart';
+import 'package:cbl/cbl.dart';
 import 'package:nyxx/nyxx.dart';
 
 Future<void> handleLocalCommands(InteractionCreateEvent event) async {
@@ -11,19 +12,31 @@ Future<void> handleLocalCommands(InteractionCreateEvent event) async {
       await interaction.respond(MessageBuilder(content: "Command not found"));
       return;
     } else if (action.string("id") == command.id.toString()) {
-      await interaction.respond(MessageBuilder(content: "Command found"));
+      // extract the "reply" from the "data" field
+      final value = action.value<Dictionary>("data")?.value<Dictionary>("data");
+      if (value != null) {
+        await interaction.respond(
+          MessageBuilder(
+            content: value.string("response") ?? "No response found",
+          ),
+        );
+      } else {
+        await interaction.respond(MessageBuilder(content: "No data found"));
+      }
+      return;
     } else {
       await interaction.respond(MessageBuilder(content: "Command not found"));
+      return;
     }
-    return;
   }
 }
 
 Future<void> createCommand(
   NyxxRest client,
   String name,
-  String description,
-) async {
+  String description, {
+  Map<String, dynamic> data = const {},
+}) async {
   final commandBuilder = ApplicationCommandBuilder(
     name: name,
     description: description,
@@ -31,13 +44,17 @@ Future<void> createCommand(
   );
   try {
     final command = await client.commands.create(commandBuilder);
-    appManager.addCommand(command.id.toString(), {
+    Map<String, dynamic> commandData = {
       "name": command.name,
       "description": command.description,
       "id": command.id.toString(),
       "applicationId": command.applicationId.toString(),
       "createdAt": DateTime.now().toIso8601String(),
-    });
+    };
+    if (data.isNotEmpty) {
+      commandData["data"] = data;
+    }
+    appManager.addCommand(command.id.toString(), commandData);
   } catch (e) {
     throw Exception("Failed to create command: $e");
   }
@@ -48,6 +65,7 @@ Future<void> updateCommand(
   Snowflake commandId, {
   String name = "",
   String description = "",
+  Map<String, dynamic> data = const {},
 }) async {
   // let's check what we are gonna update
   if (name.isEmpty && description.isEmpty) {
@@ -62,13 +80,18 @@ Future<void> updateCommand(
   }
   try {
     final command = await client.commands.update(commandId, commandBuilder);
-    appManager.updateCommand(commandId.toString(), {
-      "name": name,
-      "description": description,
-      "id": commandId.toString(),
+    Map<String, dynamic> commandData = {
+      "name": command.name,
+      "description": command.description,
+      "id": command.id.toString(),
       "applicationId": command.applicationId.toString(),
       "updatedAt": DateTime.now().toIso8601String(),
-    });
+    };
+
+    if (data.isNotEmpty) {
+      commandData["data"] = data;
+    }
+    appManager.updateCommand(commandId.toString(), commandData);
   } catch (e) {
     throw Exception("Failed to update command: $e");
   }

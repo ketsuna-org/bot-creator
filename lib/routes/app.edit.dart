@@ -168,124 +168,147 @@ class _AppEditPageState extends State<AppEditPage>
                 enableDrag: true,
                 builder: (context) {
                   return SizedBox(
-                    height: 180,
-                    child: Column(
+                    height: 120,
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.max,
                       children: [
-                        const Text("Settings"),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: () async {
-                            // Handle button press
-                            try {
-                              // Let's fetch the App first.
-                              final app = await appManager.getApp(
-                                widget.id.toString(),
-                              );
-                              if (app == null) {
-                                throw Exception("App not found");
-                              }
+                        Column(
+                          children: [
+                            IconButton(
+                              onPressed: () async {
+                                // Handle button press
+                                try {
+                                  // Let's fetch the App first.
+                                  final app = await appManager.getApp(
+                                    widget.id.toString(),
+                                  );
+                                  if (app == null) {
+                                    throw Exception("App not found");
+                                  }
 
-                              final token = app.string("token");
-                              if (token == null) {
-                                throw Exception("Token not found");
-                              }
-                              // Perform any additional actions with the fetched app
-                              User discordUser = await getDiscordUser(token);
+                                  final token = app.string("token");
+                                  if (token == null) {
+                                    throw Exception("Token not found");
+                                  }
+                                  // Perform any additional actions with the fetched app
+                                  User discordUser = await getDiscordUser(
+                                    token,
+                                  );
 
-                              _appName = discordUser.username;
-                              appManager.updateApp(
-                                discordUser.id.toString(),
-                                discordUser.username,
-                                token,
-                              );
+                                  _appName = discordUser.username;
+                                  appManager.updateApp(
+                                    discordUser.id.toString(),
+                                    discordUser.username,
+                                    token,
+                                  );
 
-                              // let's show that the Sync was successful
-                              final dialog = AlertDialog(
-                                title: const Text("Success"),
-                                content: Text(
-                                  "Sync successful: ${discordUser.username}",
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.of(context).pop();
-                                    },
-                                    child: const Text("OK"),
-                                  ),
-                                ],
-                              );
-                              showDialog(
-                                context: context,
-                                builder: (context) => dialog,
-                              );
-                            } catch (e) {
-                              // Handle error
-                              final errorText = e.toString();
-                              final dialog = AlertDialog(
-                                title: const Text("Error"),
-                                content: Text(errorText),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.of(context).pop();
-                                    },
-                                    child: const Text("OK"),
-                                  ),
-                                ],
-                              );
+                                  // let's show that the Sync was successful
+                                  final dialog = AlertDialog(
+                                    title: const Text("Success"),
+                                    content: Text(
+                                      "Sync successful: ${discordUser.username}",
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                        child: const Text("OK"),
+                                      ),
+                                    ],
+                                  );
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => dialog,
+                                  );
+                                } catch (e) {
+                                  // Handle error
+                                  final errorText = e.toString();
+                                  final dialog = AlertDialog(
+                                    title: const Text("Error"),
+                                    content: Text(errorText),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                        child: const Text("OK"),
+                                      ),
+                                    ],
+                                  );
 
-                              showDialog(
-                                context: context,
-                                builder: (context) => dialog,
-                              );
-                            }
-                          },
-                          child: const Text("Sync App"),
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color.fromARGB(
-                              255,
-                              178,
-                              45,
-                              35,
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => dialog,
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.sync),
+                              style: IconButton.styleFrom(iconSize: 40),
                             ),
-                          ),
-                          onPressed: () {
-                            final finalDialog = AlertDialog(
-                              title: const Text("Delete App"),
-                              content: const Text(
-                                "Are you sure you want to delete this app?",
+                            const SizedBox(height: 10),
+                            const Text(
+                              "Sync",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                  },
-                                  child: const Text("Cancel"),
-                                ),
-                                TextButton(
-                                  onPressed: () async {
-                                    // Handle delete action
-                                    await appManager.removeApp(
-                                      widget.id.toString(),
-                                    );
-                                    Navigator.of(context).pop();
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text("Delete"),
-                                ),
-                              ],
-                            );
-                            Navigator.of(context).pop();
-                            showDialog(
-                              context: context,
-                              builder: (context) => finalDialog,
-                            );
-                          },
-                          child: const Text("Delete"),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 40),
+                        Column(
+                          children: [
+                            IconButton(
+                              onPressed: () {
+                                final finalDialog = AlertDialog(
+                                  title: const Text("Delete App"),
+                                  content: const Text(
+                                    "Are you sure you want to delete this app?",
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                      },
+                                      child: const Text("Cancel"),
+                                    ),
+                                    TextButton(
+                                      onPressed: () async {
+                                        // Handle delete action
+                                        await appManager.removeApp(
+                                          widget.id.toString(),
+                                        );
+                                        Navigator.of(context).pop();
+                                        Navigator.pop(context);
+                                      },
+                                      child: const Text("Delete"),
+                                    ),
+                                  ],
+                                );
+                                Navigator.of(context).pop();
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => finalDialog,
+                                );
+                              },
+                              icon: const Icon(Icons.delete),
+                              style: IconButton.styleFrom(
+                                iconSize: 40,
+                                backgroundColor: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "Delete",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -338,6 +361,10 @@ class _AppEditPageState extends State<AppEditPage>
               const SizedBox(),
             const SizedBox(height: 20),
             TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: _botLaunched ? Colors.red : Colors.green,
+                padding: const EdgeInsets.all(16),
+              ),
               onPressed: () async {
                 if (_botLaunched) {
                   _gatewayClient?.gateway.close();
@@ -383,14 +410,15 @@ class _AppEditPageState extends State<AppEditPage>
               child: Text(
                 _botLaunched ? "Stop Bot" : "Start Bot",
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
+            const Divider(height: 40, thickness: 2, indent: 20, endIndent: 20),
             const Text(
               "Commands",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             if (_isLoading)
               const CircularProgressIndicator()
@@ -416,8 +444,20 @@ class _AppEditPageState extends State<AppEditPage>
                           trailing: const Icon(
                             Icons.arrow_forward_ios_outlined,
                           ),
-                          title: Text(commands![index].name),
-                          subtitle: Text(commands[index].description),
+                          title: Text(
+                            commands![index].name,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Text(
+                            commands[index].description,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
                           onTap: () {
                             // Handle command tap
                             final command = commands[index];

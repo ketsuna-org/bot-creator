@@ -30,45 +30,71 @@ class _HomePageState extends State<HomePage> {
               itemCount: snapshot.data!.length,
               itemBuilder: (context, index) {
                 return Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(height: 8),
-                      Icon(Icons.apps_rounded, color: Colors.blue, size: 64),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: Text(snapshot.data![index]["name"].toString()),
-                      ),
-                      const SizedBox(height: 10),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  margin: const EdgeInsets.all(8),
+                  child: SizedBox(
+                    width: 140,
+                    height: 150,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(height: 8),
+                        Icon(Icons.apps_rounded, color: Colors.blue, size: 64),
+                        const SizedBox(height: 8),
+                        Text(
+                          snapshot.data![index]["name"].toString(),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          softWrap: true,
                         ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => AppEditPage(
-                                    appName:
-                                        snapshot.data![index]["name"]
-                                            .toString(),
-                                    id:
-                                        int.tryParse(
-                                          snapshot.data![index]["id"]
-                                              .toString(),
-                                        ) ??
-                                        0,
-                                  ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            shape: const StadiumBorder(),
+                            fixedSize: const Size(100, 30),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 10,
                             ),
-                          );
-                        },
-                        child: const Text("Open"),
-                      ),
-                    ],
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => AppEditPage(
+                                      appName:
+                                          snapshot.data![index]["name"]
+                                              .toString(),
+                                      id:
+                                          int.tryParse(
+                                            snapshot.data![index]["id"]
+                                                .toString(),
+                                          ) ??
+                                          0,
+                                    ),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            "Edit",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
                   ),
                 );
               },

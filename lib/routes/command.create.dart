@@ -1,5 +1,7 @@
 import 'package:cardia_kexa/main.dart';
 import 'package:cardia_kexa/utils/bot.dart';
+import 'package:cbl/cbl.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -15,6 +17,7 @@ class CommandCreatePage extends StatefulWidget {
 class _CommandCreatePageState extends State<CommandCreatePage> {
   String _commandName = "";
   String _commandDescription = "";
+  String _response = "";
   bool _isLoading = true;
   final _formKey = GlobalKey<FormState>();
 
@@ -29,15 +32,31 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     // first let's check if the command is already created or not
     if (!widget.id.isZero) {
       final command = await widget.client?.commands.fetch(widget.id);
+      // check if we also have the command in the database
+      final commandData = await appManager.getCommand(widget.id.toString());
+      if (commandData != null) {
+        // let's set the command data to the fields
+        final data = commandData
+            .value<Dictionary>("data")
+            ?.value<Dictionary>("data");
+        if (data != null) {
+          setState(() {
+            _response = data.string("response") ?? "";
+          });
+        }
+      }
       if (command != null) {
-        // let's add the command to the database
-        await appManager.addCommand(command.id.toString(), {
-          "name": command.name,
-          "description": command.description,
-          "id": command.id.toString(),
-          "applicationId": command.applicationId.toString(),
-          "createdAt": DateTime.now().toIso8601String(),
-        });
+        if (commandData == null) {
+          // command does not exist in the database so let's add it
+          await appManager.addCommand(command.id.toString(), {
+            "name": command.name,
+            "description": command.description,
+            "id": command.id.toString(),
+            "applicationId": command.applicationId.toString(),
+            "createdAt": DateTime.now().toIso8601String(),
+          });
+        }
+
         setState(() {
           _commandName = command.name;
           _commandDescription = command.description;
@@ -78,7 +97,12 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     try {
       if (widget.id.isZero) {
         // Create a new command
-        await createCommand(client, _commandName, _commandDescription);
+        await createCommand(
+          client,
+          _commandName,
+          _commandDescription,
+          data: {"response": _response},
+        );
       } else {
         // Update the existing command
         await updateCommand(
@@ -86,6 +110,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           widget.id,
           name: _commandName,
           description: _commandDescription,
+          data: {"response": _response},
         );
       }
       Navigator.pop(context);
@@ -182,100 +207,130 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         ],
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              widget.id.isZero ? "Create a new Command" : "Update Command",
-              style: const TextStyle(fontSize: 24),
-            ),
-            const SizedBox(height: 20),
-            if (_isLoading)
-              const CircularProgressIndicator()
-            else
-              Form(
-                key: _formKey,
+        child: Scrollable(
+          physics: const BouncingScrollPhysics(),
+          scrollBehavior: const ScrollBehavior(),
+          viewportBuilder:
+              (context, position) => SingleChildScrollView(
                 child: Column(
-                  children: [
-                    TextFormField(
-                      autocorrect: false,
-                      validator: _validateName,
-                      initialValue: _commandName,
-                      maxLength: 32,
-                      decoration: InputDecoration(
-                        labelText: "Command Name",
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          _commandName = value;
-                        });
-                        // Handle command name input
-                      },
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Text(
+                      widget.id.isZero
+                          ? "Create a new Command"
+                          : "Update Command",
+                      style: const TextStyle(fontSize: 24),
                     ),
                     const SizedBox(height: 20),
-                    TextFormField(
-                      autocorrect: false,
-                      maxLength: 100,
-                      maxLines: 3,
-                      minLines: 1,
-                      keyboardType: TextInputType.multiline,
-                      validator: (value) {
-                        if (value!.isEmpty) {
-                          return "Please enter a command description";
-                        }
-                        if (value.length > 100) {
-                          return "Command description must be at most 100 characters long";
-                        }
-                        return null; // No error
-                      },
-                      initialValue: _commandDescription,
-                      decoration: InputDecoration(
-                        labelText: "Command Description",
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          _commandDescription = value;
-                        });
-                        // Handle command description input
-                      },
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (_formKey.currentState!.validate()) {
-                          _updateOrCreate();
-                          // Form is valid, proceed with command creation
-                        } else {
-                          // Form is invalid, show error message
-                          final dialog = AlertDialog(
-                            title: const Text("Error"),
-                            content: const Text("Please fill all fields"),
-                            actions: [
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                },
-                                child: const Text("OK"),
+                    if (_isLoading)
+                      const CircularProgressIndicator()
+                    else
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              autocorrect: false,
+                              validator: _validateName,
+                              initialValue: _commandName,
+                              maxLength: 32,
+                              decoration: InputDecoration(
+                                labelText: "Command Name",
+                                border: OutlineInputBorder(),
                               ),
-                            ],
-                          );
-                          showDialog(
-                            context: context,
-                            builder: (context) => dialog,
-                          );
-                        }
-                        // Handle command creation logic
-                      },
-                      child:
-                          widget.id.isZero
-                              ? const Text("Create Command")
-                              : const Text("Update Command"),
-                    ),
+                              onChanged: (value) {
+                                setState(() {
+                                  _commandName = value;
+                                });
+                                // Handle command name input
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            TextFormField(
+                              autocorrect: false,
+                              maxLength: 100,
+                              maxLines: 3,
+                              minLines: 1,
+                              keyboardType: TextInputType.multiline,
+                              validator: (value) {
+                                if (value!.isEmpty) {
+                                  return "Please enter a command description";
+                                }
+                                if (value.length > 100) {
+                                  return "Command description must be at most 100 characters long";
+                                }
+                                return null; // No error
+                              },
+                              initialValue: _commandDescription,
+                              decoration: InputDecoration(
+                                labelText: "Command Description",
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (value) {
+                                setState(() {
+                                  _commandDescription = value;
+                                });
+                                // Handle command description input
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            TextFormField(
+                              autocorrect: false,
+                              maxLength: 1000,
+                              maxLines: 5,
+                              minLines: 1,
+                              keyboardType: TextInputType.multiline,
+                              initialValue: _response,
+                              decoration: InputDecoration(
+                                labelText: "Command Response",
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (value) {
+                                setState(() {
+                                  _response = value;
+                                });
+                                // Handle command response input
+                              },
+                            ),
+                            ElevatedButton(
+                              onPressed: () async {
+                                if (_formKey.currentState!.validate()) {
+                                  _updateOrCreate();
+                                  // Form is valid, proceed with command creation
+                                } else {
+                                  // Form is invalid, show error message
+                                  final dialog = AlertDialog(
+                                    title: const Text("Error"),
+                                    content: const Text(
+                                      "Please fill all fields",
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                        child: const Text("OK"),
+                                      ),
+                                    ],
+                                  );
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => dialog,
+                                  );
+                                }
+                                // Handle command creation logic
+                              },
+                              child:
+                                  widget.id.isZero
+                                      ? const Text("Create Command")
+                                      : const Text("Update Command"),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
-          ],
         ),
       ),
     );
