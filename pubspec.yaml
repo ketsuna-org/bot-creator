@@ -41,6 +41,8 @@ dependencies:
   cbl_flutter_ce: ^3.3.2
   nyxx: ^6.6.1
   flutter_foreground_task: ^8.17.0
+  rename_app: ^1.6.2
+  flutter_launcher_icons: ^0.14.3
 
 
 

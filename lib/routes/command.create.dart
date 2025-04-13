@@ -20,6 +20,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   List<CommandOptionBuilder> _options = [];
   String _response = "";
   bool _isLoading = true;
+  List<ApplicationIntegrationType> _integrationTypes = [
+    ApplicationIntegrationType.guildInstall,
+  ];
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -57,7 +60,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             "createdAt": DateTime.now().toIso8601String(),
           });
         }
-
         setState(() {
           _commandName = command.name;
           _commandDescription = command.description;
@@ -84,6 +86,16 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           } else {
             _options = [];
           }
+          _integrationTypes =
+              command.integrationTypes.map((e) {
+                if (e == ApplicationIntegrationType.guildInstall) {
+                  return ApplicationIntegrationType.guildInstall;
+                } else if (e == ApplicationIntegrationType.userInstall) {
+                  return ApplicationIntegrationType.userInstall;
+                } else {
+                  return ApplicationIntegrationType.guildInstall;
+                }
+              }).toList();
           _isLoading = false;
         });
       }
@@ -126,6 +138,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           description: _commandDescription,
           type: ApplicationCommandType.chatInput,
         );
+
+        commandBuilder.integrationTypes = _integrationTypes;
         if (_options.isNotEmpty) {
           commandBuilder.options = _options;
         }
@@ -140,9 +154,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           name: _commandName,
           description: _commandDescription,
         );
-
+        commandBuilder.integrationTypes = _integrationTypes;
         if (_options.isNotEmpty) {
           commandBuilder.options = _options;
+        } else {
+          commandBuilder.options = [];
         }
 
         await updateCommand(
@@ -311,6 +327,63 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 });
                                 // Handle command description input
                               },
+                            ),
+                            const Text(
+                              "Where this command can be used",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Checkbox(
+                                  value: _integrationTypes.contains(
+                                    ApplicationIntegrationType.guildInstall,
+                                  ),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      if (value == true) {
+                                        _integrationTypes.add(
+                                          ApplicationIntegrationType
+                                              .guildInstall,
+                                        );
+                                      } else {
+                                        _integrationTypes.remove(
+                                          ApplicationIntegrationType
+                                              .guildInstall,
+                                        );
+                                      }
+                                    });
+                                  },
+                                ),
+                                const Text("Guild Install"),
+                                const SizedBox(width: 20),
+                                Checkbox(
+                                  value: _integrationTypes.contains(
+                                    ApplicationIntegrationType.userInstall,
+                                  ),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      if (value == true) {
+                                        _integrationTypes.add(
+                                          ApplicationIntegrationType
+                                              .userInstall,
+                                        );
+                                      } else {
+                                        _integrationTypes.remove(
+                                          ApplicationIntegrationType
+                                              .userInstall,
+                                        );
+                                      }
+                                    });
+                                  },
+                                ),
+                                const Text("User Install"),
+                                const SizedBox(width: 20),
+                              ],
                             ),
                             const SizedBox(height: 20),
                             const Text(

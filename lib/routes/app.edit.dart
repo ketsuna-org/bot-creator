@@ -328,7 +328,9 @@ class _AppEditPageState extends State<AppEditPage>
                                           widget.id.toString(),
                                         );
                                         Navigator.of(context).pop();
-                                        Navigator.pop(context);
+                                        if (Navigator.canPop(context)) {
+                                          Navigator.pop(context);
+                                        }
                                       },
                                       child: const Text("Delete"),
                                     ),
