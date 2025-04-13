@@ -1,5 +1,6 @@
 import 'package:cardia_kexa/main.dart';
 import 'package:cardia_kexa/utils/bot.dart';
+import 'package:cardia_kexa/widgets/option_widget.dart';
 import 'package:cbl/cbl.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
@@ -16,6 +17,7 @@ class CommandCreatePage extends StatefulWidget {
 class _CommandCreatePageState extends State<CommandCreatePage> {
   String _commandName = "";
   String _commandDescription = "";
+  List<CommandOptionBuilder> _options = [];
   String _response = "";
   bool _isLoading = true;
   final _formKey = GlobalKey<FormState>();
@@ -59,6 +61,29 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         setState(() {
           _commandName = command.name;
           _commandDescription = command.description;
+          if (command.options != null) {
+            _options =
+                command.options!.map((e) {
+                  final option = CommandOptionBuilder(
+                    type: e.type,
+                    name: e.name,
+                    description: e.description,
+                    isRequired: e.isRequired,
+                  );
+                  if (e.choices?.isNotEmpty ?? false) {
+                    option.choices =
+                        e.choices?.map((choice) {
+                          return CommandOptionChoiceBuilder(
+                            name: choice.name,
+                            value: choice.value,
+                          );
+                        }).toList();
+                  }
+                  return option;
+                }).toList();
+          } else {
+            _options = [];
+          }
           _isLoading = false;
         });
       }
@@ -96,19 +121,34 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     try {
       if (widget.id.isZero) {
         // Create a new command
+        final commandBuilder = ApplicationCommandBuilder(
+          name: _commandName,
+          description: _commandDescription,
+          type: ApplicationCommandType.chatInput,
+        );
+        if (_options.isNotEmpty) {
+          commandBuilder.options = _options;
+        }
         await createCommand(
           client,
-          _commandName,
-          _commandDescription,
+          commandBuilder,
           data: {"response": _response},
         );
       } else {
         // Update the existing command
+        final commandBuilder = ApplicationCommandUpdateBuilder(
+          name: _commandName,
+          description: _commandDescription,
+        );
+
+        if (_options.isNotEmpty) {
+          commandBuilder.options = _options;
+        }
+
         await updateCommand(
           client,
           widget.id,
-          name: _commandName,
-          description: _commandDescription,
+          commandBuilder: commandBuilder,
           data: {"response": _response},
         );
       }
@@ -270,6 +310,32 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                   _commandDescription = value;
                                 });
                                 // Handle command description input
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            const Text(
+                              "Command Options",
+                              style: TextStyle(fontSize: 18),
+                            ),
+                            const SizedBox(height: 10),
+                            OptionWidget(
+                              initialOptions: _options,
+                              onChange: (options) {
+                                setState(() {
+                                  _options = options;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount:
+                                  0, // Replace with the actual number of options
+                              itemBuilder: (context, index) {
+                                return const Text(
+                                  "Option",
+                                ); // Replace with the actual option widget
                               },
                             ),
                             const SizedBox(height: 20),

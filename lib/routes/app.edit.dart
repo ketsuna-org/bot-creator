@@ -405,11 +405,10 @@ class _AppEditPageState extends State<AppEditPage>
         ],
       ),
       body: Scrollable(
-        physics: const BouncingScrollPhysics(),
         controller: ScrollController(),
         viewportBuilder:
             (context, position) => SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.start,
@@ -528,8 +527,8 @@ class _AppEditPageState extends State<AppEditPage>
                                   shrinkWrap: true,
                                   itemCount: commands.length,
                                   scrollDirection: Axis.vertical,
-                                  physics:
-                                      const AlwaysScrollableScrollPhysics(),
+                                  controller: ScrollController(),
+                                  physics: const NeverScrollableScrollPhysics(),
                                   itemBuilder: (context, index) {
                                     return ListTile(
                                       trailing: const Icon(
@@ -571,6 +570,7 @@ class _AppEditPageState extends State<AppEditPage>
                           ),
                       ],
                     ),
+                    const SizedBox(height: 80),
                   ],
                 ),
               ),

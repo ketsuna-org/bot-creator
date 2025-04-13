@@ -140,15 +140,9 @@ class DiscordBotTaskHandler extends TaskHandler {
 
 Future<void> createCommand(
   NyxxRest client,
-  String name,
-  String description, {
+  ApplicationCommandBuilder commandBuilder, {
   Map<String, dynamic> data = const {},
 }) async {
-  final commandBuilder = ApplicationCommandBuilder(
-    name: name,
-    description: description,
-    type: ApplicationCommandType.chatInput,
-  );
   try {
     final command = await client.commands.create(commandBuilder);
     Map<String, dynamic> commandData = {
@@ -170,21 +164,10 @@ Future<void> createCommand(
 Future<void> updateCommand(
   NyxxRest client,
   Snowflake commandId, {
-  String name = "",
-  String description = "",
+  required ApplicationCommandUpdateBuilder commandBuilder,
   Map<String, dynamic> data = const {},
 }) async {
   // let's check what we are gonna update
-  if (name.isEmpty && description.isEmpty) {
-    throw Exception("Name and description cannot be empty");
-  }
-  final commandBuilder = ApplicationCommandUpdateBuilder();
-  if (name.isNotEmpty) {
-    commandBuilder.name = name;
-  }
-  if (description.isNotEmpty) {
-    commandBuilder.description = description;
-  }
   try {
     final command = await client.commands.update(commandId, commandBuilder);
     Map<String, dynamic> commandData = {
