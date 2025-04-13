@@ -1,12 +1,20 @@
 import 'package:cardia_kexa/main.dart';
+import 'package:cardia_kexa/utils/database.dart';
 import 'package:cbl/cbl.dart';
+import 'package:cbl_flutter/cbl_flutter.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
+import 'dart:developer' as developer;
 
-Future<void> handleLocalCommands(InteractionCreateEvent event) async {
+@pragma('vm:entry-point')
+Future<void> handleLocalCommands(
+  InteractionCreateEvent event,
+  AppManager manager,
+) async {
   final interaction = event.interaction;
   if (interaction is ApplicationCommandInteraction) {
     final command = interaction.data;
-    final action = await appManager.getCommand(command.id.toString());
+    final action = await manager.getCommand(command.id.toString());
 
     if (action == null) {
       await interaction.respond(MessageBuilder(content: "Command not found"));
@@ -28,6 +36,105 @@ Future<void> handleLocalCommands(InteractionCreateEvent event) async {
       await interaction.respond(MessageBuilder(content: "Command not found"));
       return;
     }
+  }
+}
+
+Future<void> startService() async {
+  // Start the foreground service
+  await FlutterForegroundTask.startService(
+    serviceId: 110,
+    notificationTitle: "Bot is running",
+    notificationText: "Bot is running in the background",
+    callback: startCallback,
+    notificationButtons: [NotificationButton(id: "stop", text: "Stop")],
+  );
+}
+
+@pragma('vm:entry-point')
+void startCallback() {
+  FlutterForegroundTask.setTaskHandler(DiscordBotTaskHandler());
+}
+
+@pragma('vm:entry-point')
+void stopCallback() {
+  FlutterForegroundTask.stopService();
+}
+
+@pragma('vm:entry-point')
+class DiscordBotTaskHandler extends TaskHandler {
+  NyxxGateway? client;
+  bool isReady = false;
+
+  @override
+  Future<void> onStart(DateTime timestamp, TaskStarter taskStarter) async {
+    // Initialiser le client Discord
+    developer.log("Starting Discord bot", name: "DiscordBotTaskHandler");
+    final token = await FlutterForegroundTask.getData<String>(key: "token");
+    if (token != null) {
+      try {
+        await CouchbaseLiteFlutter.init();
+        database = await Database.openAsync("cardia_kexa");
+        appManager = AppManager();
+        developer.log("Database opened", name: "DiscordBotTaskHandler");
+        final gateway = await Nyxx.connectGateway(
+          token,
+          GatewayIntents.allUnprivileged,
+          options: GatewayClientOptions(loggerName: "CardiaKexa"),
+        );
+        gateway.onReady.listen((event) {
+          isReady = true;
+          appManager.addLog(
+            "Gateway is ready: ${event.user.username}",
+            gateway.user.id.toString(),
+          );
+        });
+        gateway.onInteractionCreate.listen((event) async {
+          // Traiter les interactions
+          await handleLocalCommands(event, appManager);
+          // retrieve the user
+          final user = event.interaction.member?.user;
+          if (user != null) {
+            // gather the interaction Name
+            final interactionName = event.interaction.data?.name;
+            appManager.addLog(
+              "Interaction $interactionName invoked by ${user.username}",
+              gateway.user.id.toString(),
+            );
+          } else {
+            appManager.addLog(
+              "Interaction invoked by unknown user",
+              gateway.user.id.toString(),
+            );
+          }
+        });
+        client = gateway;
+      } catch (e) {
+        developer.log(
+          "Failed to connect to Discord: $e",
+          name: "DiscordBotTaskHandler",
+        );
+      }
+    } else {
+      developer.log("Token not found", name: "DiscordBotTaskHandler");
+    }
+  }
+
+  @override
+  void onNotificationButtonPressed(String id) {
+    if (id == "stop") {
+      stopCallback();
+    }
+  }
+
+  @override
+  Future<void> onDestroy(DateTime timestamp) async {
+    await client?.close();
+    client = null;
+  }
+
+  @override
+  void onRepeatEvent(DateTime timestamp) {
+    // TODO: implement onRepeatEvent
   }
 }
 

@@ -1,7 +1,6 @@
 import 'package:cardia_kexa/main.dart';
 import 'package:cardia_kexa/utils/bot.dart';
 import 'package:cbl/cbl.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 

@@ -1,10 +1,13 @@
+import 'dart:io';
+
 import 'package:cardia_kexa/main.dart';
+import 'package:cardia_kexa/routes/app.logs.dart';
 import 'package:cardia_kexa/routes/command.create.dart';
 import 'package:cardia_kexa/utils/bot.dart';
 import 'package:cardia_kexa/utils/global.dart';
-import 'package:cardia_kexa/utils/notif.dart';
 import 'package:cbl/cbl.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
 
 class AppEditPage extends StatefulWidget {
@@ -25,10 +28,59 @@ class _AppEditPageState extends State<AppEditPage>
   bool _isLoading = true;
   bool _editMode = false;
   bool _botLaunched = false;
-  NyxxGateway? _gatewayClient;
+
+  Future<void> _requestPermissions() async {
+    // Android 13+, you need to allow notification permission to display foreground service notification.
+    //
+    // iOS: If you need notification, ask for permission.
+    final NotificationPermission notificationPermission =
+        await FlutterForegroundTask.checkNotificationPermission();
+    if (notificationPermission != NotificationPermission.granted) {
+      await FlutterForegroundTask.requestNotificationPermission();
+    }
+
+    if (Platform.isAndroid) {
+      // Android 12+, there are restrictions on starting a foreground service.
+      //
+      // To restart the service on device reboot or unexpected problem, you need to allow below permission.
+      if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
+        // This function requires `android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission.
+        await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+      }
+    }
+  }
+
+  Future<void> _initService() async {
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'foreground_service',
+        channelName: 'Foreground Service Notification',
+        channelDescription:
+            'This notification appears when the foreground service is running.',
+        onlyAlertOnce: true,
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(
+        showNotification: true,
+        playSound: false,
+      ),
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.repeat(5000),
+        autoRunOnBoot: false,
+        autoRunOnMyPackageReplaced: false,
+        allowWakeLock: true,
+        allowWifiLock: true,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Request permissions and initialize the service.
+      _requestPermissions();
+      _initService();
+    });
     _init();
   }
 
@@ -49,16 +101,10 @@ class _AppEditPageState extends State<AppEditPage>
         _isLoading = false;
       });
     }
-    for (var bot in gateways) {
-      if (bot.user.id.toString() == widget.id.toString()) {
-        setState(() {
-          _botLaunched = true;
-          _gatewayClient = bot;
-        });
-      }
-    }
 
+    final isRunning = await FlutterForegroundTask.isRunningService;
     setState(() {
+      _botLaunched = isRunning;
       _appName = app?.string("name") ?? widget.appName;
     });
   }
@@ -310,6 +356,32 @@ class _AppEditPageState extends State<AppEditPage>
                             ),
                           ],
                         ),
+                        const SizedBox(width: 40),
+                        Column(
+                          children: [
+                            IconButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) =>
+                                            LogsPage(id: widget.id.toString()),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.data_array, size: 40),
+                            ),
+                            const SizedBox(width: 10),
+                            const Text(
+                              "Logs",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   );
@@ -332,154 +404,177 @@ class _AppEditPageState extends State<AppEditPage>
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              "Edit $_appName",
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            if (_editMode)
-              Column(
-                children: [
-                  Text("Edit the token of ($_appName)"),
-                  const SizedBox(height: 20),
-                  TextField(
-                    decoration: InputDecoration(
-                      labelText: "Token App Name",
-                      border: OutlineInputBorder(),
+      body: Scrollable(
+        physics: const BouncingScrollPhysics(),
+        controller: ScrollController(),
+        viewportBuilder:
+            (context, position) => SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      "Edit $_appName",
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    onChanged:
-                        (value) => setState(() {
-                          _token = value;
-                        }),
-                  ),
-                ],
-              )
-            else
-              const SizedBox(),
-            const SizedBox(height: 20),
-            TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: _botLaunched ? Colors.red : Colors.green,
-                padding: const EdgeInsets.all(16),
-              ),
-              onPressed: () async {
-                if (_botLaunched) {
-                  _gatewayClient?.gateway.close();
-                  setState(() {
-                    _botLaunched = false;
-                    _gatewayClient = null;
-                  });
-                  gateways.removeWhere(
-                    (bot) => bot.user.id.toString() == widget.id.toString(),
-                  );
-                  await NotificationController.cancelNotifications();
-                  return;
-                }
-                final app = await appManager.getApp(widget.id.toString());
-                if (app == null) {
-                  throw Exception("App not found");
-                }
-                final token = app.string("token");
-                if (token == null) {
-                  throw Exception("Token not found");
-                }
-                // Perform any additional actions with the fetched app
-                NyxxGateway client = await Nyxx.connectGateway(
-                  token,
-                  GatewayIntents.allUnprivileged,
-                );
+                    if (_editMode)
+                      Column(
+                        children: [
+                          Text("Edit the token of ($_appName)"),
+                          const SizedBox(height: 20),
+                          TextField(
+                            decoration: InputDecoration(
+                              labelText: "Token App Name",
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged:
+                                (value) => setState(() {
+                                  _token = value;
+                                }),
+                          ),
+                        ],
+                      )
+                    else
+                      const SizedBox(),
+                    const SizedBox(height: 20),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        backgroundColor:
+                            _botLaunched ? Colors.red : Colors.green,
+                        padding: const EdgeInsets.all(16),
+                      ),
+                      onPressed: () async {
+                        if (_botLaunched) {
+                          setState(() {
+                            _botLaunched = false;
+                          });
+                          await FlutterForegroundTask.stopService();
+                          await FlutterForegroundTask.removeData(key: "token");
+                          return;
+                        }
+                        final app = await appManager.getApp(
+                          widget.id.toString(),
+                        );
+                        if (app == null) {
+                          throw Exception("App not found");
+                        }
+                        final token = app.string("token");
+                        if (token == null) {
+                          throw Exception("Token not found");
+                        }
+                        await FlutterForegroundTask.saveData(
+                          key: "token",
+                          value: token,
+                        );
+                        await Future.delayed(const Duration(seconds: 1));
+                        await startService();
 
-                client.onInteractionCreate.listen((event) async {
-                  handleLocalCommands(event);
-                });
-                client.onReady.listen((event) {
-                  setState(() {
-                    _botLaunched = true;
-                    _gatewayClient = client;
-                  });
-                });
-                await NotificationController.createWebSocketNotification(
-                  title: "Bot démarré",
-                  body: "Le bot a été démarré avec succès",
-                  client: client,
-                );
-              },
-              child: Text(
-                _botLaunched ? "Stop Bot" : "Start Bot",
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                        setState(() {
+                          _botLaunched = true;
+                        });
+                      },
+                      child: Text(
+                        _botLaunched ? "Stop Bot" : "Start Bot",
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const Divider(
+                      height: 40,
+                      thickness: 2,
+                      indent: 20,
+                      endIndent: 20,
+                    ),
+                    Column(
+                      children: [
+                        const SizedBox(height: 20),
+                        Text(
+                          "Commands",
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (_isLoading)
+                          const CircularProgressIndicator()
+                        else
+                          FutureBuilder(
+                            future: getCommands(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const CircularProgressIndicator(
+                                  strokeAlign: 0.5,
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.blue,
+                                  ),
+                                );
+                              } else if (snapshot.hasError) {
+                                return Text("Error: ${snapshot.error}");
+                              } else {
+                                final commands = snapshot.data;
+
+                                if (commands!.isEmpty) {
+                                  return const Text("No commands found");
+                                }
+                                return ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: commands.length,
+                                  scrollDirection: Axis.vertical,
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  itemBuilder: (context, index) {
+                                    return ListTile(
+                                      trailing: const Icon(
+                                        Icons.arrow_forward_ios_outlined,
+                                      ),
+                                      title: Text(
+                                        commands[index].name,
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        commands[index].description,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                      ),
+                                      onTap: () {
+                                        // Handle command tap
+                                        final command = commands[index];
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (context) => CommandCreatePage(
+                                                  client: client!,
+                                                  id: command.id,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                );
+                              }
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
-            const Divider(height: 40, thickness: 2, indent: 20, endIndent: 20),
-            const Text(
-              "Commands",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            if (_isLoading)
-              const CircularProgressIndicator()
-            else
-              FutureBuilder(
-                future: getCommands(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const CircularProgressIndicator();
-                  } else if (snapshot.hasError) {
-                    return Text("Error: ${snapshot.error}");
-                  } else {
-                    final commands = snapshot.data;
-
-                    if (commands!.isEmpty) {
-                      return const Text("No commands found");
-                    }
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: commands?.length ?? 0,
-                      itemBuilder: (context, index) {
-                        return ListTile(
-                          trailing: const Icon(
-                            Icons.arrow_forward_ios_outlined,
-                          ),
-                          title: Text(
-                            commands![index].name,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: Text(
-                            commands[index].description,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          onTap: () {
-                            // Handle command tap
-                            final command = commands[index];
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (context) => CommandCreatePage(
-                                      client: client!,
-                                      id: command.id,
-                                    ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  }
-                },
-              ),
-          ],
-        ),
       ),
       floatingActionButton:
           !_isLoading

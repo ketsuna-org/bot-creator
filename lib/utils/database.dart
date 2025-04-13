@@ -8,9 +8,7 @@ class AppManager {
   factory AppManager() => _instance;
   Collection? _colApps;
   Collection? _colCommands;
-  final StreamController<String> controller =
-      StreamController<String>.broadcast();
-
+  Collection? _colLogs;
   AppManager._internal() {
     _init();
   }
@@ -18,6 +16,7 @@ class AppManager {
   Future<void> _init() async {
     _colApps = await database.createCollection("apps");
     _colCommands = await database.createCollection("commands");
+    _colLogs = await database.createCollection("logs");
   }
 
   Future<Collection> getColApps() async {
@@ -30,6 +29,104 @@ class AppManager {
     return _colCommands!;
   }
 
+  Future<Collection> getColLogs() async {
+    _colLogs ??= await database.createCollection("logs");
+    return _colLogs!;
+  }
+
+  Future<void> addLog(String log, String appId) async {
+    final col = await getColLogs();
+    final doc = MutableDocument({
+      "log": log,
+      "appId": appId,
+      "createdAt": DateTime.now().toIso8601String(),
+    });
+    await col.saveDocument(doc);
+    // retrieve newly created document by id
+    await col.setDocumentExpiration(
+      doc.id,
+      DateTime.now().add(const Duration(minutes: 5)),
+    );
+  }
+
+  Future<void> removeLog(String id) async {
+    final col = await getColLogs();
+    final doc = await col.document(id);
+    if (doc == null) {
+      throw Exception("Document not found");
+    }
+    await col.deleteDocument(doc);
+  }
+
+  Future<List<Map<String, Object?>>> getLogs(String id) async {
+    final col = await getColLogs();
+    final query = const QueryBuilder()
+        .select(
+          SelectResult.property("log"),
+          SelectResult.property("createdAt"),
+        )
+        .from(DataSource.collection(col))
+        .where(Expression.property("appId").equalTo(Expression.string(id)));
+    final snapshot = await query.execute();
+    final results =
+        await snapshot.asStream().map((event) {
+          return {
+            "log": event.string("log"),
+            "createdAt": event.string("createdAt"),
+          };
+        }).toList();
+    return results;
+  }
+
+  Future<void> clearLogs(String id) async {
+    final col = await getColLogs();
+    final query = const QueryBuilder()
+        .select(SelectResult.property("id"))
+        .from(DataSource.collection(col))
+        .where(Expression.property("appId").equalTo(Expression.string(id)));
+    final snapshot = await query.execute();
+    final results =
+        await snapshot.asStream().map((event) {
+          return event.string("id");
+        }).toList();
+    for (var id in results) {
+      final doc = await col.document(id.toString());
+      if (doc != null) {
+        await col.deleteDocument(doc);
+      }
+    }
+  }
+
+  Stream<List<Map<String, Object?>>> getLogsStream(String id) {
+    late StreamController<List<Map<String, Object?>>> ctlr;
+    StreamSubscription<CollectionChange>? triggerSubscription;
+
+    Future<void> sendUpdate() async {
+      var logs = await getLogs(id);
+      if (!ctlr.isClosed) {
+        ctlr.add(logs);
+      }
+    }
+
+    ctlr = StreamController<List<Map<String, Object?>>>(
+      onListen: () {
+        sendUpdate();
+
+        /// Listen for trigger
+        final stream = _colLogs?.changes();
+        triggerSubscription = stream?.listen((event) async {
+          if (event.collection.name == "logs") {
+            sendUpdate();
+          }
+        });
+      },
+      onCancel: () {
+        triggerSubscription?.cancel();
+      },
+    );
+    return ctlr.stream;
+  }
+
   Future<void> addCommand(String id, Map<String, dynamic> data) async {
     final col = await getColCommands();
     final doc = MutableDocument.withId(id, {
@@ -38,7 +135,6 @@ class AppManager {
       "createdAt": DateTime.now().toIso8601String(),
     });
     await col.saveDocument(doc);
-    controller.sink.add("command");
   }
 
   Future<void> removeCommand(String id) async {
@@ -48,7 +144,6 @@ class AppManager {
       throw Exception("Document not found");
     }
     await col.deleteDocument(doc);
-    controller.sink.add("command");
   }
 
   Future<void> updateCommand(String id, Map<String, dynamic> data) async {
@@ -61,7 +156,6 @@ class AppManager {
     mutableDoc.setString(id, key: "id");
     mutableDoc.setValue(data, key: "data");
     await col.saveDocument(mutableDoc);
-    controller.sink.add("command");
   }
 
   Future<Document?> getCommand(String id) async {
@@ -79,7 +173,6 @@ class AppManager {
       "createdAt": DateTime.now().toIso8601String(),
     });
     await col.saveDocument(doc);
-    controller.sink.add("app");
   }
 
   Future<void> removeApp(String id) async {
@@ -89,7 +182,6 @@ class AppManager {
       throw Exception("Document not found");
     }
     await col.deleteDocument(doc);
-    controller.sink.add("app");
   }
 
   Future<void> updateApp(String id, String name, String token) async {
@@ -103,7 +195,6 @@ class AppManager {
     mutableDoc.setString(id, key: "id");
     mutableDoc.setString(token, key: "token");
     await col.saveDocument(mutableDoc);
-    controller.sink.add("app");
   }
 
   Future<Document?> getApp(String id) async {
@@ -141,8 +232,8 @@ class AppManager {
         sendUpdate();
 
         /// Listen for trigger
-        triggerSubscription = controller.stream.listen((event) async {
-          if (event == "app") {
+        triggerSubscription = _colApps?.changes().listen((event) async {
+          if (event.collection.name == "apps") {
             sendUpdate();
           }
         });

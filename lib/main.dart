@@ -1,5 +1,5 @@
-import 'package:cardia_kexa/utils/notif.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
 import "routes/home.dart";
 import "routes/profile.dart";
@@ -10,8 +10,12 @@ import 'package:cbl/cbl.dart';
 import 'utils/database.dart';
 import 'package:cbl_flutter/cbl_flutter.dart';
 
+@pragma('vm:entry-point')
 late Database database;
+@pragma('vm:entry-point')
 late AppManager appManager;
+List<String> currentLogList = [];
+@pragma('vm:entry-point')
 List<NyxxGateway> gateways = [];
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,9 +23,7 @@ Future main() async {
   // Initialize the CBL database
   await CouchbaseLiteFlutter.init();
   database = await Database.openAsync("cardia_kexa");
-  await NotificationController.initializeLocalNotifications();
-  await NotificationController.startListeningNotificationEvents();
-
+  FlutterForegroundTask.initCommunicationPort();
   appManager = AppManager();
   runApp(
     ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),

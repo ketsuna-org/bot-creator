@@ -3,8 +3,6 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  awesome_notifications
-  awesome_notifications_core
   cbl_flutter_ce
 )
 
