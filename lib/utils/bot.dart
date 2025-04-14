@@ -152,9 +152,16 @@ class DiscordBotTaskHandler extends TaskHandler {
   }
 
   @override
-  Future<void> onDestroy(DateTime timestamp) async {
+  Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     await client?.close();
     client = null;
+    if (isTimeout) {
+      // let's restart the service
+      developer.log("Service timeout", name: "DiscordBotTaskHandler");
+      await startService();
+    } else {
+      developer.log("Service stopped", name: "DiscordBotTaskHandler");
+    }
   }
 
   @override
