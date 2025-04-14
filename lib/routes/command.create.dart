@@ -23,6 +23,23 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   List<ApplicationIntegrationType> _integrationTypes = [
     ApplicationIntegrationType.guildInstall,
   ];
+
+  final List<Map<String, String>> _argsList = [
+    {"name": "guildName", "description": "Name of the guild"},
+    {"name": "guildId", "description": "ID of the guild"},
+    {"name": "channelName", "description": "Name of the channel"},
+    {"name": "channelId", "description": "ID of the channel"},
+    {"name": "userName", "description": "Name of the user"},
+    {"name": "userId", "description": "ID of the user"},
+    {"name": "userTag", "description": "Tag of the user"},
+    {"name": "userAvatar", "description": "Avatar of the user"},
+    {"name": "guildIcon", "description": "Icon of the guild"},
+    {"name": "guildCount", "description": "Number of members in the guild"},
+    {"name": "commandName", "description": "Name of the command"},
+    {"name": "commandId", "description": "ID of the command"},
+    // Add more options as needed
+  ];
+
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -230,6 +247,63 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     return Scaffold(
       appBar: AppBar(
         actions: [
+          IconButton(
+            onPressed: () {
+              final dialogFullscren = Dialog.fullscreen(
+                child: Scaffold(
+                  appBar: AppBar(
+                    title: const Text("Command Arguments"),
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ),
+                  body: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    spacing: 2.0,
+                    children: [
+                      const SizedBox(height: 20),
+                      Card(
+                        child: const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text(
+                            "You can use the following arguments in your command response.\nThey will be replaced with the actual values when the command is executed.\nFor example, if you use ((userName)) in your response, it will be replaced with the name of the user who executed the command.\nYou can also use every command option as an argument. (be sure to use the correct name)",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(1.0),
+                          itemCount: _argsList.length,
+                          itemBuilder: (context, index) {
+                            final arg = _argsList[index];
+                            return ListTile(
+                              title: Text(arg["name"]!),
+                              subtitle: Text(arg["description"]!),
+                              style: ListTileStyle.list,
+                              leading: const Icon(Icons.code),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              );
+
+              showDialog(
+                context: context,
+                builder: (context) => dialogFullscren,
+              );
+            },
+            icon: const Icon(Icons.info),
+          ),
           IconButton(
             icon: Icon(
               widget.id.isZero ? Icons.cancel : Icons.save,
