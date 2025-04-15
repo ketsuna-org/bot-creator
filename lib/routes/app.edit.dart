@@ -170,7 +170,6 @@ class _AppEditPageState extends State<AppEditPage>
                   actions: [
                     TextButton(
                       onPressed: () {
-                        Navigator.of(context).pop();
                         Navigator.pop(context);
                       },
                       child: const Text("OK"),
@@ -187,7 +186,6 @@ class _AppEditPageState extends State<AppEditPage>
                   actions: [
                     TextButton(
                       onPressed: () {
-                        Navigator.of(context).pop();
                         Navigator.pop(context);
                       },
                       child: const Text("OK"),
