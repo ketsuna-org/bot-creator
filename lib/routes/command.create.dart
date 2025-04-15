@@ -37,6 +37,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     {"name": "guildCount", "description": "Number of members in the guild"},
     {"name": "commandName", "description": "Name of the command"},
     {"name": "commandId", "description": "ID of the command"},
+    {
+      "name": "opts",
+      "description":
+          "Contain options resolved from the command (ex: opts.user.avatar) (if the opt was of type 'User' and named 'user')",
+    },
     // Add more options as needed
   ];
 

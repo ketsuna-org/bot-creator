@@ -28,6 +28,13 @@ String makeAvatarUrl(
   if (isAnimated && legacyFormat == "gif") {
     return "https://cdn.discordapp.com/avatars/$userId/$avatarId.gif?size=1024";
   }
+
+  if (avatarId == "0") {
+    if (discriminator != null) {
+      return "https://cdn.discordapp.com/embed/avatars/${int.parse(discriminator) % 5}.png";
+    }
+    return "https://cdn.discordapp.com/embed/avatars/${(int.parse(userId) >> 22) % 6}.png";
+  }
   return "https://cdn.discordapp.com/avatars/$userId/$avatarId.$legacyFormat?size=1024";
 }
 
@@ -68,24 +75,8 @@ Future<Map<String, String>> generateKeyValues(
   final guildName = (guild is Guild) ? guild.name : "DM";
   final userName = user?.user?.username ?? "Unknown User";
   final guildCount = (guild is Guild) ? guild.approximateMemberCount : 0;
-  String channelName = "Unknown Channel";
-  String channelType = "Unknown Channel Type";
-  if (channel is GuildTextChannel) {
-    channelName = channel.name;
-    channelType = channel.type.toString();
-  } else if (channel is GuildVoiceChannel) {
-    channelName = channel.name;
-    channelType = channel.type.toString();
-  } else if (channel is ThreadsOnlyChannel) {
-    channelName = channel.name;
-    channelType = channel.type.toString();
-  } else if (channel is GuildStageChannel) {
-    channelName = channel.name;
-    channelType = channel.type.toString();
-  } else if (channel is DmChannel) {
-    channelName = "DM";
-    channelType = channel.type.toString();
-  }
+  String channelName = getChannelName(channel);
+  String channelType = channel is Channel ? channel.type.toString() : "DM";
 
   String userAvatarUrl = "https://cdn.discordapp.com/embed/avatars/0.png";
 
@@ -125,9 +116,129 @@ Future<Map<String, String>> generateKeyValues(
   if (interaction.data.options is List<InteractionOption>) {
     final options = interaction.data.options as List<InteractionOption>;
     for (final option in options) {
-      listOfArgs[option.name] = option.value.toString();
+      if (option.type == CommandOptionType.subCommand) {
+        listOfArgs[option.name] = option.value.toString();
+        final subOptions = option.options as List<InteractionOption>;
+        for (final subOption in subOptions) {
+          final subKeyValues = await generateKeyValuesFromInteractionOption(
+            subOption,
+            interaction,
+          );
+          // let's prefix them with opts to avoid conflicts
+          // with other keys
+          for (final entry in subKeyValues.entries) {
+            listOfArgs["opts.${option.name}.${entry.key}"] = entry.value;
+          }
+        }
+      } else if (option.type == CommandOptionType.subCommandGroup) {
+        listOfArgs[option.name] = option.value.toString();
+        final subCommandsOptions = option.options as List<InteractionOption>;
+        for (final subCommandOption in subCommandsOptions) {
+          final subOptions =
+              subCommandOption.options as List<InteractionOption>;
+          for (final subOption in subOptions) {
+            final subKeyValues = await generateKeyValuesFromInteractionOption(
+              subOption,
+              interaction,
+            );
+            // let's prefix them with opts to avoid conflicts
+            // with other keys
+            for (final entry in subKeyValues.entries) {
+              listOfArgs["opts.${option.name}.${subCommandOption.name}.${entry.key}"] =
+                  entry.value;
+            }
+          }
+        }
+      } else {
+        final keyValues = await generateKeyValuesFromInteractionOption(
+          option,
+          interaction,
+        );
+        // let's prefix them with opts to avoid conflicts
+        // with other keys
+        for (final entry in keyValues.entries) {
+          listOfArgs["opts.${entry.key}"] = entry.value;
+        }
+      }
     }
   }
-
+  print("List of args: $listOfArgs");
   return listOfArgs;
+}
+
+Future<Map<String, String>> generateKeyValuesFromInteractionOption(
+  InteractionOption value,
+  ApplicationCommandInteraction interaction,
+) async {
+  final client = interaction.manager.client;
+  switch (value.type) {
+    case CommandOptionType.string:
+      return {value.name: value.value.toString()};
+    case CommandOptionType.integer:
+      return {value.name: value.value.toString()};
+    case CommandOptionType.boolean:
+      return {value.name: value.value.toString()};
+    case CommandOptionType.user:
+      final userId = Snowflake(int.parse(value.value.toString()));
+      final user = await client.users.fetch(userId);
+      return {
+        value.name: user.username,
+        "${value.name}.id": user.id.toString(),
+        "${value.name}.avatar": makeAvatarUrl(
+          user.id.toString(),
+          avatarId: user.avatar.hash,
+          isAnimated: user.avatar.isAnimated,
+          legacyFormat: "webp",
+          discriminator: user.discriminator,
+        ),
+      };
+    case CommandOptionType.channel:
+      final channelId = Snowflake(int.parse(value.value.toString()));
+      final channel = await client.channels.fetch(channelId);
+      return {
+        value.name: getChannelName(channel),
+        "${value.name}.id": channel.id.toString(),
+        "${value.name}.type": channel.type.toString(),
+      };
+    case CommandOptionType.role:
+      final role = await interaction.guild?.roles.fetch(
+        value.value as Snowflake,
+      );
+      return {
+        value.name: role?.name ?? "Unknown Role",
+        "${value.name}.id": role?.id.toString() ?? "Unknown Role",
+      };
+    case CommandOptionType.mentionable:
+      final mentionableId = Snowflake(int.parse(value.value.toString()));
+      final mentionable = await client.users.fetch(mentionableId);
+      return {
+        value.name: mentionable.username,
+        "${value.name}.id": mentionable.id.toString(),
+        "${value.name}.avatar": makeAvatarUrl(
+          mentionable.id.toString(),
+          avatarId: mentionable.avatar.hash,
+          isAnimated: mentionable.avatar.isAnimated,
+          legacyFormat: "webp",
+          discriminator: mentionable.discriminator,
+        ),
+      };
+    case CommandOptionType.number:
+      return {value.name: value.value.toString()};
+  }
+  return {value.name: value.value.toString()};
+}
+
+String getChannelName(PartialChannel? channel) {
+  if (channel is GuildTextChannel) {
+    return channel.name;
+  } else if (channel is GuildVoiceChannel) {
+    return channel.name;
+  } else if (channel is ThreadsOnlyChannel) {
+    return channel.name;
+  } else if (channel is GuildStageChannel) {
+    return channel.name;
+  } else if (channel is DmChannel) {
+    return "DM";
+  }
+  return "Unknown Channel";
 }

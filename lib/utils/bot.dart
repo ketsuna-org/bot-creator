@@ -9,20 +9,20 @@ import 'package:cardia_kexa/utils/global.dart';
 
 @pragma('vm:entry-point')
 String updateString(String initial, Map<String, String> updates) {
-  String result = initial;
-  // Iterate through the updates and replace the placeholders in the string
-  for (var entry in updates.entries) {
-    String placeholder = entry.key;
-    String value = entry.value;
-    // Replace the placeholder with the value they will be in the form of ((key))
-    // so we need to replace the key with the value
-    // as we can handle complexe case where key contain dots we need to escape them
-    result = result.replaceAll(
-      RegExp("\\(\\($placeholder\\)\\)", caseSensitive: false),
-      value,
-    );
-  }
-  return result;
+  final placeholderRegex = RegExp(r'\(\((.*?)\)\)', caseSensitive: false);
+
+  return initial.replaceAllMapped(placeholderRegex, (Match match) {
+    final content = match.group(1)!;
+    final keys = content.split('|').map((k) => k.trim()).toList();
+
+    for (final key in keys) {
+      if (updates.containsKey(key)) {
+        return updates[key]!;
+      }
+    }
+
+    return ''; // Aucune clé trouvée -> remplacement par chaîne vide
+  });
 }
 
 @pragma('vm:entry-point')
