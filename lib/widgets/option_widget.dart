@@ -71,6 +71,56 @@ class _OptionWidgetState extends State<OptionWidget> {
     widget.onChange(options);
   }
 
+  TextInputType checkKeyBoardType(CommandOptionType type) {
+    switch (type) {
+      case CommandOptionType.string:
+        return TextInputType.text;
+      case CommandOptionType.integer:
+        return TextInputType.number;
+      case CommandOptionType.boolean:
+        return TextInputType.none;
+      case CommandOptionType.user:
+        return TextInputType.text;
+      case CommandOptionType.channel:
+        return TextInputType.text;
+      case CommandOptionType.role:
+        return TextInputType.text;
+      case CommandOptionType.mentionable:
+        return TextInputType.text;
+      case CommandOptionType.number:
+        return TextInputType.number;
+      case CommandOptionType.attachment:
+        return TextInputType.text;
+      default:
+        return TextInputType.text;
+    }
+  }
+
+  bool checkIfChoicesShouldBeVisible(CommandOptionType type) {
+    switch (type) {
+      case CommandOptionType.string:
+        return true;
+      case CommandOptionType.integer:
+        return true;
+      case CommandOptionType.boolean:
+        return false;
+      case CommandOptionType.user:
+        return false;
+      case CommandOptionType.channel:
+        return false;
+      case CommandOptionType.role:
+        return false;
+      case CommandOptionType.mentionable:
+        return false;
+      case CommandOptionType.number:
+        return true;
+      case CommandOptionType.attachment:
+        return false;
+      default:
+        return false;
+    }
+  }
+
   String? _validatorName(String? value) {
     if (value == null || value.isEmpty) {
       return 'Please enter a name for the option';
@@ -207,6 +257,9 @@ class _OptionWidgetState extends State<OptionWidget> {
                       onChanged: (newValue) {
                         setState(() {
                           options[index].type = newValue;
+                          if (!checkIfChoicesShouldBeVisible(newValue)) {
+                            options[index].choices = null;
+                          }
                           _updateWidget(); // Trigger the callback
                         });
                       },
@@ -231,7 +284,8 @@ class _OptionWidgetState extends State<OptionWidget> {
                   },
                 ),
                 const SizedBox(height: 8),
-                if (options[index].choices?.isNotEmpty ?? false)
+                if (checkIfChoicesShouldBeVisible(options[index].type) &&
+                    options[index].choices != null)
                   ListView.builder(
                     controller: ScrollController(),
                     physics: const NeverScrollableScrollPhysics(),
@@ -284,6 +338,9 @@ class _OptionWidgetState extends State<OptionWidget> {
                             onFieldSubmitted: (_) {
                               FocusScope.of(context).nextFocus();
                             },
+                            keyboardType: checkKeyBoardType(
+                              options[index].type,
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Choice Value',
                               border: OutlineInputBorder(),
@@ -298,7 +355,8 @@ class _OptionWidgetState extends State<OptionWidget> {
                               return null;
                             },
                             initialValue:
-                                options[index].choices![choiceIndex].value,
+                                options[index].choices![choiceIndex].value
+                                    .toString(),
                             onChanged: (value) {
                               setState(() {
                                 options[index].choices![choiceIndex].value =
@@ -312,40 +370,44 @@ class _OptionWidgetState extends State<OptionWidget> {
                     },
                   ),
                 const SizedBox(height: 8),
-                SizedBox(
-                  width: MediaQuery.of(context).size.width - 32,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8.0),
+                if (checkIfChoicesShouldBeVisible(options[index].type))
+                  SizedBox(
+                    width: MediaQuery.of(context).size.width - 32,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8.0),
+                        ),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          if (options[index].choices == null) {
+                            options[index].choices = [];
+                          }
+                          options[index].choices?.add(
+                            CommandOptionChoiceBuilder(
+                              name:
+                                  'Choice ${options[index].choices!.length + 1}',
+                              value:
+                                  checkKeyBoardType(options[index].type) ==
+                                          TextInputType.number
+                                      ? 0
+                                      : 'Value ${options[index].choices!.length + 1}',
+                            ),
+                          );
+                          _updateWidget(); // Trigger the callback
+                        });
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.add),
+                          SizedBox(width: 8),
+                          Text('Add Choice'),
+                        ],
                       ),
                     ),
-                    onPressed: () {
-                      setState(() {
-                        if (options[index].choices == null) {
-                          options[index].choices = [];
-                        }
-                        options[index].choices?.add(
-                          CommandOptionChoiceBuilder(
-                            name:
-                                'Choice ${options[index].choices!.length + 1}',
-                            value:
-                                'Value ${options[index].choices!.length + 1}',
-                          ),
-                        );
-                        _updateWidget(); // Trigger the callback
-                      });
-                    },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.add),
-                        SizedBox(width: 8),
-                        Text('Add Choice'),
-                      ],
-                    ),
                   ),
-                ),
                 const SizedBox(height: 8),
               ],
             );
