@@ -246,13 +246,14 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
         actions: [
           IconButton(
             onPressed: () {
               final dialogFullscren = Dialog.fullscreen(
                 child: Scaffold(
                   appBar: AppBar(
-                    title: const Text("Command Arguments"),
+                    title: const Text("Command arguments"),
                     leading: IconButton(
                       icon: const Icon(Icons.arrow_back),
                       onPressed: () {
@@ -304,22 +305,64 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             },
             icon: const Icon(Icons.info),
           ),
+          if (widget.id.isZero)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                if (_formKey.currentState!.validate()) {
+                  _updateOrCreate();
+                  // Form is valid, proceed with command creation
+                } else {
+                  // Form is invalid, show error message
+                  final dialog = AlertDialog(
+                    title: const Text("Error"),
+                    content: const Text("Please fill all fields"),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text("OK"),
+                      ),
+                    ],
+                  );
+                  showDialog(context: context, builder: (context) => dialog);
+                }
+                // Handle add action
+                // You can implement the logic to add a new command here
+              },
+            ),
           IconButton(
             icon: Icon(
               widget.id.isZero ? Icons.cancel : Icons.save,
             ), // Change icon based on command existence
-            onPressed: () {
+            onPressed: () async {
               if (widget.id.isZero) {
                 Navigator.pop(context);
                 // Handle cancel action
                 // You can implement the logic to cancel the command creation here
               } else {
-                _updateOrCreate();
-                // Handle save action
+                if (_formKey.currentState!.validate()) {
+                  _updateOrCreate();
+                  // Form is valid, proceed with command creation
+                } else {
+                  // Form is invalid, show error message
+                  final dialog = AlertDialog(
+                    title: const Text("Error"),
+                    content: const Text("Please fill all fields"),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text("OK"),
+                      ),
+                    ],
+                  );
+                  showDialog(context: context, builder: (context) => dialog);
+                }
                 // You can implement the logic to save the command here
               }
-              // Handle save action
-              // You can implement the logic to save the command here
             },
           ),
           if (!widget.id.isZero)
@@ -346,8 +389,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                   children: <Widget>[
                     Text(
                       widget.id.isZero
-                          ? "Create a new Command"
-                          : "Update Command",
+                          ? "Create a new command"
+                          : "Update command",
                       style: const TextStyle(fontSize: 24),
                     ),
                     const SizedBox(height: 20),
@@ -364,7 +407,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               initialValue: _commandName,
                               maxLength: 32,
                               decoration: InputDecoration(
-                                labelText: "Command Name",
+                                labelText: "Name",
                                 border: OutlineInputBorder(),
                               ),
                               onChanged: (value) {
@@ -392,7 +435,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               },
                               initialValue: _commandDescription,
                               decoration: InputDecoration(
-                                labelText: "Command Description",
+                                labelText: "Description",
                                 border: OutlineInputBorder(),
                               ),
                               onChanged: (value) {
@@ -433,7 +476,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                     });
                                   },
                                 ),
-                                const Text("Guild Install"),
+                                const Text("Guild install"),
                                 const SizedBox(width: 20),
                                 Checkbox(
                                   value: _integrationTypes.contains(
@@ -461,7 +504,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                             ),
                             const SizedBox(height: 20),
                             const Text(
-                              "Command Options",
+                              "Options",
                               style: TextStyle(fontSize: 18),
                             ),
                             const SizedBox(height: 10),
@@ -471,18 +514,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 setState(() {
                                   _options = options;
                                 });
-                              },
-                            ),
-                            const SizedBox(height: 20),
-                            ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount:
-                                  0, // Replace with the actual number of options
-                              itemBuilder: (context, index) {
-                                return const Text(
-                                  "Option",
-                                ); // Replace with the actual option widget
                               },
                             ),
                             const SizedBox(height: 20),
@@ -504,39 +535,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 // Handle command response input
                               },
                             ),
-                            ElevatedButton(
-                              onPressed: () async {
-                                if (_formKey.currentState!.validate()) {
-                                  _updateOrCreate();
-                                  // Form is valid, proceed with command creation
-                                } else {
-                                  // Form is invalid, show error message
-                                  final dialog = AlertDialog(
-                                    title: const Text("Error"),
-                                    content: const Text(
-                                      "Please fill all fields",
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).pop();
-                                        },
-                                        child: const Text("OK"),
-                                      ),
-                                    ],
-                                  );
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) => dialog,
-                                  );
-                                }
-                                // Handle command creation logic
-                              },
-                              child:
-                                  widget.id.isZero
-                                      ? const Text("Create Command")
-                                      : const Text("Update Command"),
-                            ),
+                            const SizedBox(height: 20),
                           ],
                         ),
                       ),

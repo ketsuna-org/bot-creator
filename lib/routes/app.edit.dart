@@ -113,6 +113,7 @@ class _AppEditPageState extends State<AppEditPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
         actions: [
           IconButton(
             icon: _editMode ? const Icon(Icons.check) : const Icon(Icons.edit),

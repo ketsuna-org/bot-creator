@@ -128,204 +128,198 @@ class _OptionWidgetState extends State<OptionWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Column(
-        children: [
-          ListView.builder(
-            controller: ScrollController(),
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(8.0),
-            shrinkWrap: true,
-            itemCount: options.length,
-            itemBuilder: (context, index) {
-              return Column(
-                children: [
-                  const Divider(color: Colors.grey, height: 2),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Text(
-                        'Option ${index + 1}',
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.delete),
-                        onPressed: () {
-                          setState(() {
-                            options.removeAt(index);
-                            _updateWidget(); // Trigger the callback
-                          });
-                        },
-                      ),
-                    ],
+    return Column(
+      children: [
+        ListView.builder(
+          controller: ScrollController(),
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(8.0),
+          shrinkWrap: true,
+          itemCount: options.length,
+          itemBuilder: (context, index) {
+            return ExpansionTile(
+              controlAffinity: ListTileControlAffinity.leading,
+              trailing: IconButton(
+                icon: const Icon(Icons.delete),
+                onPressed: () {
+                  setState(() {
+                    options.removeAt(index);
+                    _updateWidget(); // Trigger the callback
+                  });
+                },
+              ),
+              title: Text(
+                options[index].name,
+                style: const TextStyle(fontSize: 18),
+              ),
+              children: [
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    border: OutlineInputBorder(),
                   ),
-                  TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Option Name',
-                      border: OutlineInputBorder(),
-                    ),
-                    initialValue: options[index].name,
-                    validator: _validatorName,
-                    maxLength: 32,
-                    onChanged: (value) {
-                      setState(() {
-                        options[index].name = value;
-                        _updateWidget(); // Trigger the callback
-                      });
-                    },
+                  initialValue: options[index].name,
+                  validator: _validatorName,
+                  maxLength: 32,
+                  onChanged: (value) {
+                    setState(() {
+                      options[index].name = value;
+                      _updateWidget(); // Trigger the callback
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) {
+                    FocusScope.of(context).nextFocus();
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    border: OutlineInputBorder(),
                   ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    textInputAction: TextInputAction.next,
-                    onFieldSubmitted: (_) {
-                      FocusScope.of(context).nextFocus();
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Option Description',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLength: 100,
-                    maxLines: 2,
-                    minLines: 1,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a description for the option';
-                      }
-                      return null;
-                    },
-                    initialValue: options[index].description,
-                    onChanged: (value) {
-                      setState(() {
-                        options[index].description = value;
-                        _updateWidget(); // Trigger the callback
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Text('Option Type'),
-                      const Spacer(),
-                      DropdownButton<dynamic>(
-                        value: options[index].type,
+                  maxLength: 100,
+                  maxLines: 2,
+                  minLines: 1,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a description for the option';
+                    }
+                    return null;
+                  },
+                  initialValue: options[index].description,
+                  onChanged: (value) {
+                    setState(() {
+                      options[index].description = value;
+                      _updateWidget(); // Trigger the callback
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Text('Type'),
+                    const Spacer(),
+                    DropdownButton<dynamic>(
+                      value: options[index].type,
 
-                        onChanged: (newValue) {
-                          setState(() {
-                            options[index].type = newValue;
-                            _updateWidget(); // Trigger the callback
-                          });
-                        },
-                        items:
-                            optionTypes.map((type) {
-                              return DropdownMenuItem(
-                                value: type['value'],
-                                child: Text(type['name']),
-                              );
-                            }).toList(),
-                      ),
-                    ],
-                  ),
-                  CheckboxListTile(
-                    title: const Text('Is Required'),
-                    value: options[index].isRequired ?? false,
-                    onChanged: (bool? value) {
-                      setState(() {
-                        options[index].isRequired = value ?? false;
-                        _updateWidget(); // Trigger the callback
-                      });
+                      onChanged: (newValue) {
+                        setState(() {
+                          options[index].type = newValue;
+                          _updateWidget(); // Trigger the callback
+                        });
+                      },
+                      items:
+                          optionTypes.map((type) {
+                            return DropdownMenuItem(
+                              value: type['value'],
+                              child: Text(type['name']),
+                            );
+                          }).toList(),
+                    ),
+                  ],
+                ),
+                CheckboxListTile(
+                  title: const Text('Is Required'),
+                  value: options[index].isRequired ?? false,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      options[index].isRequired = value ?? false;
+                      _updateWidget(); // Trigger the callback
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                if (options[index].choices?.isNotEmpty ?? false)
+                  ListView.builder(
+                    controller: ScrollController(),
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(8.0),
+                    shrinkWrap: true,
+                    itemCount: options[index].choices?.length,
+                    itemBuilder: (context, choiceIndex) {
+                      return ExpansionTile(
+                        title: Text(
+                          "Choice ${choiceIndex + 1}",
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () {
+                            setState(() {
+                              options[index].choices!.removeAt(choiceIndex);
+                              _updateWidget(); // Trigger the callback
+                            });
+                          },
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        children: [
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            decoration: const InputDecoration(
+                              labelText: 'Choice Name',
+                              border: OutlineInputBorder(),
+                            ),
+                            initialValue:
+                                options[index].choices![choiceIndex].name,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter a name for the choice';
+                              }
+                              return null;
+                            },
+                            maxLength: 100,
+                            onChanged: (value) {
+                              setState(() {
+                                options[index].choices![choiceIndex].name =
+                                    value;
+                                _updateWidget(); // Trigger the callback
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            textInputAction: TextInputAction.next,
+                            onFieldSubmitted: (_) {
+                              FocusScope.of(context).nextFocus();
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Choice Value',
+                              border: OutlineInputBorder(),
+                            ),
+                            maxLength: 100,
+                            maxLines: 2,
+                            minLines: 1,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter a value for the choice';
+                              }
+                              return null;
+                            },
+                            initialValue:
+                                options[index].choices![choiceIndex].value,
+                            onChanged: (value) {
+                              setState(() {
+                                options[index].choices![choiceIndex].value =
+                                    value;
+                                _updateWidget(); // Trigger the callback
+                              });
+                            },
+                          ),
+                        ],
+                      );
                     },
                   ),
-                  const SizedBox(height: 8),
-                  if (options[index].choices?.isNotEmpty ?? false)
-                    ListView.builder(
-                      controller: ScrollController(),
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(8.0),
-                      shrinkWrap: true,
-                      itemCount: options[index].choices?.length,
-                      itemBuilder: (context, choiceIndex) {
-                        return Column(
-                          children: [
-                            const Divider(color: Colors.grey, height: 2),
-                            Row(
-                              children: [
-                                Text(
-                                  'Choice ${choiceIndex + 1}',
-                                  style: const TextStyle(fontSize: 18),
-                                ),
-                                const Spacer(),
-                                IconButton(
-                                  icon: const Icon(Icons.delete),
-                                  onPressed: () {
-                                    setState(() {
-                                      options[index].choices!.removeAt(
-                                        choiceIndex,
-                                      );
-                                      _updateWidget(); // Trigger the callback
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              decoration: const InputDecoration(
-                                labelText: 'Choice Name',
-                                border: OutlineInputBorder(),
-                              ),
-                              initialValue:
-                                  options[index].choices![choiceIndex].name,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter a name for the choice';
-                                }
-                                return null;
-                              },
-                              maxLength: 100,
-                              onChanged: (value) {
-                                setState(() {
-                                  options[index].choices![choiceIndex].name =
-                                      value;
-                                  _updateWidget(); // Trigger the callback
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              textInputAction: TextInputAction.next,
-                              onFieldSubmitted: (_) {
-                                FocusScope.of(context).nextFocus();
-                              },
-                              decoration: const InputDecoration(
-                                labelText: 'Choice Value',
-                                border: OutlineInputBorder(),
-                              ),
-                              maxLength: 100,
-                              maxLines: 2,
-                              minLines: 1,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter a value for the choice';
-                                }
-                                return null;
-                              },
-                              initialValue:
-                                  options[index].choices![choiceIndex].value,
-                              onChanged: (value) {
-                                setState(() {
-                                  options[index].choices![choiceIndex].value =
-                                      value;
-                                  _updateWidget(); // Trigger the callback
-                                });
-                              },
-                            ),
-                          ],
-                        );
-                      },
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: MediaQuery.of(context).size.width - 32,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
                     ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
                     onPressed: () {
                       setState(() {
                         if (options[index].choices == null) {
@@ -342,21 +336,43 @@ class _OptionWidgetState extends State<OptionWidget> {
                         _updateWidget(); // Trigger the callback
                       });
                     },
-                    child: const Text('Add Choice'),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.add),
+                        SizedBox(width: 8),
+                        Text('Add Choice'),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                ],
-              );
-            },
-          ),
-          if (options.length < 25)
-            ElevatedButton(
+                ),
+                const SizedBox(height: 8),
+              ],
+            );
+          },
+        ),
+        if (options.length < 25)
+          SizedBox(
+            width: MediaQuery.of(context).size.width - 16,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+              ),
               onPressed: addOption,
-              child: const Text('Add Option'),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.add),
+                  SizedBox(width: 8),
+                  Text('Add Option'),
+                ],
+              ),
             ),
-          const SizedBox(height: 10),
-        ],
-      ),
+          ),
+        const SizedBox(height: 10),
+      ],
     );
   }
 }
