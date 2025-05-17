@@ -1,9 +1,9 @@
-import 'package:cardia_kexa/main.dart';
-import 'package:cardia_kexa/utils/database.dart';
+import 'package:bot_creator/main.dart';
+import 'package:bot_creator/utils/database.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
 import 'dart:developer' as developer;
-import 'package:cardia_kexa/utils/global.dart';
+import 'package:bot_creator/utils/global.dart';
 
 @pragma('vm:entry-point')
 String updateString(String initial, Map<String, String> updates) {

@@ -1,0 +1,22 @@
+{
+    "flutter": {
+        "platforms": {
+            "android": {
+                "default": {
+                    "projectId": "bot-creator-f884b",
+                    "appId": "1:777382167262:android:dedbbd40768d96af29f84f",
+                    "fileOutput": "android/app/google-services.json"
+                }
+            },
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "bot-creator-f884b",
+                    "configurations": {
+                        "android": "1:777382167262:android:dedbbd40768d96af29f84f",
+                        "ios": "1:777382167262:ios:0f1a5a7f88a1120629f84f"
+                    }
+                }
+            }
+        }
+    }
+}

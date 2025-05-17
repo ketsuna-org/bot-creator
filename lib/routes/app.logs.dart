@@ -1,4 +1,4 @@
-import 'package:cardia_kexa/main.dart';
+import 'package:bot_creator/main.dart';
 import 'package:flutter/material.dart';
 
 class LogsPage extends StatefulWidget {

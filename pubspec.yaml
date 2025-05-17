@@ -1,4 +1,4 @@
-name: cardia_kexa
+name: bot_creator
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -41,6 +41,7 @@ dependencies:
   flutter_foreground_task: ^9.1.0
   rename_app: ^1.6.3
   flutter_launcher_icons: ^0.14.3
+  firebase_core: ^3.13.0
 
 
 

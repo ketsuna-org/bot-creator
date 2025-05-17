@@ -1,5 +1,5 @@
-import 'package:cardia_kexa/main.dart';
-import 'package:cardia_kexa/utils/global.dart';
+import 'package:bot_creator/main.dart';
+import 'package:bot_creator/utils/global.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 import 'dart:developer' as developer;

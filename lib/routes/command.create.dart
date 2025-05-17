@@ -1,6 +1,6 @@
-import 'package:cardia_kexa/main.dart';
-import 'package:cardia_kexa/utils/bot.dart';
-import 'package:cardia_kexa/widgets/option_widget.dart';
+import 'package:bot_creator/main.dart';
+import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/widgets/option_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 

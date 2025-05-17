@@ -1,10 +1,10 @@
 import 'dart:io';
 
-import 'package:cardia_kexa/main.dart';
-import 'package:cardia_kexa/routes/app.logs.dart';
-import 'package:cardia_kexa/routes/command.create.dart';
-import 'package:cardia_kexa/utils/bot.dart';
-import 'package:cardia_kexa/utils/global.dart';
+import 'package:bot_creator/main.dart';
+import 'package:bot_creator/routes/app.logs.dart';
+import 'package:bot_creator/routes/command.create.dart';
+import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/global.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
