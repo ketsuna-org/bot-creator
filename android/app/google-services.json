@@ -12,7 +12,20 @@
           "package_name": "com.cardia_kexa.cardia_kexa"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "777382167262-4os7qabl85pvr7588l5vlbreuhr7kquc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cardia_kexa.cardia_kexa",
+            "certificate_hash": "9dac377b4ffa80b9c55b8e050f9e6f7d89a0b2b1"
+          }
+        },
+        {
+          "client_id": "777382167262-83ljuklqu6u2jauver5a72qs1vbpkl19.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAc5ZRkTOWEE-9O9HxScFxn0Q9HsNdixnY"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "777382167262-83ljuklqu6u2jauver5a72qs1vbpkl19.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "777382167262-454ckdtstv4jb7m1fue0foqcibvm6f7k.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.cardiakexa.cardiaKexa"
+              }
+            }
+          ]
         }
       }
     }
