@@ -1,249 +1,295 @@
 import 'dart:async';
-
-import 'package:cardia_kexa/main.dart';
-import 'package:cbl/cbl.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'dart:developer' as developer;
 
 class AppManager {
   static final AppManager _instance = AppManager._internal();
   factory AppManager() => _instance;
-  Collection? _colApps;
-  Collection? _colCommands;
-  Collection? _colLogs;
+  final StreamController<List<dynamic>> _appsStreamController =
+      StreamController<List<dynamic>>.broadcast();
+  final Map<String, StreamController<List<Map<String, String>>>>
+  _logController = {};
+  List<dynamic> _apps = [];
+
   AppManager._internal() {
     _init();
   }
 
+  static Future<String> _path() async {
+    final directory = await getApplicationDocumentsDirectory();
+    return directory.path;
+  }
+
   Future<void> _init() async {
-    _colApps = await database.createCollection("apps");
-    _colCommands = await database.createCollection("commands");
-    _colLogs = await database.createCollection("logs");
-  }
-
-  Future<Collection> getColApps() async {
-    _colApps ??= await database.createCollection("apps");
-    return _colApps!;
-  }
-
-  Future<Collection> getColCommands() async {
-    _colCommands ??= await database.createCollection("commands");
-    return _colCommands!;
-  }
-
-  Future<Collection> getColLogs() async {
-    _colLogs ??= await database.createCollection("logs");
-    return _colLogs!;
-  }
-
-  Future<void> addLog(String log, String appId) async {
-    final col = await getColLogs();
-    final doc = MutableDocument({
-      "log": log,
-      "appId": appId,
-      "createdAt": DateTime.now().toIso8601String(),
-    });
-    await col.saveDocument(doc);
-    // retrieve newly created document by id
-    await col.setDocumentExpiration(
-      doc.id,
-      DateTime.now().add(const Duration(minutes: 5)),
-    );
-  }
-
-  Future<void> removeLog(String id) async {
-    final col = await getColLogs();
-    final doc = await col.document(id);
-    if (doc == null) {
-      throw Exception("Document not found");
+    final path = await _path();
+    final apps = Directory("$path/apps");
+    if (!await apps.exists()) {
+      await apps.create(recursive: true);
     }
-    await col.deleteDocument(doc);
-  }
-
-  Future<List<Map<String, Object?>>> getLogs(String id) async {
-    final col = await getColLogs();
-    final query = const QueryBuilder()
-        .select(
-          SelectResult.property("log"),
-          SelectResult.property("createdAt"),
-        )
-        .from(DataSource.collection(col))
-        .where(Expression.property("appId").equalTo(Expression.string(id)));
-    final snapshot = await query.execute();
-    final results =
-        await snapshot.asStream().map((event) {
-          return {
-            "log": event.string("log"),
-            "createdAt": event.string("createdAt"),
-          };
-        }).toList();
-    return results;
-  }
-
-  Future<void> clearLogs(String id) async {
-    final col = await getColLogs();
-    final query = const QueryBuilder()
-        .select(SelectResult.property("id"))
-        .from(DataSource.collection(col))
-        .where(Expression.property("appId").equalTo(Expression.string(id)));
-    final snapshot = await query.execute();
-    final results =
-        await snapshot.asStream().map((event) {
-          return event.string("id");
-        }).toList();
-    for (var id in results) {
-      final doc = await col.document(id.toString());
-      if (doc != null) {
-        await col.deleteDocument(doc);
-      }
+    await getAllApps();
+    while (true) {
+      await Future.delayed(const Duration(seconds: 5));
+      _appsStreamController.add(_apps);
     }
   }
 
-  Stream<List<Map<String, Object?>>> getLogsStream(String id) {
-    late StreamController<List<Map<String, Object?>>> ctlr;
-    StreamSubscription<CollectionChange>? triggerSubscription;
+  Future<File> createOrUpdateApp(String id, String name, String token) async {
+    final path = await _path();
 
-    Future<void> sendUpdate() async {
-      var logs = await getLogs(id);
-      if (!ctlr.isClosed) {
-        ctlr.add(logs);
-      }
-    }
-
-    ctlr = StreamController<List<Map<String, Object?>>>(
-      onListen: () {
-        sendUpdate();
-
-        /// Listen for trigger
-        final stream = _colLogs?.changes();
-        triggerSubscription = stream?.listen((event) async {
-          if (event.collection.name == "logs") {
-            sendUpdate();
-          }
-        });
-      },
-      onCancel: () {
-        triggerSubscription?.cancel();
-      },
-    );
-    return ctlr.stream;
-  }
-
-  Future<void> addCommand(String id, Map<String, dynamic> data) async {
-    final col = await getColCommands();
-    final doc = MutableDocument.withId(id, {
-      "id": id,
-      "data": data,
-      "createdAt": DateTime.now().toIso8601String(),
-    });
-    await col.saveDocument(doc);
-  }
-
-  Future<void> removeCommand(String id) async {
-    final col = await getColCommands();
-    final doc = await col.document(id);
-    if (doc == null) {
-      throw Exception("Document not found");
-    }
-    await col.deleteDocument(doc);
-  }
-
-  Future<void> updateCommand(String id, Map<String, dynamic> data) async {
-    final col = await getColCommands();
-    final doc = await col.document(id);
-    if (doc == null) {
-      throw Exception("Document not found");
-    }
-    MutableDocument mutableDoc = doc.toMutable();
-    mutableDoc.setString(id, key: "id");
-    mutableDoc.setValue(data, key: "data");
-    await col.saveDocument(mutableDoc);
-  }
-
-  Future<Document?> getCommand(String id) async {
-    final col = await getColCommands();
-    final doc = await col.document(id);
-    return doc;
-  }
-
-  Future<void> addApp(String id, String name, String token) async {
-    final col = await getColApps();
-    final doc = MutableDocument.withId(id, {
+    Map<String, String> data = {
       "name": name,
       "id": id,
       "token": token,
       "createdAt": DateTime.now().toIso8601String(),
-    });
-    await col.saveDocument(doc);
-  }
-
-  Future<void> removeApp(String id) async {
-    final col = await getColApps();
-    final doc = await col.document(id);
-    if (doc == null) {
-      throw Exception("Document not found");
+    };
+    developer.log("Creating or updating app: $data");
+    final file = File("$path/apps/$id.json");
+    if (!await file.exists()) {
+      await file.create(recursive: true);
     }
-    await col.deleteDocument(doc);
-  }
+    await file.writeAsString(jsonEncode(data));
 
-  Future<void> updateApp(String id, String name, String token) async {
-    final col = await getColApps();
-    final doc = await col.document(id);
-    if (doc == null) {
-      throw Exception("Document not found");
+    // We need to have refs to alls App Ids in another file. (only name and id inside is needed)
+    final allAppsFile = File("$path/apps/all_apps.json");
+    if (!await allAppsFile.exists()) {
+      await allAppsFile.create(recursive: true);
     }
-    MutableDocument mutableDoc = doc.toMutable();
-    mutableDoc.setString(name, key: "name");
-    mutableDoc.setString(id, key: "id");
-    mutableDoc.setString(token, key: "token");
-    await col.saveDocument(mutableDoc);
-  }
-
-  Future<Document?> getApp(String id) async {
-    final col = await getColApps();
-    final doc = await col.document(id);
-    return doc;
-  }
-
-  Future<List<Map<String, Object?>>> getApps() async {
-    final col = await getColApps();
-    final query = const QueryBuilder()
-        .select(SelectResult.property("id"), SelectResult.property("name"))
-        .from(DataSource.collection(col));
-    final snapshot = await query.execute();
-    final results =
-        await snapshot.asStream().map((event) {
-          return {"id": event.string("id"), "name": event.string("name")};
-        }).toList();
-    return results;
-  }
-
-  Stream<List<Map<String, Object?>>> getAppsStream() {
-    late StreamController<List<Map<String, Object?>>> ctlr;
-    StreamSubscription? triggerSubscription;
-
-    Future<void> sendUpdate() async {
-      var apps = await getApps();
-      if (!ctlr.isClosed) {
-        ctlr.add(apps);
+    List<dynamic> allAppsList = await getAllApps();
+    // check if the app already exists
+    bool exists = false;
+    for (var app in allAppsList) {
+      if (app["id"] == id) {
+        exists = true;
+        break;
       }
     }
-
-    ctlr = StreamController<List<Map<String, Object?>>>(
-      onListen: () {
-        sendUpdate();
-
-        /// Listen for trigger
-        triggerSubscription = _colApps?.changes().listen((event) async {
-          if (event.collection.name == "apps") {
-            sendUpdate();
-          }
-        });
-      },
-      onCancel: () {
-        triggerSubscription?.cancel();
-      },
-    );
-    return ctlr.stream;
+    if (!exists) {
+      allAppsList.add({"name": name, "id": id});
+    } else {
+      // update the app
+      for (var app in allAppsList) {
+        if (app["id"] == id) {
+          app["name"] = name;
+          break;
+        }
+      }
+    }
+    await allAppsFile.writeAsString(jsonEncode(allAppsList));
+    _apps = allAppsList;
+    _appsStreamController.add(allAppsList);
+    return file;
   }
 
-  // Add your properties and methods here
+  Future<void> deleteApp(String id) async {
+    final path = await _path();
+    final file = File("$path/apps/$id.json");
+    if (await file.exists()) {
+      await file.delete();
+    }
+    final currentAppDir = Directory("$path/apps/$id");
+    if (await currentAppDir.exists()) {
+      await currentAppDir.delete(recursive: true);
+    }
+    // We need to have refs to alls App Ids in another file. (only name and id inside is needed)
+    final allAppsFile = File("$path/apps/all_apps.json");
+    if (!await allAppsFile.exists()) {
+      await allAppsFile.create(recursive: true);
+    }
+    final allApps = await allAppsFile.readAsString();
+    // let's decode json
+    List<dynamic> allAppsList = [];
+    if (allApps.isNotEmpty) {
+      developer.log("All Apps: $allApps");
+      allAppsList = jsonDecode(allApps) as List<dynamic>;
+    }
+    // check if the app already exists
+    for (var app in allAppsList) {
+      if (app["id"] == id) {
+        allAppsList.remove(app);
+        break;
+      }
+    }
+    await allAppsFile.writeAsString(jsonEncode(allAppsList));
+    _apps = allAppsList;
+    _appsStreamController.add(allAppsList);
+  }
+
+  Future<List<dynamic>> getAllApps() async {
+    final path = await _path();
+    final allAppsFile = File("$path/apps/all_apps.json");
+    if (!await allAppsFile.exists()) {
+      await allAppsFile.create(recursive: true);
+    }
+    final allApps = await allAppsFile.readAsString();
+    // let's decode json
+    List<dynamic> allAppsList = [];
+    if (allApps.isNotEmpty) {
+      allAppsList = jsonDecode(allApps) as List<dynamic>;
+    }
+    _apps = allAppsList;
+    _appsStreamController.add(allAppsList);
+    return allAppsList;
+  }
+
+  Stream<List<dynamic>> getAppStream() {
+    // add trigger to the stream
+
+    if (_appsStreamController.hasListener) {
+      return _appsStreamController.stream;
+    } else {
+      return _appsStreamController.stream;
+    }
+  }
+
+  Stream<List<dynamic>> getLogStream(String id) {
+    if (_logController.containsKey(id)) {
+      return _logController[id]!.stream;
+    } else {
+      final logStreamController =
+          StreamController<List<Map<String, String>>>.broadcast();
+      _logController[id] = logStreamController;
+      return logStreamController.stream;
+    }
+  }
+
+  Future<void> deleteAllApps() async {
+    final path = await _path();
+    final allAppsFile = File("$path/apps/all_apps.json");
+    if (await allAppsFile.exists()) {
+      // first let's read the file
+      final allApps = await allAppsFile.readAsString();
+      // let's decode json
+      List<dynamic> allAppsList = [];
+      if (allApps.isNotEmpty) {
+        allAppsList = jsonDecode(allApps) as List<dynamic>;
+      }
+      // let's recursively delete all apps inside the list
+      for (var app in allAppsList) {
+        final appId = app["id"];
+        await deleteApp(appId!);
+      }
+      await allAppsFile.delete();
+    }
+  }
+
+  Future<Map<String, dynamic>> getApp(String id) async {
+    final path = await _path();
+    final file = File("$path/apps/$id.json");
+    if (await file.exists()) {
+      final data = await file.readAsString();
+      // let's decode json
+      var appData = <String, dynamic>{};
+      if (data.isNotEmpty) {
+        appData = jsonDecode(data) as Map<String, dynamic>;
+      }
+      return appData;
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>> getAppCommand(
+    String id,
+    String commandId,
+  ) async {
+    final path = await _path();
+    final file = File("$path/apps/$id/$commandId.json");
+    if (await file.exists()) {
+      final data = await file.readAsString();
+      // let's decode json
+      Map<String, dynamic> appData = {};
+      if (data.isNotEmpty) {
+        appData = jsonDecode(data) as Map<String, dynamic>;
+      }
+      developer.log("Command data: $appData");
+      return appData;
+    }
+    return {};
+  }
+
+  Future<void> saveAppCommand(
+    String id,
+    String commandId,
+    Map<String, dynamic> data,
+  ) async {
+    final path = await _path();
+    final file = File("$path/apps/$id/$commandId.json");
+    if (!await file.exists()) {
+      await file.create(recursive: true);
+    }
+    await file.writeAsString(jsonEncode(data));
+  }
+
+  Future<void> deleteAppCommand(String id, String commandId) async {
+    final path = await _path();
+    final file = File("$path/apps/$id/$commandId.json");
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
+  Future<void> deleteAppCommands(String id) async {
+    final path = await _path();
+    final appDir = Directory("$path/apps/$id");
+    if (await appDir.exists()) {
+      final appFiles = await appDir.list().toList();
+      for (var appFile in appFiles) {
+        if (appFile.path.endsWith(".json")) {
+          final appDataFile = File(appFile.path);
+          await appDataFile.delete();
+        }
+      }
+    }
+  }
+
+  Future<void> saveLog(String id, String log) async {
+    final path = await _path();
+    final file = File("$path/apps/$id/logs.json");
+    if (!await file.exists()) {
+      await file.create(recursive: true);
+    }
+    final data = await file.readAsString();
+    List<Map<String, String>> logs = [];
+    if (data.isNotEmpty) {
+      logs = List<Map<String, String>>.from(jsonDecode(data));
+    }
+    logs.add({"log": log, "createdAt": DateTime.now().toIso8601String()});
+    await file.writeAsString(jsonEncode(logs));
+    // let's also add the log to the stream
+    if (_logController.containsKey(id)) {
+      _logController[id]!.add(logs);
+    } else {
+      final logStreamController = StreamController<List<Map<String, String>>>();
+      _logController[id] = logStreamController;
+      logStreamController.add(logs);
+    }
+  }
+
+  Future<void> clearLogs(String id) async {
+    final path = await _path();
+    final file = File("$path/apps/$id/logs.json");
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
+  Future<void> deleteAllLogs() async {
+    final path = await _path();
+    final allAppsFile = File("$path/apps/all_apps.json");
+    if (await allAppsFile.exists()) {
+      // first let's read the file
+      final allApps = await allAppsFile.readAsString();
+      // let's decode json
+      List<Map<String, String>> allAppsList = [];
+      if (allApps.isNotEmpty) {
+        allAppsList = List<Map<String, String>>.from(jsonDecode(allApps));
+      }
+      // let's recursively delete all logs inside the list
+      for (var app in allAppsList) {
+        final appId = app["id"];
+        await clearLogs(appId!);
+      }
+    }
+  }
 }

@@ -8,10 +8,10 @@ class OptionWidget extends StatefulWidget {
   const OptionWidget({super.key, required this.onChange, this.initialOptions});
 
   @override
-  _OptionWidgetState createState() => _OptionWidgetState();
+  OptionWidgetState createState() => OptionWidgetState();
 }
 
-class _OptionWidgetState extends State<OptionWidget> {
+class OptionWidgetState extends State<OptionWidget> {
   final List<CommandOptionBuilder> options = [];
 
   final List<dynamic> optionTypes = [

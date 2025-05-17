@@ -127,7 +127,7 @@ Future<Map<String, String>> generateKeyValues(
           // let's prefix them with opts to avoid conflicts
           // with other keys
           for (final entry in subKeyValues.entries) {
-            listOfArgs["opts.${option.name}.${entry.key}"] = entry.value;
+            listOfArgs["opts.${entry.key}"] = entry.value;
           }
         }
       } else if (option.type == CommandOptionType.subCommandGroup) {
@@ -144,8 +144,7 @@ Future<Map<String, String>> generateKeyValues(
             // let's prefix them with opts to avoid conflicts
             // with other keys
             for (final entry in subKeyValues.entries) {
-              listOfArgs["opts.${option.name}.${subCommandOption.name}.${entry.key}"] =
-                  entry.value;
+              listOfArgs["opts.${entry.key}"] = entry.value;
             }
           }
         }
@@ -162,7 +161,6 @@ Future<Map<String, String>> generateKeyValues(
       }
     }
   }
-  print("List of args: $listOfArgs");
   return listOfArgs;
 }
 

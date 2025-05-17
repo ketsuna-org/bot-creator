@@ -7,10 +7,10 @@ class EmbedWidget extends StatefulWidget {
   const EmbedWidget({super.key, required this.onChange});
 
   @override
-  _EmbedWidgetState createState() => _EmbedWidgetState();
+  EmbedWidgetState createState() => EmbedWidgetState();
 }
 
-class _EmbedWidgetState extends State<EmbedWidget> {
+class EmbedWidgetState extends State<EmbedWidget> {
   final embed = EmbedBuilder();
 
   void _updateEmbed() {

@@ -2,6 +2,7 @@ import 'package:cardia_kexa/main.dart';
 import 'package:cardia_kexa/utils/global.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
+import 'dart:developer' as developer;
 
 class AppCreatePage extends StatefulWidget {
   const AppCreatePage({super.key});
@@ -39,7 +40,7 @@ class _AppCreatePageState extends State<AppCreatePage> {
                   // Let's fetch the App first.
                   User discordUser = await getDiscordUser(_token);
 
-                  await appManager.addApp(
+                  await appManager.createOrUpdateApp(
                     discordUser.id.toString(),
                     discordUser.username,
                     _token,
@@ -47,6 +48,10 @@ class _AppCreatePageState extends State<AppCreatePage> {
                   Navigator.pop(context);
                 } catch (e) {
                   // Handle error
+                  developer.log(
+                    "Error creating app: $e",
+                    name: "AppCreatePage",
+                  );
                   final errorText = e.toString();
                   final dialog = AlertDialog(
                     title: const Text("Error"),

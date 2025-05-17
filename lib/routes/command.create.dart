@@ -1,7 +1,6 @@
 import 'package:cardia_kexa/main.dart';
 import 'package:cardia_kexa/utils/bot.dart';
 import 'package:cardia_kexa/widgets/option_widget.dart';
-import 'package:cbl/cbl.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -59,29 +58,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     if (!widget.id.isZero) {
       final command = await widget.client?.commands.fetch(widget.id);
       // check if we also have the command in the database
-      final commandData = await appManager.getCommand(widget.id.toString());
-      if (commandData != null) {
-        // let's set the command data to the fields
-        final data = commandData
-            .value<Dictionary>("data")
-            ?.value<Dictionary>("data");
-        if (data != null) {
-          setState(() {
-            _response = data.string("response") ?? "";
-          });
-        }
+      final commandData = await appManager.getAppCommand(
+        widget.client!.user.id.toString(),
+        widget.id.toString(),
+      );
+      // let's set the command data to the fields
+      final data = commandData["data"];
+      if (data != null) {
+        setState(() {
+          _response = data["response"] ?? "";
+        });
       }
       if (command != null) {
-        if (commandData == null) {
-          // command does not exist in the database so let's add it
-          await appManager.addCommand(command.id.toString(), {
-            "name": command.name,
-            "description": command.description,
-            "id": command.id.toString(),
-            "applicationId": command.applicationId.toString(),
-            "createdAt": DateTime.now().toIso8601String(),
-          });
-        }
         setState(() {
           _commandName = command.name;
           _commandDescription = command.description;
@@ -375,7 +363,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               icon: const Icon(Icons.delete),
               onPressed: () async {
                 await widget.client?.commands.delete(widget.id);
-                await appManager.removeCommand(widget.id.toString());
+                await appManager.deleteAppCommand(
+                  widget.client!.user.id.toString(),
+                  widget.id.toString(),
+                );
                 Navigator.pop(context);
                 // Handle delete action
                 // You can implement the logic to delete the command here

@@ -15,7 +15,7 @@ class _LogsPageState extends State<LogsPage> {
     return Scaffold(
       appBar: AppBar(title: const Text("Logs")),
       body: StreamBuilder(
-        stream: appManager.getLogsStream(widget.id.toString()),
+        stream: appManager.getLogStream(widget.id.toString()),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const CircularProgressIndicator();

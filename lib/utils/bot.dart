@@ -1,7 +1,5 @@
 import 'package:cardia_kexa/main.dart';
 import 'package:cardia_kexa/utils/database.dart';
-import 'package:cbl/cbl.dart';
-import 'package:cbl_flutter/cbl_flutter.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
 import 'dart:developer' as developer;
@@ -32,21 +30,17 @@ Future<void> handleLocalCommands(
 ) async {
   final interaction = event.interaction;
   final clientId = event.gateway.client.user.id.toString();
-  manager.addLog("Interaction ${interaction.data.name} invoked", clientId);
   if (interaction is ApplicationCommandInteraction) {
     final command = interaction.data;
-    final action = await manager.getCommand(command.id.toString());
+    final action = await manager.getAppCommand(clientId, command.id.toString());
 
-    if (action == null) {
-      await interaction.respond(MessageBuilder(content: "Command not found"));
-      return;
-    } else if (action.string("id") == command.id.toString()) {
+    if (action["id"] == command.id.toString()) {
       final listOfArgs = await generateKeyValues(interaction);
 
       // extract the "reply" from the "data" field
-      final value = action.value<Dictionary>("data")?.value<Dictionary>("data");
+      final value = action["data"];
       if (value != null) {
-        String response = value.string("response") ?? "No response found";
+        String response = value["response"] ?? "No response found";
         response = updateString(response, listOfArgs);
         await interaction.respond(MessageBuilder(content: response));
       } else {
@@ -58,10 +52,6 @@ Future<void> handleLocalCommands(
       return;
     }
   }
-  appManager.addLog(
-    "Interaction ${interaction.data.name} not handled",
-    clientId,
-  );
 }
 
 Future<void> startService() async {
@@ -97,41 +87,35 @@ class DiscordBotTaskHandler extends TaskHandler {
     final token = await FlutterForegroundTask.getData<String>(key: "token");
     if (token != null) {
       try {
-        await CouchbaseLiteFlutter.init();
-        database = await Database.openAsync("cardia_kexa");
         appManager = AppManager();
-        developer.log("Database opened", name: "DiscordBotTaskHandler");
+        developer.log("Token: $token", name: "DiscordBotTaskHandler");
         final gateway = await Nyxx.connectGateway(
           token,
           GatewayIntents.allUnprivileged,
-          options: GatewayClientOptions(loggerName: "CardiaKexa"),
+          options: GatewayClientOptions(
+            loggerName: "CardiaKexa",
+            plugins: [Logging(logLevel: Level.ALL)],
+          ),
         );
         gateway.onReady.listen((event) {
           isReady = true;
-          appManager.addLog(
-            "Gateway is ready: ${event.user.username}",
-            gateway.user.id.toString(),
-          );
-        });
-        gateway.onInteractionCreate.listen((event) async {
-          // Traiter les interactions
-          await handleLocalCommands(event, appManager);
-          // retrieve the user
-          final user = event.interaction.member?.user;
-          if (user != null) {
-            // gather the interaction Name
-            final interactionName = event.interaction.data?.name;
-            appManager.addLog(
-              "Interaction $interactionName invoked by ${user.username}",
+          developer.log("Bot is ready", name: "DiscordBotTaskHandler");
+          gateway.onInteractionCreate.listen((event) async {
+            // Traiter les interactions
+            await handleLocalCommands(event, appManager);
+            if (event.interaction is ApplicationCommandInteraction) {
+              appManager.saveLog(
+                gateway.user.id.toString(),
+                "Command ${event.interaction.data.name} executed by ${event.interaction.user?.username}",
+              );
+            }
+            appManager.saveLog(
               gateway.user.id.toString(),
+              "Interaction ${event.interaction.data.name} received",
             );
-          } else {
-            appManager.addLog(
-              "Interaction invoked by unknown user",
-              gateway.user.id.toString(),
-            );
-          }
+          });
         });
+
         client = gateway;
       } catch (e) {
         developer.log(
@@ -166,7 +150,7 @@ class DiscordBotTaskHandler extends TaskHandler {
 
   @override
   void onRepeatEvent(DateTime timestamp) {
-    // TODO: implement onRepeatEvent
+    developer.log("Repeat event", name: "DiscordBotTaskHandler");
   }
 }
 
@@ -181,13 +165,16 @@ Future<void> createCommand(
       "name": command.name,
       "description": command.description,
       "id": command.id.toString(),
-      "applicationId": command.applicationId.toString(),
       "createdAt": DateTime.now().toIso8601String(),
     };
     if (data.isNotEmpty) {
       commandData["data"] = data;
     }
-    appManager.addCommand(command.id.toString(), commandData);
+    appManager.saveAppCommand(
+      client.user.id.toString(),
+      command.id.toString(),
+      commandData,
+    );
   } catch (e) {
     throw Exception("Failed to create command: $e");
   }
@@ -206,14 +193,17 @@ Future<void> updateCommand(
       "name": command.name,
       "description": command.description,
       "id": command.id.toString(),
-      "applicationId": command.applicationId.toString(),
       "updatedAt": DateTime.now().toIso8601String(),
     };
 
     if (data.isNotEmpty) {
       commandData["data"] = data;
     }
-    appManager.updateCommand(commandId.toString(), commandData);
+    appManager.saveAppCommand(
+      client.user.id.toString(),
+      command.id.toString(),
+      commandData,
+    );
   } catch (e) {
     throw Exception("Failed to update command: $e");
   }

@@ -33,62 +33,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.2"
-  cbl:
-    dependency: "direct main"
-    description:
-      name: cbl
-      sha256: "8dc2b422d200e563747dd19dc829458e4f1df6a31564c6fc7bc9f1f43bb2b91e"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.4.2+0"
-  cbl_flutter:
-    dependency: "direct main"
-    description:
-      name: cbl_flutter
-      sha256: "08855a0855f998c938827f73f6bfd61a0a854beebf3fdca6fffc0f83f0ab95d0"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.3.1"
-  cbl_flutter_ce:
-    dependency: "direct main"
-    description:
-      name: cbl_flutter_ce
-      sha256: "374eabf6a501088f28aa63991d1da32b3361435419029fb5bcba28ebf7c50baa"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.3.2"
-  cbl_flutter_install:
-    dependency: transitive
-    description:
-      name: cbl_flutter_install
-      sha256: "1a98c1176fd3a4adc12ddd70ba08feb08b08a68be57013e12f1db0a04b7f28d0"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.0+2"
-  cbl_flutter_platform_interface:
-    dependency: transitive
-    description:
-      name: cbl_flutter_platform_interface
-      sha256: "7c23b4245127df3e6811fa7ae76cb0b1fc01b9cbc86d9a36f59079e1911d50a9"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.1.2"
-  cbl_libcblite_api:
-    dependency: transitive
-    description:
-      name: cbl_libcblite_api
-      sha256: a7ce720190ea31990cc0d6a8c93993839d32d77fb0af3edc5d4bb7258fce1645
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.2.0"
-  cbl_libcblitedart_api:
-    dependency: transitive
-    description:
-      name: cbl_libcblitedart_api
-      sha256: accfb54cdf0198f4da74d93dc78a77f97f488b90a2c4898e202b208e5da2b79d
-      url: "https://pub.dev"
-    source: hosted
-    version: "8.1.1"
   characters:
     dependency: transitive
     description:
@@ -345,7 +289,7 @@ packages:
     source: hosted
     version: "1.9.1"
   path_provider:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: path_provider
       sha256: "50c5dd5b6e1aaf6fb3a78b33f6aa3afca52bf903a8a5298f53101fdaee55bbcd"
@@ -549,14 +493,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.1"
-  synchronized:
-    dependency: transitive
-    description:
-      name: synchronized
-      sha256: "0669c70faae6270521ee4f05bffd2919892d42d1276e6c495be80174b6bc0ef6"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.3.1"
   term_glyph:
     dependency: transitive
     description:
@@ -605,22 +541,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
-  web_socket:
-    dependency: transitive
-    description:
-      name: web_socket
-      sha256: "3c12d96c0c9a4eec095246debcea7b86c0324f22df69893d538fcc6f1b8cce83"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.6"
-  web_socket_channel:
-    dependency: transitive
-    description:
-      name: web_socket_channel
-      sha256: "0b8e2457400d8a859b7b2030786835a28a8e80836ef64402abef392ff4f1d0e5"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.2"
   xdg_directories:
     dependency: transitive
     description:

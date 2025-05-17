@@ -5,7 +5,6 @@ import 'package:cardia_kexa/routes/app.logs.dart';
 import 'package:cardia_kexa/routes/command.create.dart';
 import 'package:cardia_kexa/utils/bot.dart';
 import 'package:cardia_kexa/utils/global.dart';
-import 'package:cbl/cbl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
@@ -23,7 +22,6 @@ class _AppEditPageState extends State<AppEditPage>
     with TickerProviderStateMixin {
   String _token = "";
   String _appName = "";
-  late Collection appCol;
   NyxxRest? client; // Changez en nullable
   bool _isLoading = true;
   bool _editMode = false;
@@ -94,7 +92,7 @@ class _AppEditPageState extends State<AppEditPage>
 
   _init() async {
     final app = await appManager.getApp(widget.id.toString());
-    final token = app?.string("token");
+    final token = app["token"];
     if (token != null) {
       client = await Nyxx.connectRest(token);
       setState(() {
@@ -105,7 +103,7 @@ class _AppEditPageState extends State<AppEditPage>
     final isRunning = await FlutterForegroundTask.isRunningService;
     setState(() {
       _botLaunched = isRunning;
-      _appName = app?.string("name") ?? widget.appName;
+      _appName = app["name"] ?? widget.appName;
     });
   }
 
@@ -136,17 +134,15 @@ class _AppEditPageState extends State<AppEditPage>
               try {
                 // Let's fetch the App first.
                 User discordUser = await getDiscordUser(_token);
-                var app = await appManager.getApp(discordUser.id.toString());
-                if (app != null &&
-                    discordUser.id.toString() != widget.id.toString()) {
+                if (discordUser.id.toString() != widget.id.toString()) {
                   // let's remove this app id from the database
-                  await appManager.removeApp(discordUser.id.toString());
+                  await appManager.deleteApp(discordUser.id.toString());
                 }
                 // Now let's update the app in the database
                 if (discordUser.id.toString() != widget.id.toString()) {
                   // let's remove this app id from the database
-                  await appManager.removeApp(widget.id.toString());
-                  await appManager.addApp(
+                  await appManager.deleteApp(widget.id.toString());
+                  await appManager.createOrUpdateApp(
                     discordUser.id.toString(),
                     discordUser.username,
                     _token,
@@ -157,7 +153,7 @@ class _AppEditPageState extends State<AppEditPage>
                   });
                   return;
                 } else {
-                  appManager.updateApp(
+                  appManager.createOrUpdateApp(
                     discordUser.id.toString(),
                     discordUser.username.toString(),
                     _token,
@@ -229,11 +225,8 @@ class _AppEditPageState extends State<AppEditPage>
                                   final app = await appManager.getApp(
                                     widget.id.toString(),
                                   );
-                                  if (app == null) {
-                                    throw Exception("App not found");
-                                  }
 
-                                  final token = app.string("token");
+                                  final token = app["token"];
                                   if (token == null) {
                                     throw Exception("Token not found");
                                   }
@@ -243,7 +236,7 @@ class _AppEditPageState extends State<AppEditPage>
                                   );
 
                                   _appName = discordUser.username;
-                                  appManager.updateApp(
+                                  appManager.createOrUpdateApp(
                                     discordUser.id.toString(),
                                     discordUser.username,
                                     token,
@@ -323,7 +316,7 @@ class _AppEditPageState extends State<AppEditPage>
                                     TextButton(
                                       onPressed: () async {
                                         // Handle delete action
-                                        await appManager.removeApp(
+                                        await appManager.deleteApp(
                                           widget.id.toString(),
                                         );
                                         Navigator.of(context).pop();
@@ -459,13 +452,12 @@ class _AppEditPageState extends State<AppEditPage>
                         final app = await appManager.getApp(
                           widget.id.toString(),
                         );
-                        if (app == null) {
-                          throw Exception("App not found");
-                        }
-                        final token = app.string("token");
+
+                        final token = app["token"];
                         if (token == null) {
                           throw Exception("Token not found");
                         }
+                        print("Token: $token");
                         await FlutterForegroundTask.saveData(
                           key: "token",
                           value: token,

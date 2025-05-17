@@ -6,12 +6,8 @@ import "routes/profile.dart";
 import 'package:provider/provider.dart';
 import 'routes/create.dart';
 import "routes/search.dart";
-import 'package:cbl/cbl.dart';
 import 'utils/database.dart';
-import 'package:cbl_flutter/cbl_flutter.dart';
 
-@pragma('vm:entry-point')
-late Database database;
 @pragma('vm:entry-point')
 late AppManager appManager;
 List<String> currentLogList = [];
@@ -19,10 +15,6 @@ List<String> currentLogList = [];
 List<NyxxGateway> gateways = [];
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize the CBL database
-  await CouchbaseLiteFlutter.init();
-  database = await Database.openAsync("cardia_kexa");
   FlutterForegroundTask.initCommunicationPort();
   appManager = AppManager();
   runApp(
