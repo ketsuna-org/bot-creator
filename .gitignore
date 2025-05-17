@@ -33,7 +33,6 @@ migrate_working_dir/
 .pub/
 /build/
 
-firebase_options.dart
 # Symbolication related
 app.*.symbols
 
