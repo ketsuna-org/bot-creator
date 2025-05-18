@@ -22,6 +22,11 @@ class AppManager {
     return directory.path;
   }
 
+  get path async {
+    final directory = await getApplicationDocumentsDirectory();
+    return directory.path;
+  }
+
   Future<void> _init() async {
     final path = await _path();
     final apps = Directory("$path/apps");
@@ -33,6 +38,23 @@ class AppManager {
       await Future.delayed(const Duration(seconds: 5));
       _appsStreamController.add(_apps);
     }
+  }
+
+  Future<List<FileSystemEntity>> getAllAppDirectory() async {
+    final path = await _path();
+    final appDir = Directory("$path/apps");
+    if (!await appDir.exists()) {
+      await appDir.create(recursive: true);
+    }
+    final appFiles = await appDir.list(recursive: true).toList();
+    // let's add another file to the list which is the all_apps.json file
+    final allAppsFile = File("$path/apps/all_apps.json");
+    if (!await allAppsFile.exists()) {
+      return [];
+    }
+    // it could miss commands data as well. let's add it to the list
+    appFiles.add(allAppsFile);
+    return appFiles;
   }
 
   Future<File> createOrUpdateApp(String id, String name, String token) async {

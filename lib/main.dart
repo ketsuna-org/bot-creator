@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
 import "routes/home.dart";
-import "routes/profile.dart";
+import "routes/settings.dart";
 import 'package:provider/provider.dart';
 import 'routes/create.dart';
 import "routes/search.dart";
@@ -31,13 +31,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Cardia Kexa',
+      title: 'Bot Creator',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
       debugShowCheckedModeBanner: false,
       darkTheme: ThemeData.dark(useMaterial3: true),
-      home: const MyMainPage(title: 'Cardia Kexa'),
+      home: const MyMainPage(title: 'Bot Creator'),
     );
   }
 }
@@ -55,7 +55,7 @@ class _MyMainPageState extends State<MyMainPage> {
   static const List<Widget> _widgetOptions = <Widget>[
     HomePage(),
     SearchPage(),
-    ProfilePage(),
+    SettingPage(),
   ];
   void _onItemTapped(int index) {
     setState(() {
@@ -68,10 +68,11 @@ class _MyMainPageState extends State<MyMainPage> {
     TargetPlatform platform =
         Theme.of(context).platform; // Get the current platform
     BottomNavigationBar bottomAppBar = BottomNavigationBar(
+      showUnselectedLabels: false,
       items: const <BottomNavigationBarItem>[
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
         BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Setting'),
       ],
       onTap: _onItemTapped,
       currentIndex: _indexSelected,
@@ -83,6 +84,7 @@ class _MyMainPageState extends State<MyMainPage> {
       appBar: AppBar(
         backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
         title: Text(widget.title),
+        centerTitle: true,
       ),
       body: Center(child: _widgetOptions.elementAt(_indexSelected)),
       bottomNavigationBar:
