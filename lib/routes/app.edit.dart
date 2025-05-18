@@ -195,177 +195,174 @@ class _AppEditPageState extends State<AppEditPage>
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              final bottomSheet = BottomSheet(
-                onClosing: () => {},
-                showDragHandle: true,
-                animationController: BottomSheet.createAnimationController(
-                  this,
-                  sheetAnimationStyle: AnimationStyle(
-                    curve: Curves.easeInOut,
-                    duration: const Duration(milliseconds: 300),
-                  ),
+              final bottomSheet = Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                enableDrag: true,
-                builder: (context) {
-                  return SizedBox(
-                    height: 120,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.max,
-                      children: [
-                        Column(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    double width = constraints.maxWidth;
+                    return SizedBox(
+                      height: 140,
+                      width: width * 0.9,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            IconButton(
-                              onPressed: () async {
-                                // Handle button press
-                                try {
-                                  // Let's fetch the App first.
-                                  final app = await appManager.getApp(
-                                    widget.id.toString(),
-                                  );
-
-                                  final token = app["token"];
-                                  if (token == null) {
-                                    throw Exception("Token not found");
-                                  }
-                                  // Perform any additional actions with the fetched app
-                                  User discordUser = await getDiscordUser(
-                                    token,
-                                  );
-
-                                  _appName = discordUser.username;
-                                  appManager.createOrUpdateApp(
-                                    discordUser.id.toString(),
-                                    discordUser.username,
-                                    token,
-                                  );
-
-                                  // let's show that the Sync was successful
-                                  final dialog = AlertDialog(
-                                    title: const Text("Success"),
-                                    content: Text(
-                                      "Sync successful: ${discordUser.username}",
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).pop();
-                                        },
-                                        child: const Text("OK"),
-                                      ),
-                                    ],
-                                  );
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) => dialog,
-                                  );
-                                } catch (e) {
-                                  // Handle error
-                                  final errorText = e.toString();
-                                  final dialog = AlertDialog(
-                                    title: const Text("Error"),
-                                    content: Text(errorText),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).pop();
-                                        },
-                                        child: const Text("OK"),
-                                      ),
-                                    ],
-                                  );
-
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) => dialog,
-                                  );
-                                }
-                              },
-                              icon: const Icon(Icons.sync),
-                              style: IconButton.styleFrom(iconSize: 40),
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              "Sync",
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 40),
-                        Column(
-                          children: [
-                            IconButton(
-                              onPressed: () {
-                                final finalDialog = AlertDialog(
-                                  title: const Text("Delete App"),
-                                  content: const Text(
-                                    "Are you sure you want to delete this app?",
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  onPressed: () async {
+                                    try {
+                                      final app = await appManager.getApp(
+                                        widget.id.toString(),
+                                      );
+                                      final token = app["token"];
+                                      if (token == null) {
+                                        throw Exception("Token not found");
+                                      }
+                                      User discordUser = await getDiscordUser(
+                                        token,
+                                      );
+                                      _appName = discordUser.username;
+                                      appManager.createOrUpdateApp(
+                                        discordUser.id.toString(),
+                                        discordUser.username,
+                                        token,
+                                      );
+                                      final dialog = AlertDialog(
+                                        title: const Text("Success"),
+                                        content: Text(
+                                          "Sync successful: ${discordUser.username}",
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.of(context).pop();
+                                            },
+                                            child: const Text("OK"),
+                                          ),
+                                        ],
+                                      );
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => dialog,
+                                      );
+                                    } catch (e) {
+                                      final errorText = e.toString();
+                                      final dialog = AlertDialog(
+                                        title: const Text("Error"),
+                                        content: Text(errorText),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.of(context).pop();
+                                            },
+                                            child: const Text("OK"),
+                                          ),
+                                        ],
+                                      );
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => dialog,
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.sync,
+                                    size: 36,
+                                    color: Colors.green,
                                   ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () {
-                                        Navigator.of(context).pop();
-                                      },
-                                      child: const Text("Cancel"),
-                                    ),
-                                    TextButton(
-                                      onPressed: () async {
-                                        // Handle delete action
-                                        await appManager.deleteApp(
-                                          widget.id.toString(),
-                                        );
-                                        Navigator.of(context).pop();
-                                        if (Navigator.canPop(context)) {
-                                          Navigator.pop(context);
-                                        }
-                                      },
-                                      child: const Text("Delete"),
-                                    ),
-                                  ],
-                                );
-                                Navigator.of(context).pop();
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => finalDialog,
-                                );
-                              },
-                              icon: const Icon(Icons.delete),
-                              style: IconButton.styleFrom(
-                                iconSize: 40,
-                                backgroundColor: Colors.red,
-                              ),
+                                  tooltip: 'Sync',
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  "Sync",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              "Delete",
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  onPressed: () {
+                                    final finalDialog = AlertDialog(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      title: const Text("Delete App"),
+                                      content: const Text(
+                                        "Are you sure you want to delete this app?",
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.of(context).pop();
+                                          },
+                                          child: const Text("Cancel"),
+                                        ),
+                                        TextButton(
+                                          onPressed: () async {
+                                            await appManager.deleteApp(
+                                              widget.id.toString(),
+                                            );
+                                            Navigator.of(context).pop();
+                                            if (Navigator.canPop(context)) {
+                                              Navigator.pop(context);
+                                            }
+                                          },
+                                          child: const Text("Delete"),
+                                          style: TextButton.styleFrom(
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                    Navigator.of(context).pop();
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => finalDialog,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    size: 36,
+                                    color: Colors.red,
+                                  ),
+                                  tooltip: 'Delete',
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  "Delete",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  );
-                },
+                      ),
+                    );
+                  },
+                ),
               );
 
-              showModalBottomSheet(
+              showAdaptiveDialog(
                 context: context,
                 builder: (context) {
                   return bottomSheet;
                 },
-                isScrollControlled: true,
-                isDismissible: true,
-                sheetAnimationStyle: AnimationStyle(
-                  curve: Curves.easeInOut,
-                  duration: const Duration(milliseconds: 300),
-                ),
               );
             },
           ),
