@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:bot_creator/main.dart';
-import 'package:bot_creator/routes/app.logs.dart';
 import 'package:bot_creator/routes/command.create.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/global.dart';
@@ -343,32 +342,6 @@ class _AppEditPageState extends State<AppEditPage>
                             const SizedBox(height: 10),
                             const Text(
                               "Delete",
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 40),
-                        Column(
-                          children: [
-                            IconButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (context) =>
-                                            LogsPage(id: widget.id.toString()),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.data_array, size: 40),
-                            ),
-                            const SizedBox(width: 10),
-                            const Text(
-                              "Logs",
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,

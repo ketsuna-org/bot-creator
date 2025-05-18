@@ -2,6 +2,7 @@ import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer' as developer;
 
 class AppCreatePage extends StatefulWidget {
@@ -22,17 +23,59 @@ class _AppCreatePageState extends State<AppCreatePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Text("Create a new App"),
+            TextButton(
+              onPressed: () async {
+                // open link in browser
+                final url = Uri.parse(
+                  "https://discord.com/developers/applications",
+                );
+
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url);
+                } else {
+                  throw 'Could not launch $url';
+                }
+              },
+              child: Text(
+                "Create a new App",
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                // open link in browser
+                final url = Uri.parse(
+                  "https://jeremysoler.com/tutorials/2025/05/18/how-to-create-a-bot-token-bot-creator.html",
+                );
+
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url);
+                } else {
+                  throw 'Could not launch $url';
+                }
+              },
+              child: const Text("How to create a Bot Token?"),
+            ),
             const SizedBox(height: 20),
             TextField(
               decoration: InputDecoration(
-                labelText: "Token App Name",
+                labelText: "Bot Token",
                 border: OutlineInputBorder(),
+                contentPadding: const EdgeInsets.all(8),
+                hintText: "Enter your bot token here",
               ),
               onChanged:
                   (value) => setState(() {
                     _token = value;
                   }),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "Note: You need to create a new App in the Discord Developer Portal and get your bot token.",
+              textAlign: TextAlign.center,
             ),
             ElevatedButton(
               onPressed: () async {

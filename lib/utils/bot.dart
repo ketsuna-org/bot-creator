@@ -46,6 +46,7 @@ Future<void> handleLocalCommands(
       } else {
         await interaction.respond(MessageBuilder(content: "No data found"));
       }
+
       return;
     } else {
       await interaction.respond(MessageBuilder(content: "Command not found"));
@@ -97,22 +98,11 @@ class DiscordBotTaskHandler extends TaskHandler {
             plugins: [Logging(logLevel: Level.ALL)],
           ),
         );
-        gateway.onReady.listen((event) {
+        gateway.onReady.listen((event) async {
           isReady = true;
-          developer.log("Bot is ready", name: "DiscordBotTaskHandler");
           gateway.onInteractionCreate.listen((event) async {
             // Traiter les interactions
             await handleLocalCommands(event, appManager);
-            if (event.interaction is ApplicationCommandInteraction) {
-              appManager.saveLog(
-                gateway.user.id.toString(),
-                "Command ${event.interaction.data.name} executed by ${event.interaction.user?.username}",
-              );
-            }
-            appManager.saveLog(
-              gateway.user.id.toString(),
-              "Interaction ${event.interaction.data.name} received",
-            );
           });
         });
 

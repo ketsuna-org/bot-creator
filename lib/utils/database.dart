@@ -2,15 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'dart:developer' as developer;
 
 class AppManager {
   static final AppManager _instance = AppManager._internal();
   factory AppManager() => _instance;
   final StreamController<List<dynamic>> _appsStreamController =
       StreamController<List<dynamic>>.broadcast();
-  final Map<String, StreamController<List<Map<String, String>>>>
-  _logController = {};
   List<dynamic> _apps = [];
 
   AppManager._internal() {
@@ -22,193 +19,109 @@ class AppManager {
     return directory.path;
   }
 
-  get path async {
-    final directory = await getApplicationDocumentsDirectory();
-    return directory.path;
-  }
+  get path async => (await getApplicationDocumentsDirectory()).path;
 
   Future<void> _init() async {
     final path = await _path();
-    final apps = Directory("$path/apps");
-    if (!await apps.exists()) {
-      await apps.create(recursive: true);
-    }
+    final appsDir = Directory("$path/apps");
+    if (!await appsDir.exists()) await appsDir.create(recursive: true);
+
     await getAllApps();
+    _startStreamUpdateLoop();
+  }
+
+  void _startStreamUpdateLoop() async {
     while (true) {
-      await Future.delayed(const Duration(seconds: 5));
+      await Future.delayed(const Duration(seconds: 2));
       _appsStreamController.add(_apps);
     }
   }
 
-  Future<List<FileSystemEntity>> getAllAppDirectory() async {
-    final path = await _path();
-    final appDir = Directory("$path/apps");
-    if (!await appDir.exists()) {
-      await appDir.create(recursive: true);
-    }
-    final appFiles = await appDir.list(recursive: true).toList();
-    // let's add another file to the list which is the all_apps.json file
-    final allAppsFile = File("$path/apps/all_apps.json");
-    if (!await allAppsFile.exists()) {
-      return [];
-    }
-    // it could miss commands data as well. let's add it to the list
-    appFiles.add(allAppsFile);
-    return appFiles;
-  }
 
   Future<File> createOrUpdateApp(String id, String name, String token) async {
     final path = await _path();
+    final file = File("$path/apps/$id.json");
+    final allAppsFile = File("$path/apps/all_apps.json");
 
-    Map<String, String> data = {
+    final data = {
       "name": name,
       "id": id,
       "token": token,
       "createdAt": DateTime.now().toIso8601String(),
     };
-    developer.log("Creating or updating app: $data");
-    final file = File("$path/apps/$id.json");
-    if (!await file.exists()) {
-      await file.create(recursive: true);
-    }
-    await file.writeAsString(jsonEncode(data));
 
-    // We need to have refs to alls App Ids in another file. (only name and id inside is needed)
-    final allAppsFile = File("$path/apps/all_apps.json");
-    if (!await allAppsFile.exists()) {
-      await allAppsFile.create(recursive: true);
-    }
-    List<dynamic> allAppsList = await getAllApps();
-    // check if the app already exists
-    bool exists = false;
-    for (var app in allAppsList) {
-      if (app["id"] == id) {
-        exists = true;
-        break;
-      }
-    }
-    if (!exists) {
-      allAppsList.add({"name": name, "id": id});
+    await file.writeAsString(jsonEncode(data));
+    if (!await allAppsFile.exists()) await allAppsFile.create(recursive: true);
+
+    final appsList = await getAllApps();
+    final index = appsList.indexWhere((a) => a['id'] == id);
+    if (index >= 0) {
+      appsList[index]['name'] = name;
     } else {
-      // update the app
-      for (var app in allAppsList) {
-        if (app["id"] == id) {
-          app["name"] = name;
-          break;
-        }
-      }
+      appsList.add({"name": name, "id": id});
     }
-    await allAppsFile.writeAsString(jsonEncode(allAppsList));
-    _apps = allAppsList;
-    _appsStreamController.add(allAppsList);
+
+    await allAppsFile.writeAsString(jsonEncode(appsList));
+    _apps = appsList;
+    _appsStreamController.add(appsList);
     return file;
   }
 
   Future<void> deleteApp(String id) async {
     final path = await _path();
-    final file = File("$path/apps/$id.json");
-    if (await file.exists()) {
-      await file.delete();
-    }
-    final currentAppDir = Directory("$path/apps/$id");
-    if (await currentAppDir.exists()) {
-      await currentAppDir.delete(recursive: true);
-    }
-    // We need to have refs to alls App Ids in another file. (only name and id inside is needed)
+    await File("$path/apps/$id.json").delete().catchError((_) {});
+    await Directory(
+      "$path/apps/$id",
+    ).delete(recursive: true).catchError((_) {});
+
     final allAppsFile = File("$path/apps/all_apps.json");
-    if (!await allAppsFile.exists()) {
-      await allAppsFile.create(recursive: true);
-    }
-    final allApps = await allAppsFile.readAsString();
-    // let's decode json
-    List<dynamic> allAppsList = [];
-    if (allApps.isNotEmpty) {
-      developer.log("All Apps: $allApps");
-      allAppsList = jsonDecode(allApps) as List<dynamic>;
-    }
-    // check if the app already exists
-    for (var app in allAppsList) {
-      if (app["id"] == id) {
-        allAppsList.remove(app);
-        break;
-      }
-    }
-    await allAppsFile.writeAsString(jsonEncode(allAppsList));
-    _apps = allAppsList;
-    _appsStreamController.add(allAppsList);
+    if (!await allAppsFile.exists()) return;
+
+    final content = await allAppsFile.readAsString();
+    final appsList =
+        content.isNotEmpty ? jsonDecode(content) as List<dynamic> : [];
+    appsList.removeWhere((a) => a['id'] == id);
+
+    await allAppsFile.writeAsString(jsonEncode(appsList));
+    _apps = appsList;
+    _appsStreamController.add(appsList);
   }
 
   Future<List<dynamic>> getAllApps() async {
     final path = await _path();
-    final allAppsFile = File("$path/apps/all_apps.json");
-    if (!await allAppsFile.exists()) {
-      await allAppsFile.create(recursive: true);
-    }
-    final allApps = await allAppsFile.readAsString();
-    // let's decode json
-    List<dynamic> allAppsList = [];
-    if (allApps.isNotEmpty) {
-      allAppsList = jsonDecode(allApps) as List<dynamic>;
-    }
-    _apps = allAppsList;
-    _appsStreamController.add(allAppsList);
-    return allAppsList;
+    final file = File("$path/apps/all_apps.json");
+    if (!await file.exists()) return [];
+
+    final content = await file.readAsString();
+    final appsList = content.isNotEmpty ? jsonDecode(content) : [];
+    _apps = appsList;
+    return appsList;
   }
 
-  Stream<List<dynamic>> getAppStream() {
-    // add trigger to the stream
+  Stream<List<dynamic>> getAppStream() => _appsStreamController.stream;
 
-    if (_appsStreamController.hasListener) {
-      return _appsStreamController.stream;
-    } else {
-      return _appsStreamController.stream;
-    }
-  }
 
-  Stream<List<dynamic>> getLogStream(String id) {
-    if (_logController.containsKey(id)) {
-      return _logController[id]!.stream;
-    } else {
-      final logStreamController =
-          StreamController<List<Map<String, String>>>.broadcast();
-      _logController[id] = logStreamController;
-      return logStreamController.stream;
-    }
-  }
 
-  Future<void> deleteAllApps() async {
+
+  Future<void> clearLogs(String id) async {
     final path = await _path();
-    final allAppsFile = File("$path/apps/all_apps.json");
-    if (await allAppsFile.exists()) {
-      // first let's read the file
-      final allApps = await allAppsFile.readAsString();
-      // let's decode json
-      List<dynamic> allAppsList = [];
-      if (allApps.isNotEmpty) {
-        allAppsList = jsonDecode(allApps) as List<dynamic>;
-      }
-      // let's recursively delete all apps inside the list
-      for (var app in allAppsList) {
-        final appId = app["id"];
-        await deleteApp(appId!);
-      }
-      await allAppsFile.delete();
+    await File("$path/apps/$id/logs.json").delete().catchError((_) {});
+  }
+
+  Future<void> deleteAllLogs() async {
+    final apps = await getAllApps();
+    for (final app in apps) {
+      await clearLogs(app["id"]);
     }
   }
 
   Future<Map<String, dynamic>> getApp(String id) async {
     final path = await _path();
     final file = File("$path/apps/$id.json");
-    if (await file.exists()) {
-      final data = await file.readAsString();
-      // let's decode json
-      var appData = <String, dynamic>{};
-      if (data.isNotEmpty) {
-        appData = jsonDecode(data) as Map<String, dynamic>;
-      }
-      return appData;
-    }
-    return {};
+    if (!await file.exists()) return {};
+
+    final data = await file.readAsString();
+    return data.isNotEmpty ? jsonDecode(data) : {};
   }
 
   Future<Map<String, dynamic>> getAppCommand(
@@ -217,17 +130,10 @@ class AppManager {
   ) async {
     final path = await _path();
     final file = File("$path/apps/$id/$commandId.json");
-    if (await file.exists()) {
-      final data = await file.readAsString();
-      // let's decode json
-      Map<String, dynamic> appData = {};
-      if (data.isNotEmpty) {
-        appData = jsonDecode(data) as Map<String, dynamic>;
-      }
-      developer.log("Command data: $appData");
-      return appData;
-    }
-    return {};
+    if (!await file.exists()) return {};
+
+    final data = await file.readAsString();
+    return data.isNotEmpty ? jsonDecode(data) : {};
   }
 
   Future<void> saveAppCommand(
@@ -237,81 +143,44 @@ class AppManager {
   ) async {
     final path = await _path();
     final file = File("$path/apps/$id/$commandId.json");
-    if (!await file.exists()) {
-      await file.create(recursive: true);
-    }
+    if (!await file.exists()) await file.create(recursive: true);
     await file.writeAsString(jsonEncode(data));
   }
 
   Future<void> deleteAppCommand(String id, String commandId) async {
     final path = await _path();
     final file = File("$path/apps/$id/$commandId.json");
-    if (await file.exists()) {
-      await file.delete();
-    }
+    if (await file.exists()) await file.delete();
   }
 
   Future<void> deleteAppCommands(String id) async {
     final path = await _path();
-    final appDir = Directory("$path/apps/$id");
-    if (await appDir.exists()) {
-      final appFiles = await appDir.list().toList();
-      for (var appFile in appFiles) {
-        if (appFile.path.endsWith(".json")) {
-          final appDataFile = File(appFile.path);
-          await appDataFile.delete();
-        }
+    final dir = Directory("$path/apps/$id");
+    if (!await dir.exists()) return;
+
+    final files = await dir.list().toList();
+    for (final file in files) {
+      if (file is File && file.path.endsWith(".json")) {
+        await file.delete();
       }
     }
   }
 
-  Future<void> saveLog(String id, String log) async {
+  Future<List<FileSystemEntity>> getAllAppDirectory() async {
     final path = await _path();
-    final file = File("$path/apps/$id/logs.json");
-    if (!await file.exists()) {
-      await file.create(recursive: true);
-    }
-    final data = await file.readAsString();
-    List<Map<String, String>> logs = [];
-    if (data.isNotEmpty) {
-      logs = List<Map<String, String>>.from(jsonDecode(data));
-    }
-    logs.add({"log": log, "createdAt": DateTime.now().toIso8601String()});
-    await file.writeAsString(jsonEncode(logs));
-    // let's also add the log to the stream
-    if (_logController.containsKey(id)) {
-      _logController[id]!.add(logs);
-    } else {
-      final logStreamController = StreamController<List<Map<String, String>>>();
-      _logController[id] = logStreamController;
-      logStreamController.add(logs);
-    }
-  }
+    final dir = Directory("$path/apps");
+    if (!await dir.exists()) return [];
 
-  Future<void> clearLogs(String id) async {
-    final path = await _path();
-    final file = File("$path/apps/$id/logs.json");
-    if (await file.exists()) {
-      await file.delete();
-    }
-  }
-
-  Future<void> deleteAllLogs() async {
-    final path = await _path();
+    final files = await dir.list(recursive: true).toList();
     final allAppsFile = File("$path/apps/all_apps.json");
-    if (await allAppsFile.exists()) {
-      // first let's read the file
-      final allApps = await allAppsFile.readAsString();
-      // let's decode json
-      List<Map<String, String>> allAppsList = [];
-      if (allApps.isNotEmpty) {
-        allAppsList = List<Map<String, String>>.from(jsonDecode(allApps));
-      }
-      // let's recursively delete all logs inside the list
-      for (var app in allAppsList) {
-        final appId = app["id"];
-        await clearLogs(appId!);
-      }
+    if (await allAppsFile.exists()) files.add(allAppsFile);
+    return files;
+  }
+
+  Future<void> deleteAllApps() async {
+    final apps = await getAllApps();
+    for (final app in apps) {
+      await deleteApp(app['id']);
     }
   }
 }
