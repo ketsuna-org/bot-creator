@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:bot_creator/utils/global.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:nyxx/nyxx.dart';
 
 class AppManager {
   static final AppManager _instance = AppManager._internal();
@@ -37,15 +39,19 @@ class AppManager {
     }
   }
 
-
-  Future<File> createOrUpdateApp(String id, String name, String token) async {
+  Future<File> createOrUpdateApp(User user, String token) async {
     final path = await _path();
-    final file = File("$path/apps/$id.json");
+    final file = File("$path/apps/${user.id}.json");
     final allAppsFile = File("$path/apps/all_apps.json");
-
+    final avatarUri = makeAvatarUrl(
+      user.id.toString(),
+      avatarId: user.avatarHash,
+      discriminator: user.discriminator,
+    );
     final data = {
-      "name": name,
-      "id": id,
+      "name": user.username,
+      "id": user.id.toString(),
+      "avatar": avatarUri,
       "token": token,
       "createdAt": DateTime.now().toIso8601String(),
     };
@@ -54,11 +60,16 @@ class AppManager {
     if (!await allAppsFile.exists()) await allAppsFile.create(recursive: true);
 
     final appsList = await getAllApps();
-    final index = appsList.indexWhere((a) => a['id'] == id);
+    final index = appsList.indexWhere((a) => a['id'] == user.id.toString());
     if (index >= 0) {
-      appsList[index]['name'] = name;
+      appsList[index]['name'] = user.username;
+      appsList[index]['avatar'] = avatarUri;
     } else {
-      appsList.add({"name": name, "id": id});
+      appsList.add({
+        "name": user.username,
+        "avatar": avatarUri,
+        "id": user.id.toString(),
+      });
     }
 
     await allAppsFile.writeAsString(jsonEncode(appsList));
@@ -99,9 +110,6 @@ class AppManager {
   }
 
   Stream<List<dynamic>> getAppStream() => _appsStreamController.stream;
-
-
-
 
   Future<void> clearLogs(String id) async {
     final path = await _path();

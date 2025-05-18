@@ -83,11 +83,7 @@ class _AppCreatePageState extends State<AppCreatePage> {
                   // Let's fetch the App first.
                   User discordUser = await getDiscordUser(_token);
 
-                  await appManager.createOrUpdateApp(
-                    discordUser.id.toString(),
-                    discordUser.username,
-                    _token,
-                  );
+                  await appManager.createOrUpdateApp(discordUser, _token);
                   Navigator.pop(context);
                 } catch (e) {
                   // Handle error

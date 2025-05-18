@@ -18,121 +18,123 @@ class _SettingPageState extends State<SettingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.settings,
-            size: 100,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const Text("Backup and Restore", style: TextStyle(fontSize: 24)),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                if (driveApi == null) {
-                  final drive = await getDriveApi();
-                  setState(() {
-                    driveApi = drive;
-                  });
-                }
-                if (!await signIn.isSignedIn()) {
-                  final drive = await getDriveApi();
-                  setState(() {
-                    driveApi = drive;
-                  });
-                }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Connected to Google Drive")),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text("Error: $e")));
-              }
-            },
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.g_mobiledata),
-                SizedBox(width: 8),
-                Text("Connect to Google Drive"),
-              ],
+    return Scaffold(
+      appBar: AppBar(title: const Text("Settings"), centerTitle: true),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.settings,
+              size: 100,
+              color: Theme.of(context).colorScheme.primary,
             ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                if (driveApi == null) {
-                  final drive = await getDriveApi();
-                  setState(() {
-                    driveApi = drive;
-                  });
+            const Text("Backup and Restore", style: TextStyle(fontSize: 24)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  if (driveApi == null) {
+                    final drive = await getDriveApi();
+                    setState(() {
+                      driveApi = drive;
+                    });
+                  }
+                  if (!await signIn.isSignedIn()) {
+                    final drive = await getDriveApi();
+                    setState(() {
+                      driveApi = drive;
+                    });
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Connected to Google Drive")),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text("Error: $e")));
                 }
-                if (!await signIn.isSignedIn()) {
-                  final drive = await getDriveApi();
-                  setState(() {
-                    driveApi = drive;
-                  });
-                }
-                final message = await uploadAppData(driveApi!, appManager);
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(message)));
-              } catch (e) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text("Error: $e")));
-              }
-            },
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.upload_file),
-                SizedBox(width: 8),
-                Text("Export App Data"),
-              ],
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.g_mobiledata),
+                  SizedBox(width: 8),
+                  Text("Connect to Google Drive"),
+                ],
+              ),
             ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                if (driveApi == null) {
-                  final drive = await getDriveApi();
-                  setState(() {
-                    driveApi = drive;
-                  });
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  if (driveApi == null) {
+                    final drive = await getDriveApi();
+                    setState(() {
+                      driveApi = drive;
+                    });
+                  }
+                  if (!await signIn.isSignedIn()) {
+                    final drive = await getDriveApi();
+                    setState(() {
+                      driveApi = drive;
+                    });
+                  }
+                  final message = await uploadAppData(driveApi!, appManager);
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(message)));
+                } catch (e) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text("Error: $e")));
                 }
-                if (!await signIn.isSignedIn()) {
-                  final drive = await getDriveApi();
-                  setState(() {
-                    driveApi = drive;
-                  });
-                }
-                final message = await downloadAppData(driveApi!, appManager);
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(message)));
-              } catch (e) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text("Error: $e")));
-              }
-            },
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.file_download_outlined),
-                SizedBox(width: 8),
-                Text("Import App Data"),
-              ],
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.upload_file),
+                  SizedBox(width: 8),
+                  Text("Export App Data"),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-        ],
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  if (driveApi == null) {
+                    final drive = await getDriveApi();
+                    setState(() {
+                      driveApi = drive;
+                    });
+                  }
+                  if (!await signIn.isSignedIn()) {
+                    final drive = await getDriveApi();
+                    setState(() {
+                      driveApi = drive;
+                    });
+                  }
+                  final message = await downloadAppData(driveApi!, appManager);
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(message)));
+                } catch (e) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text("Error: $e")));
+                }
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.file_download_outlined),
+                  SizedBox(width: 8),
+                  Text("Import App Data"),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

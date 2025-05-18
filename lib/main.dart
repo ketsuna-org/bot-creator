@@ -5,7 +5,6 @@ import "routes/home.dart";
 import "routes/settings.dart";
 import 'package:provider/provider.dart';
 import 'routes/create.dart';
-import "routes/search.dart";
 import 'utils/database.dart';
 
 @pragma('vm:entry-point')
@@ -51,62 +50,38 @@ class MyMainPage extends StatefulWidget {
 }
 
 class _MyMainPageState extends State<MyMainPage> {
-  int _indexSelected = 0;
-  static const List<Widget> _widgetOptions = <Widget>[
-    HomePage(),
-    SearchPage(),
-    SettingPage(),
-  ];
-  void _onItemTapped(int index) {
-    setState(() {
-      _indexSelected = index;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
-    TargetPlatform platform =
-        Theme.of(context).platform; // Get the current platform
-    BottomNavigationBar bottomAppBar = BottomNavigationBar(
-      showUnselectedLabels: false,
-      items: const <BottomNavigationBarItem>[
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-        BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Setting'),
-      ],
-      onTap: _onItemTapped,
-      currentIndex: _indexSelected,
-    );
-
-    // should we return either a Drawer or a BottomNavigationBar?
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
         title: Text(widget.title),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingPage()),
+              );
+            },
+          ),
+        ],
       ),
-      body: Center(child: _widgetOptions.elementAt(_indexSelected)),
-      bottomNavigationBar:
-          platform == TargetPlatform.android || platform == TargetPlatform.iOS
-              ? bottomAppBar
-              : null,
+      body: Center(child: HomePage()),
       floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
-      floatingActionButton:
-          _indexSelected == 0
-              ? FloatingActionButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AppCreatePage(),
-                    ),
-                  );
-                },
-                backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
-                child: const Icon(Icons.add),
-              )
-              : null,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AppCreatePage()),
+          );
+        },
+        backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }

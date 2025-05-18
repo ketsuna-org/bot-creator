@@ -46,9 +46,6 @@ Future<File> uploadFile(
         ..name = fileName
         ..mimeType = mimeType
         ..parents = parentId.isEmpty ? ['appDataFolder'] : [parentId];
-  print(
-    'Uploading ${local.path} (${size} bytes) to Google Drive, file name: $fileName, mimeType: $mimeType, parentId: $parentId',
-  );
   return drive.files.create(meta, uploadMedia: Media(local.openRead(), size));
 }
 
