@@ -1,5 +1,8 @@
+import 'dart:ui';
+
 import 'package:bot_creator/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
@@ -27,6 +30,15 @@ Future main() async {
     await firebaseApp.setAutomaticDataCollectionEnabled(true);
   }
   await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
+  FlutterError.onError = (errorDetails) {
+    FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+  };
+  // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+
   appManager = AppManager();
   runApp(
     ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),

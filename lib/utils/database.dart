@@ -80,7 +80,10 @@ class AppManager {
 
   Future<void> deleteApp(String id) async {
     final path = await _path();
-    await File("$path/apps/$id.json").delete().catchError((_) {});
+    await File("$path/apps/$id.json").delete().catchError((_) {
+      // Ignore errors if the file does not exist
+      print("Error deleting app file: $id");
+    });
     await Directory(
       "$path/apps/$id",
     ).delete(recursive: true).catchError((_) {});

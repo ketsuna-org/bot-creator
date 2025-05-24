@@ -1,4 +1,3 @@
-import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/command.create.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
