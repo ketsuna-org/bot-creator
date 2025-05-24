@@ -19,6 +19,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
+    dexOptions {
+        javaMaxHeapSize = "4g"
+    }
+
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
