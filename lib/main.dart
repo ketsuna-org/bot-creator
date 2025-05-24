@@ -1,3 +1,5 @@
+import 'package:bot_creator/firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
@@ -13,11 +15,18 @@ late AppManager appManager;
 List<String> currentLogList = [];
 @pragma('vm:entry-point')
 List<NyxxGateway> gateways = [];
+late FirebaseApp firebaseApp;
 
-FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterForegroundTask.initCommunicationPort();
+  firebaseApp = await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  if (!firebaseApp.isAutomaticDataCollectionEnabled) {
+    await firebaseApp.setAutomaticDataCollectionEnabled(true);
+  }
+  await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
   appManager = AppManager();
   runApp(
     ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),
@@ -31,7 +40,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    analytics.logAppOpen();
+    FirebaseAnalytics.instance.logAppOpen();
     return MaterialApp(
       title: 'Bot Creator',
       theme: ThemeData(

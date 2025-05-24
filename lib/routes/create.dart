@@ -1,5 +1,6 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/global.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -18,7 +19,7 @@ class _AppCreatePageState extends State<AppCreatePage> {
   void initState() {
     super.initState();
     // Log the opening of the create app page
-    analytics.logScreenView(
+    FirebaseAnalytics.instance.logScreenView(
       screenName: "AppCreatePage",
       screenClass: "AppCreatePage",
     );
@@ -92,7 +93,7 @@ class _AppCreatePageState extends State<AppCreatePage> {
                   User discordUser = await getDiscordUser(_token);
 
                   await appManager.createOrUpdateApp(discordUser, _token);
-                  await analytics.logEvent(
+                  await FirebaseAnalytics.instance.logEvent(
                     name: "create_app",
                     parameters: {
                       "app_name": discordUser.username,

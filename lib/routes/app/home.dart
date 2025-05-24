@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/bot.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
@@ -18,6 +19,7 @@ class _AppHomePageState extends State<AppHomePage>
     with TickerProviderStateMixin {
   String _appName = "";
   NyxxRest? client; // Changez en nullable
+  String avatar = "";
   bool _botLaunched = false;
 
   Future<void> _requestPermissions() async {
@@ -86,18 +88,19 @@ class _AppHomePageState extends State<AppHomePage>
   _init() async {
     final app = await appManager.getApp(widget.client.user.id.toString());
     final isRunning = await FlutterForegroundTask.isRunningService;
-    await analytics.logScreenView(
+    await FirebaseAnalytics.instance.logScreenView(
       screenName: "AppHomePage",
       screenClass: "AppHomePage",
       parameters: {
         "app_name": app["name"],
         "app_id": widget.client.user.id.toString(),
-        "is_running": isRunning,
+        "is_running": isRunning ? "true" : "false",
       },
     );
     setState(() {
       _botLaunched = isRunning;
       _appName = app["name"];
+      avatar = app["avatar"] ?? "";
     });
   }
 
@@ -119,7 +122,24 @@ class _AppHomePageState extends State<AppHomePage>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: <Widget>[
-                      const SizedBox(height: 80),
+                      // let's show the app icon
+                      const SizedBox(height: 20),
+                      avatar.isNotEmpty
+                          ? CircleAvatar(
+                            radius: 40,
+                            backgroundImage: NetworkImage(avatar),
+                          )
+                          : const Icon(Icons.account_circle, size: 80),
+                      const SizedBox(height: 20),
+                      // App Name
+                      Text(
+                        _appName,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor:

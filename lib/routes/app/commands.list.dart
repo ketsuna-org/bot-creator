@@ -1,5 +1,6 @@
 import 'package:bot_creator/main.dart';
-import 'package:bot_creator/routes/command.create.dart';
+import 'package:bot_creator/routes/app/command.create.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -17,7 +18,7 @@ class _AppCommandsPageState extends State<AppCommandsPage>
   void initState() {
     super.initState();
     // Log the opening of the commands page
-    analytics.logScreenView(
+    FirebaseAnalytics.instance.logScreenView(
       screenName: "AppCommandsPage",
       screenClass: "AppCommandsPage",
       parameters: {"app_id": widget.client.application.id.toString()},

@@ -1,5 +1,6 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/drive.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart';
@@ -23,7 +24,7 @@ class _SettingPageState extends State<SettingPage> {
   }
 
   Future<void> _initializeDriveApi() async {
-    await analytics.logScreenView(
+    await FirebaseAnalytics.instance.logScreenView(
       screenName: "SettingPage",
       screenClass: "SettingPage",
       parameters: {"user_id": signIn.currentUser?.id ?? "unknown"},
@@ -42,9 +43,12 @@ class _SettingPageState extends State<SettingPage> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error initializing Drive API: $e")),
-      );
+      if (context.mounted) {
+        // Show an error message if the context is still mounted
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error initializing Drive API: $e")),
+        );
+      }
     }
   }
 

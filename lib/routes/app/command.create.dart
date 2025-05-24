@@ -1,6 +1,7 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -54,13 +55,14 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   }
 
   _init() async {
-    await analytics.logScreenView(
+    await FirebaseAnalytics.instance.logScreenView(
       screenName: "CommandCreatePage",
       screenClass: "CommandCreatePage",
       parameters: {
         "command_id": widget.id.toString(),
         "command_name": widget.id.isZero ? "New Command" : _commandName,
-        "is_new_command": widget.id.isZero,
+        "is_new_command": widget.id.isZero ? "true" : "false",
+        "client_id": widget.client?.user.id.toString() ?? "unknown",
       },
     );
     // first let's check if the command is already created or not
@@ -346,7 +348,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               } else {
                 if (_formKey.currentState!.validate()) {
                   _updateOrCreate();
-                  analytics.logEvent(
+                  FirebaseAnalytics.instance.logEvent(
                     name: "update_command",
                     parameters: {
                       "command_name": _commandName,

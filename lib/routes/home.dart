@@ -1,4 +1,5 @@
 import 'package:bot_creator/main.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:bot_creator/routes/app.dart';
 import 'dart:developer' as developer;
@@ -16,11 +17,11 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     // Log the opening of the home page
-    analytics.logScreenView(
+    FirebaseAnalytics.instance.logScreenView(
       screenName: "HomePage",
       screenClass: "HomePage",
     );
-    analytics.logEvent(name: "home_page_opened");
+    FirebaseAnalytics.instance.logEvent(name: "home_page_opened");
   }
   @override
   Widget build(BuildContext context) {
