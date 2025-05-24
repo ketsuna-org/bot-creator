@@ -14,7 +14,15 @@ class AppCreatePage extends StatefulWidget {
 
 class _AppCreatePageState extends State<AppCreatePage> {
   String _token = "";
-
+  @override
+  void initState() {
+    super.initState();
+    // Log the opening of the create app page
+    analytics.logScreenView(
+      screenName: "AppCreatePage",
+      screenClass: "AppCreatePage",
+    );
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -84,6 +92,13 @@ class _AppCreatePageState extends State<AppCreatePage> {
                   User discordUser = await getDiscordUser(_token);
 
                   await appManager.createOrUpdateApp(discordUser, _token);
+                  await analytics.logEvent(
+                    name: "create_app",
+                    parameters: {
+                      "app_name": discordUser.username,
+                      "app_id": discordUser.id.toString(),
+                    },
+                  );
                   Navigator.pop(context);
                 } catch (e) {
                   // Handle error

@@ -11,6 +11,17 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+
+  @override
+  void initState() {
+    super.initState();
+    // Log the opening of the home page
+    analytics.logScreenView(
+      screenName: "HomePage",
+      screenClass: "HomePage",
+    );
+    analytics.logEvent(name: "home_page_opened");
+  }
   @override
   Widget build(BuildContext context) {
     return Padding(

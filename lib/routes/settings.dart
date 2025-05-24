@@ -17,6 +17,38 @@ class _SettingPageState extends State<SettingPage> {
   final signIn = GoogleSignIn(scopes: <String>[DriveApi.driveAppdataScope]);
 
   @override
+  void initState() {
+    super.initState();
+    _initializeDriveApi();
+  }
+
+  Future<void> _initializeDriveApi() async {
+    await analytics.logScreenView(
+      screenName: "SettingPage",
+      screenClass: "SettingPage",
+      parameters: {"user_id": signIn.currentUser?.id ?? "unknown"},
+    );
+    try {
+      if (driveApi == null) {
+        final drive = await getDriveApi();
+        setState(() {
+          driveApi = drive;
+        });
+      }
+      if (!await signIn.isSignedIn()) {
+        final drive = await getDriveApi();
+        setState(() {
+          driveApi = drive;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error initializing Drive API: $e")),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Settings"), centerTitle: true),

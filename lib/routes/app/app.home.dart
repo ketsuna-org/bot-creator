@@ -86,6 +86,15 @@ class _AppHomePageState extends State<AppHomePage>
   _init() async {
     final app = await appManager.getApp(widget.client.user.id.toString());
     final isRunning = await FlutterForegroundTask.isRunningService;
+    await analytics.logScreenView(
+      screenName: "AppHomePage",
+      screenClass: "AppHomePage",
+      parameters: {
+        "app_name": app["name"],
+        "app_id": widget.client.user.id.toString(),
+        "is_running": isRunning,
+      },
+    );
     setState(() {
       _botLaunched = isRunning;
       _appName = app["name"];

@@ -35,6 +35,11 @@ class _AppEditPageState extends State<AppEditPage>
   }
 
   _init() async {
+    await analytics.logScreenView(
+      screenName: "AppEditPage",
+      screenClass: "AppEditPage",
+      parameters: {"app_name": widget.appName, "app_id": widget.id.toString()},
+    );
     final app = await appManager.getApp(widget.id.toString());
     final token = app["token"];
     if (token != null) {

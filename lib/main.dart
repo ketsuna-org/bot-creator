@@ -5,6 +5,7 @@ import "routes/home.dart";
 import "routes/settings.dart";
 import 'package:provider/provider.dart';
 import 'routes/create.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'utils/database.dart';
 
 @pragma('vm:entry-point')
@@ -12,6 +13,8 @@ late AppManager appManager;
 List<String> currentLogList = [];
 @pragma('vm:entry-point')
 List<NyxxGateway> gateways = [];
+
+FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterForegroundTask.initCommunicationPort();
@@ -25,10 +28,10 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
-
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    analytics.logAppOpen();
     return MaterialApp(
       title: 'Bot Creator',
       theme: ThemeData(
@@ -50,7 +53,6 @@ class MyMainPage extends StatefulWidget {
 }
 
 class _MyMainPageState extends State<MyMainPage> {
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

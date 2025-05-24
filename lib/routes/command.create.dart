@@ -54,6 +54,15 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   }
 
   _init() async {
+    await analytics.logScreenView(
+      screenName: "CommandCreatePage",
+      screenClass: "CommandCreatePage",
+      parameters: {
+        "command_id": widget.id.toString(),
+        "command_name": widget.id.isZero ? "New Command" : _commandName,
+        "is_new_command": widget.id.isZero,
+      },
+    );
     // first let's check if the command is already created or not
     if (!widget.id.isZero) {
       final command = await widget.client?.commands.fetch(widget.id);
@@ -337,6 +346,13 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               } else {
                 if (_formKey.currentState!.validate()) {
                   _updateOrCreate();
+                  analytics.logEvent(
+                    name: "update_command",
+                    parameters: {
+                      "command_name": _commandName,
+                      "command_id": widget.id.toString(),
+                    },
+                  );
                   // Form is valid, proceed with command creation
                 } else {
                   // Form is invalid, show error message

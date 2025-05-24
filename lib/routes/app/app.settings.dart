@@ -18,6 +18,11 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
   @override
   void initState() {
     super.initState();
+    analytics.logScreenView(
+      screenName: "AppSettingsPage",
+      screenClass: "AppSettingsPage",
+      parameters: {"app_id": widget.client.application.id.toString()},
+    );
     _init();
   }
 

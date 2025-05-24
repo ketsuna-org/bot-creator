@@ -1,3 +1,4 @@
+import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/command.create.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
@@ -12,6 +13,17 @@ class AppCommandsPage extends StatefulWidget {
 
 class _AppCommandsPageState extends State<AppCommandsPage>
     with TickerProviderStateMixin {
+  @override
+  void initState() {
+    super.initState();
+    // Log the opening of the commands page
+    analytics.logScreenView(
+      screenName: "AppCommandsPage",
+      screenClass: "AppCommandsPage",
+      parameters: {"app_id": widget.client.application.id.toString()},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     NyxxRest client = widget.client;
