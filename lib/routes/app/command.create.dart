@@ -1,4 +1,5 @@
 import 'package:bot_creator/main.dart';
+import 'package:bot_creator/routes/app/builder.response.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
@@ -531,24 +532,20 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               },
                             ),
                             const SizedBox(height: 20),
-                            TextFormField(
-                              autocorrect: false,
-                              maxLength: 1000,
-                              maxLines: 5,
-                              minLines: 1,
-                              keyboardType: TextInputType.multiline,
-                              initialValue: _response,
-                              decoration: InputDecoration(
-                                labelText: "Command Response",
-                                border: OutlineInputBorder(),
+                            if (!widget.id.isZero)
+                              FilledButton(
+                                onPressed: () {
+                                  // let's push to the Response Builder Page
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder:
+                                          (context) => ActionsBuilderPage(),
+                                    ),
+                                  );
+                                },
+                                child: const Text("Build Response"),
                               ),
-                              onChanged: (value) {
-                                setState(() {
-                                  _response = value;
-                                });
-                                // Handle command response input
-                              },
-                            ),
                             const SizedBox(height: 20),
                           ],
                         ),
