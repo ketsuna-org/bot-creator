@@ -6,8 +6,8 @@ import '../types/action.dart';
 Future<Map<String, String>> handleActions(
   NyxxGateway client,
   Snowflake channelId, {
-    required List<Action> actions,
-  }) async {
+  required List<Action> actions,
+}) async {
   final results = <String, String>{};
   for (final action in actions) {
     try {
@@ -26,7 +26,8 @@ Future<Map<String, String>> handleActions(
             action.payload['list'] ?? [],
             action.payload['format'] ?? '',
           );
-
+          results[action.key ?? 'makeList'] = result.toString();
+          break;
 
         // Add more cases for other action types as needed
         default:
