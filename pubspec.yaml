@@ -39,7 +39,7 @@ dependencies:
   http: ^1.6.0
   nyxx: ^6.7.0
   flutter_foreground_task: ^9.1.0
-  rename_app: ^1.6.3
+  rename_app: ^1.6.5
   flutter_launcher_icons: ^0.14.3
   firebase_core: ^4.3.0
   googleapis: ^14.0.0
