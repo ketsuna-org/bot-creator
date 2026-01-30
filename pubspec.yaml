@@ -37,7 +37,7 @@ dependencies:
   provider: ^6.1.5
   path_provider: ^2.1.5
   http: ^1.6.0
-  nyxx: ^6.7.0
+  nyxx: ^6.8.0
   flutter_foreground_task: ^9.2.0
   rename_app: ^1.6.5
   flutter_launcher_icons: ^0.14.3
