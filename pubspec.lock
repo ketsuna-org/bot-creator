@@ -444,10 +444,10 @@ packages:
     dependency: "direct main"
     description:
       name: nyxx
-      sha256: "9a68ebb1358948ab21153840922e97bb315df4e390771762beb9dbe315e13d71"
+      sha256: f5e00fc8bdfe4d83f974e9e38e9beb51a1ec62632793cb61ee2d698add9e1206
       url: "https://pub.dev"
     source: hosted
-    version: "6.7.0"
+    version: "6.8.1"
   oauth2:
     dependency: transitive
     description:
