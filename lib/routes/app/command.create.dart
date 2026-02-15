@@ -55,7 +55,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     // Initialize any necessary data or state
   }
 
-  _init() async {
+  Future<void> _init() async {
     await FirebaseAnalytics.instance.logScreenView(
       screenName: "CommandCreatePage",
       screenClass: "CommandCreatePage",
@@ -128,7 +128,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     }
   }
 
-  _updateOrCreate() async {
+  Future<void> _updateOrCreate() async {
     // check if any field is empty
     if (_commandName.isEmpty || _commandDescription.isEmpty) {
       final dialog = AlertDialog(

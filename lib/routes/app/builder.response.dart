@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../types/action.dart' show BotCreatorActionType;
 
@@ -453,17 +454,17 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
     final params = defaultParameters;
     return params.entries.map((entry) {
       ParameterType type = ParameterType.string;
-      if (entry.value is bool)
+      if (entry.value is bool) {
         type = ParameterType.boolean;
-      else if (entry.value is int || entry.value is double)
+      } else if (entry.value is int || entry.value is double){
         type = ParameterType.number;
-      else if (entry.value is List)
+      } else if (entry.value is List){
         type = ParameterType.list;
-      else if (entry.key.toLowerCase().contains('id'))
+    }else if (entry.key.toLowerCase().contains('id')){
         type = ParameterType.string;
-      else if (entry.key.toLowerCase().contains('url'))
+    }else if (entry.key.toLowerCase().contains('url')){
         type = ParameterType.url;
-
+      }
       return ParameterDefinition(
         key: entry.key,
         type: type,
@@ -543,9 +544,12 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
 
     // Debug: afficher les actions dans la console
     for (final action in _actions) {
-      print('Action: ${action.type.displayName}');
-      print('Parameters: ${action.parameters}');
-      print('---');
+      if (kDebugMode) {
+        print('Action: ${action.type.displayName}');  
+        print('Parameters: ${action.parameters}');
+        print('---');
+      }
+    
     }
   }
 
@@ -655,7 +659,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
               },
             ),
           );
-        }).toList(),
+        }),
         const SizedBox(height: 8),
       ],
     );
@@ -947,11 +951,13 @@ class ActionCard extends StatelessWidget {
                 if (intValue != null) {
                   // Vérifier les limites
                   if (paramDef.minValue != null &&
-                      intValue < paramDef.minValue!)
+                      intValue < paramDef.minValue!) {
                     return;
+                  }
                   if (paramDef.maxValue != null &&
-                      intValue > paramDef.maxValue!)
+                      intValue > paramDef.maxValue!) {
                     return;
+                  }
                   onParameterChanged(paramDef.key, intValue);
                 }
               },
@@ -998,7 +1004,7 @@ class ActionCard extends StatelessWidget {
                           style: const TextStyle(fontSize: 14),
                         ),
                       );
-                    }).toList()
+                    })
                   else
                     Text(
                       'No items - tap edit to add',
@@ -1023,7 +1029,7 @@ class ActionCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             DropdownButtonFormField<String>(
-              value:
+              initialValue:
                   currentValue?.toString() ?? paramDef.defaultValue.toString(),
               decoration: InputDecoration(
                 hintText: paramDef.hint,
@@ -1240,7 +1246,7 @@ class ActionCard extends StatelessWidget {
                           style: const TextStyle(fontSize: 14),
                         ),
                       );
-                    }).toList()
+                    })
                   else
                     Text(
                       'No properties - tap edit to configure',

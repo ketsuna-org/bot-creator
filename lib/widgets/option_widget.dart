@@ -33,7 +33,7 @@ class OptionWidgetState extends State<OptionWidget> {
     isRequired: false,
   );
 
-  addOption() {
+  void addOption() {
     // let's check if currentOption has everything we need
     if (currentOption.name.isEmpty || currentOption.description.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

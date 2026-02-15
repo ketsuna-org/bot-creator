@@ -27,7 +27,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
     _init();
   }
 
-  _init() async {
+  Future<void> _init() async {
     final app = await widget.client.applications.fetchCurrentApplication();
     setState(() {
       this.app = app;
@@ -93,7 +93,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                             controlAffinity: ListTileControlAffinity.trailing,
                           );
                         },
-                        separatorBuilder: (_, __) => const Divider(),
+                        separatorBuilder: (_, _) => const Divider(),
                       ),
 
                     const SizedBox(height: 20),

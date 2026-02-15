@@ -7,14 +7,44 @@ import 'dart:io' as manager;
 /// Provides the `GoogleSignIn` class
 import 'package:google_sign_in/google_sign_in.dart';
 
+const List<String> _driveScopes = <String>[DriveApi.driveAppdataScope];
+bool _googleSignInInitialized = false;
+
+Future<GoogleSignIn> _getInitializedGoogleSignIn() async {
+  final signIn = GoogleSignIn.instance;
+  if (!_googleSignInInitialized) {
+    await signIn.initialize();
+    _googleSignInInitialized = true;
+  }
+  return signIn;
+}
+
+Future<GoogleSignInAccount> getSignedInAccount({bool interactive = true}) async {
+  final signIn = await _getInitializedGoogleSignIn();
+
+  GoogleSignInAccount? account;
+  final lightweightAuthFuture = signIn.attemptLightweightAuthentication();
+  if (lightweightAuthFuture != null) {
+    account = await lightweightAuthFuture;
+  }
+
+  if (account == null && interactive) {
+    account = await signIn.authenticate(scopeHint: _driveScopes);
+  }
+
+  if (account == null) {
+    throw Exception('No Google account is signed in.');
+  }
+  return account;
+}
+
 Future<DriveApi> getDriveApi() async {
-  final signIn = GoogleSignIn(scopes: <String>[DriveApi.driveAppdataScope]);
-
-  GoogleSignInAccount? account = await signIn.signInSilently();
-  account ??= await signIn.signIn();
-  final auth.AuthClient? client = await signIn.authenticatedClient();
-
-  return DriveApi(client!);
+  final account = await getSignedInAccount();
+  final authz =
+      await account.authorizationClient.authorizationForScopes(_driveScopes) ??
+      await account.authorizationClient.authorizeScopes(_driveScopes);
+  final auth.AuthClient client = authz.authClient(scopes: _driveScopes);
+  return DriveApi(client);
 }
 
 Future<File> createFolder(

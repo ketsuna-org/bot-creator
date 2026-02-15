@@ -2,7 +2,6 @@ import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/drive.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart';
 
 class SettingPage extends StatefulWidget {
@@ -15,7 +14,16 @@ class SettingPage extends StatefulWidget {
 class _SettingPageState extends State<SettingPage> {
   List<File> files = [];
   DriveApi? driveApi;
-  final signIn = GoogleSignIn(scopes: <String>[DriveApi.driveAppdataScope]);
+
+  Future<void> _ensureDriveApiConnected() async {
+    final drive = await getDriveApi();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      driveApi = drive;
+    });
+  }
 
   @override
   void initState() {
@@ -24,24 +32,20 @@ class _SettingPageState extends State<SettingPage> {
   }
 
   Future<void> _initializeDriveApi() async {
+    String userId = 'unknown';
+    try {
+      final account = await getSignedInAccount(interactive: false);
+      userId = account.id;
+    } catch (_) {}
+
     await FirebaseAnalytics.instance.logScreenView(
       screenName: "SettingPage",
       screenClass: "SettingPage",
-      parameters: {"user_id": signIn.currentUser?.id ?? "unknown"},
+      parameters: {"user_id": userId},
     );
+
     try {
-      if (driveApi == null) {
-        final drive = await getDriveApi();
-        setState(() {
-          driveApi = drive;
-        });
-      }
-      if (!await signIn.isSignedIn()) {
-        final drive = await getDriveApi();
-        setState(() {
-          driveApi = drive;
-        });
-      }
+      await _ensureDriveApiConnected();
     } catch (e) {
       if (context.mounted) {
         // Show an error message if the context is still mounted
@@ -71,18 +75,7 @@ class _SettingPageState extends State<SettingPage> {
             ElevatedButton(
               onPressed: () async {
                 try {
-                  if (driveApi == null) {
-                    final drive = await getDriveApi();
-                    setState(() {
-                      driveApi = drive;
-                    });
-                  }
-                  if (!await signIn.isSignedIn()) {
-                    final drive = await getDriveApi();
-                    setState(() {
-                      driveApi = drive;
-                    });
-                  }
+                  await _ensureDriveApiConnected();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Connected to Google Drive")),
                   );
@@ -104,18 +97,7 @@ class _SettingPageState extends State<SettingPage> {
             ElevatedButton(
               onPressed: () async {
                 try {
-                  if (driveApi == null) {
-                    final drive = await getDriveApi();
-                    setState(() {
-                      driveApi = drive;
-                    });
-                  }
-                  if (!await signIn.isSignedIn()) {
-                    final drive = await getDriveApi();
-                    setState(() {
-                      driveApi = drive;
-                    });
-                  }
+                  await _ensureDriveApiConnected();
                   final message = await uploadAppData(driveApi!, appManager);
                   ScaffoldMessenger.of(
                     context,
@@ -138,18 +120,7 @@ class _SettingPageState extends State<SettingPage> {
             ElevatedButton(
               onPressed: () async {
                 try {
-                  if (driveApi == null) {
-                    final drive = await getDriveApi();
-                    setState(() {
-                      driveApi = drive;
-                    });
-                  }
-                  if (!await signIn.isSignedIn()) {
-                    final drive = await getDriveApi();
-                    setState(() {
-                      driveApi = drive;
-                    });
-                  }
+                  await _ensureDriveApiConnected();
                   final message = await downloadAppData(driveApi!, appManager);
                   ScaffoldMessenger.of(
                     context,

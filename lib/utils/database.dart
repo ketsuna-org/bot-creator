@@ -21,7 +21,7 @@ class AppManager {
     return directory.path;
   }
 
-  get path async => (await getApplicationDocumentsDirectory()).path;
+  Future<String> get path async => (await getApplicationDocumentsDirectory()).path;
 
   Future<void> _init() async {
     final path = await _path();

@@ -85,7 +85,7 @@ class _AppHomePageState extends State<AppHomePage>
     return commands;
   }
 
-  _init() async {
+  Future<void> _init() async {
     final app = await appManager.getApp(widget.client.user.id.toString());
     final isRunning = await FlutterForegroundTask.isRunningService;
     await FirebaseAnalytics.instance.logScreenView(

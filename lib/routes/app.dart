@@ -35,7 +35,7 @@ class _AppEditPageState extends State<AppEditPage>
     return commands;
   }
 
-  _init() async {
+  Future<void> _init() async {
     await FirebaseAnalytics.instance.logScreenView(
       screenName: "AppEditPage",
       screenClass: "AppEditPage",
