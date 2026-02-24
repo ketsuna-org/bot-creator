@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/services.dart';
 import 'package:nyxx/nyxx.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AppHomePage extends StatefulWidget {
   final NyxxRest client;
@@ -260,6 +261,42 @@ class _AppHomePageState extends State<AppHomePage>
                           Icon(Icons.sync),
                           SizedBox(width: 8),
                           Text("Sync App"),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Invite Bot Button
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        minimumSize: const Size.fromHeight(44),
+                      ),
+                      onPressed: () async {
+                        final botId = widget.client.user.id.toString();
+                        final inviteUrl = Uri.parse(
+                          'https://discord.com/api/oauth2/authorize?client_id=$botId&scope=bot&permissions=8',
+                        );
+
+                        if (await canLaunchUrl(inviteUrl)) {
+                          await launchUrl(inviteUrl);
+                          await AppAnalytics.logEvent(
+                            name: "invite_bot",
+                            parameters: {"bot_id": botId},
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Could not open invite link"),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.person_add),
+                          SizedBox(width: 8),
+                          Text("Invite Bot"),
                         ],
                       ),
                     ),

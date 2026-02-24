@@ -16,6 +16,8 @@ class AppSettingsPage extends StatefulWidget {
 class _AppSettingsPageState extends State<AppSettingsPage> {
   String _token = "";
   Application? app;
+  late Map<String, bool> _intentsMap;
+
   @override
   void initState() {
     super.initState();
@@ -24,7 +26,26 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       screenClass: "AppSettingsPage",
       parameters: {"app_id": widget.client.application.id.toString()},
     );
+    _initIntents();
     _init();
+  }
+
+  void _initIntents() {
+    _intentsMap = {
+      'Guild Presence': false,
+      'Guild Members': false,
+      'Message Content': false,
+      'Direct Messages': false,
+      'Guilds': false,
+      'Guild Messages': false,
+      'Guild Message Reactions': false,
+      'Direct Message Reactions': false,
+      'Guild Message Typing': false,
+      'Direct Message Typing': false,
+      'Guild Scheduled Events': false,
+      'Auto Moderation Configuration': false,
+      'Auto Moderation Execution': false,
+    };
   }
 
   Future<void> _init() async {
@@ -71,18 +92,27 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     const SizedBox(height: 20),
+                    // Application Flags Section
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        "Application Flags",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                     if (app != null)
                       ListView.separated(
-                        shrinkWrap: true, // ← limite la hauteur
-                        physics:
-                            const NeverScrollableScrollPhysics(), // ← désactive son propre scroll
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
                         itemCount: flagsMap.length,
                         itemBuilder: (context, index) {
                           final flagName = flagsMap.keys.elementAt(index);
                           final flagValue = flagsMap[flagName];
 
                           if (flagName == 'Hash Code') {
-                            // ← même casse que dans la map
                             return ListTile(
                               title: Text(flagName),
                               trailing: Text(flagValue.toString()),
@@ -99,7 +129,59 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                         separatorBuilder: (_, _) => const Divider(),
                       ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 30),
+                    // Intents Configuration Section
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        "Gateway Intents Configuration",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        "Select which intents your bot needs. Configure these in the Discord Developer Portal.",
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _intentsMap.length,
+                      itemBuilder: (context, index) {
+                        final intentName = _intentsMap.keys.elementAt(index);
+                        final intentValue = _intentsMap[intentName] ?? false;
+
+                        return CheckboxListTile(
+                          title: Text(intentName),
+                          value: intentValue,
+                          onChanged: (newValue) {
+                            setState(() {
+                              _intentsMap[intentName] = newValue ?? false;
+                            });
+                          },
+                          controlAffinity: ListTileControlAffinity.trailing,
+                        );
+                      },
+                      separatorBuilder: (_, _) => const Divider(),
+                    ),
+
+                    const SizedBox(height: 30),
+                    // Token Update Section
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        "Bot Token",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                     TextField(
                       decoration: InputDecoration(
                         labelText: "Update Bot Token",
@@ -122,6 +204,12 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                           await appManager.createOrUpdateApp(
                             discordUser,
                             _token,
+                            intents: _intentsMap,
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Settings saved successfully"),
+                            ),
                           );
                           Navigator.pop(context);
                         } catch (e) {

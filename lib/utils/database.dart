@@ -40,7 +40,11 @@ class AppManager {
     }
   }
 
-  Future<File> createOrUpdateApp(User user, String token) async {
+  Future<File> createOrUpdateApp(
+    User user,
+    String token, {
+    Map<String, bool>? intents,
+  }) async {
     final path = await _path();
     final file = File("$path/apps/${user.id}.json");
     final allAppsFile = File("$path/apps/all_apps.json");
@@ -49,12 +53,24 @@ class AppManager {
       avatarId: user.avatarHash,
       discriminator: user.discriminator,
     );
+
+    // Load existing app data to preserve intents if not provided
+    Map<String, dynamic>? existingData;
+    if (await file.exists()) {
+      final existingContent = await file.readAsString();
+      if (existingContent.isNotEmpty) {
+        existingData = jsonDecode(existingContent) as Map<String, dynamic>;
+      }
+    }
+
     final data = {
       "name": user.username,
       "id": user.id.toString(),
       "avatar": avatarUri,
       "token": token,
-      "createdAt": DateTime.now().toIso8601String(),
+      "createdAt":
+          existingData?["createdAt"] ?? DateTime.now().toIso8601String(),
+      "intents": intents ?? existingData?["intents"] ?? {},
     };
 
     await file.writeAsString(jsonEncode(data));
