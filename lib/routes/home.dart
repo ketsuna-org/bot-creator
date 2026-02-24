@@ -22,98 +22,119 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: StreamBuilder(
-        stream: appManager.getAppStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        int crossAxisCount = 2;
+        if (width >= 1200) {
+          crossAxisCount = 4;
+        } else if (width >= 900) {
+          crossAxisCount = 3;
+        }
 
-          if (snapshot.hasError) {
-            developer.log(
-              "Error loading data: ${snapshot.error}",
-              name: "HomePage",
-            );
-            return const Center(child: Text("Erreur de chargement"));
-          }
+        final horizontalPadding = width >= 900 ? 24.0 : 12.0;
+        final cardHeight =
+            width >= 1200 ? 290.0 : (width >= 900 ? 270.0 : 250.0);
+        final cardWidth =
+            (width - (horizontalPadding * 2) - ((crossAxisCount - 1) * 12)) /
+            crossAxisCount;
+        final childAspectRatio = cardWidth / cardHeight;
 
-          final apps = snapshot.data;
-          if (apps == null || apps.isEmpty) {
-            return const Center(child: Text("Aucune application trouvée"));
-          }
+        return Padding(
+          padding: EdgeInsets.all(horizontalPadding),
+          child: StreamBuilder(
+            stream: appManager.getAppStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          return GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.75,
-            ),
-            itemCount: apps.length,
-            itemBuilder: (context, index) {
-              final app = apps[index];
-              final name = app["name"]?.toString() ?? "Inconnu";
-              final id = int.tryParse(app["id"].toString()) ?? 0;
-              final avatar = app["avatar"]?.toString();
+              if (snapshot.hasError) {
+                developer.log(
+                  "Error loading data: ${snapshot.error}",
+                  name: "HomePage",
+                );
+                return const Center(child: Text("Erreur de chargement"));
+              }
 
-              return Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+              final apps = snapshot.data;
+              if (apps == null || apps.isEmpty) {
+                return const Center(child: Text("Aucune application trouvée"));
+              }
+
+              return GridView.builder(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: childAspectRatio,
                 ),
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      avatar != null
-                          ? CircleAvatar(
-                            radius: 40,
-                            backgroundImage: NetworkImage(avatar),
-                          )
-                          : const Icon(Icons.account_circle, size: 80),
-                      const SizedBox(height: 12),
-                      Text(
-                        name,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const Spacer(),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => AppEditPage(appName: name, id: id),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.edit, size: 16),
-                          label: const Text("Modifier"),
-                          style: ElevatedButton.styleFrom(
-                            shape: const StadiumBorder(),
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
+                itemCount: apps.length,
+                itemBuilder: (context, index) {
+                  final app = apps[index];
+                  final name = app["name"]?.toString() ?? "Inconnu";
+                  final id = int.tryParse(app["id"].toString()) ?? 0;
+                  final avatar = app["avatar"]?.toString();
+
+                  return Card(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          avatar != null
+                              ? CircleAvatar(
+                                radius: 40,
+                                backgroundImage: NetworkImage(avatar),
+                              )
+                              : const Icon(Icons.account_circle, size: 80),
+                          const SizedBox(height: 12),
+                          Text(
+                            name,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
+                          const Spacer(),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) =>
+                                            AppEditPage(appName: name, id: id),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.edit, size: 16),
+                              label: const Text("Modifier"),
+                              style: ElevatedButton.styleFrom(
+                                shape: const StadiumBorder(),
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

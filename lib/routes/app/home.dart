@@ -5,6 +5,7 @@ import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:flutter/services.dart';
 import 'package:nyxx/nyxx.dart';
 
 class AppHomePage extends StatefulWidget {
@@ -22,28 +23,38 @@ class _AppHomePageState extends State<AppHomePage>
   String avatar = "";
   bool _botLaunched = false;
 
+  bool get _supportsForegroundTask => Platform.isAndroid || Platform.isIOS;
+
   Future<void> _requestPermissions() async {
+    if (!_supportsForegroundTask) {
+      return;
+    }
+
     // Android 13+, you need to allow notification permission to display foreground service notification.
     //
     // iOS: If you need notification, ask for permission.
-    final NotificationPermission notificationPermission =
-        await FlutterForegroundTask.checkNotificationPermission();
-    if (notificationPermission != NotificationPermission.granted) {
-      await FlutterForegroundTask.requestNotificationPermission();
-    }
-
-    if (Platform.isAndroid) {
-      // Android 12+, there are restrictions on starting a foreground service.
-      //
-      // To restart the service on device reboot or unexpected problem, you need to allow below permission.
-      if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
-        // This function requires `android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission.
-        await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+    try {
+      final NotificationPermission notificationPermission =
+          await FlutterForegroundTask.checkNotificationPermission();
+      if (notificationPermission != NotificationPermission.granted) {
+        await FlutterForegroundTask.requestNotificationPermission();
       }
+
+      if (Platform.isAndroid) {
+        if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
+          await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+        }
+      }
+    } on MissingPluginException {
+      // No-op on unsupported platforms.
     }
   }
 
   Future<void> _initService() async {
+    if (!_supportsForegroundTask) {
+      return;
+    }
+
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'foreground_service',
@@ -87,7 +98,17 @@ class _AppHomePageState extends State<AppHomePage>
 
   Future<void> _init() async {
     final app = await appManager.getApp(widget.client.user.id.toString());
-    final isRunning = await FlutterForegroundTask.isRunningService;
+    var isRunning = false;
+    if (_supportsForegroundTask) {
+      try {
+        isRunning = await FlutterForegroundTask.isRunningService;
+      } on MissingPluginException {
+        isRunning = false;
+      }
+    } else {
+      isRunning = isDesktopBotRunning;
+    }
+
     await AppAnalytics.logScreenView(
       screenName: "AppHomePage",
       screenClass: "AppHomePage",
@@ -112,41 +133,59 @@ class _AppHomePageState extends State<AppHomePage>
         title: Text(_appName),
         centerTitle: true,
       ),
-      body: Center(
-        child: Scrollable(
-          controller: ScrollController(),
-          viewportBuilder:
-              (context, position) => SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: <Widget>[
-                      // let's show the app icon
-                      const SizedBox(height: 20),
-                      avatar.isNotEmpty
-                          ? CircleAvatar(
-                            radius: 40,
-                            backgroundImage: NetworkImage(avatar),
-                          )
-                          : const Icon(Icons.account_circle, size: 80),
-                      const SizedBox(height: 20),
-                      // App Name
-                      Text(
-                        _appName,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final contentMaxWidth = constraints.maxWidth >= 900 ? 560.0 : 460.0;
+          return Center(
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: contentMaxWidth),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    // let's show the app icon
+                    const SizedBox(height: 20),
+                    Align(
+                      alignment: Alignment.center,
+                      child:
+                          avatar.isNotEmpty
+                              ? CircleAvatar(
+                                radius: 40,
+                                backgroundImage: NetworkImage(avatar),
+                              )
+                              : const Icon(Icons.account_circle, size: 80),
+                    ),
+                    const SizedBox(height: 20),
+                    // App Name
+                    Text(
+                      _appName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _botLaunched ? Colors.red : Colors.green,
-                          maximumSize: const Size(200, 40),
-                        ),
-                        onPressed: () async {
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            _botLaunched ? Colors.red : Colors.green,
+                        minimumSize: const Size.fromHeight(44),
+                      ),
+                      onPressed: () async {
+                        final app = await appManager.getApp(
+                          widget.client.user.id.toString(),
+                        );
+
+                        final token = app["token"];
+                        if (token == null) {
+                          throw Exception("Token not found");
+                        }
+
+                        if (_supportsForegroundTask) {
                           if (_botLaunched) {
                             setState(() {
                               _botLaunched = false;
@@ -157,124 +196,127 @@ class _AppHomePageState extends State<AppHomePage>
                             );
                             return;
                           }
-                          final app = await appManager.getApp(
-                            widget.client.user.id.toString(),
-                          );
 
-                          final token = app["token"];
-                          if (token == null) {
-                            throw Exception("Token not found");
-                          }
                           await FlutterForegroundTask.saveData(
                             key: "token",
                             value: token,
                           );
                           await Future.delayed(const Duration(seconds: 1));
                           await startService();
-
-                          setState(() {
-                            _botLaunched = true;
-                          });
-                        },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(_botLaunched ? Icons.stop : Icons.play_arrow),
-                            const SizedBox(width: 8),
-                            Text(_botLaunched ? "Stop Bot" : "Start Bot"),
-                          ],
-                        ),
-                      ),
-                      const Divider(
-                        height: 40,
-                        thickness: 2,
-                        indent: 20,
-                        endIndent: 20,
-                      ),
-                      // Sync Button
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          maximumSize: const Size(200, 40),
-                        ),
-                        onPressed: () async {
-                          final user = await widget.client.user.get();
-                          final app = await appManager.getApp(
-                            user.id.toString(),
-                          );
-                          final token = app["token"];
-                          if (token == null) {
-                            throw Exception("Token not found");
+                        } else {
+                          if (_botLaunched) {
+                            await stopDesktopBot();
+                            setState(() {
+                              _botLaunched = false;
+                            });
+                            return;
                           }
-                          // let's update the user
-                          await appManager.createOrUpdateApp(user, token);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("App synced successfully"),
-                            ),
-                          );
-                        },
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.sync),
-                            SizedBox(width: 8),
-                            Text("Sync App"),
-                          ],
-                        ),
+
+                          await startDesktopBot(token.toString());
+                        }
+
+                        setState(() {
+                          _botLaunched = true;
+                        });
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(_botLaunched ? Icons.stop : Icons.play_arrow),
+                          const SizedBox(width: 8),
+                          Text(_botLaunched ? "Stop Bot" : "Start Bot"),
+                        ],
                       ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          maximumSize: const Size(200, 40),
-                        ),
-                        onPressed: () async {
-                          final dialog = AlertDialog.adaptive(
-                            title: const Text("Delete App"),
-                            content: const Text(
-                              "Are you sure you want to delete this app?",
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                },
-                                child: const Text("Cancel"),
-                              ),
-                              TextButton(
-                                onPressed: () async {
-                                  await appManager.deleteApp(
-                                    widget.client.user.id.toString(),
-                                  );
-                                  Navigator.of(context).pop();
-                                  Navigator.of(context).pop();
-                                },
-                                child: const Text("Delete"),
-                              ),
-                            ],
-                          );
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return dialog;
-                            },
-                          );
-                        },
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.delete),
-                            SizedBox(width: 8),
-                            Text("Delete App"),
-                          ],
-                        ),
+                    ),
+                    const Divider(
+                      height: 40,
+                      thickness: 2,
+                      indent: 20,
+                      endIndent: 20,
+                    ),
+                    // Sync Button
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(44),
                       ),
-                      const SizedBox(height: 80),
-                    ],
-                  ),
+                      onPressed: () async {
+                        final user = await widget.client.user.get();
+                        final app = await appManager.getApp(user.id.toString());
+                        final token = app["token"];
+                        if (token == null) {
+                          throw Exception("Token not found");
+                        }
+                        // let's update the user
+                        await appManager.createOrUpdateApp(user, token);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("App synced successfully"),
+                          ),
+                        );
+                      },
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.sync),
+                          SizedBox(width: 8),
+                          Text("Sync App"),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        minimumSize: const Size.fromHeight(44),
+                      ),
+                      onPressed: () async {
+                        final dialog = AlertDialog.adaptive(
+                          title: const Text("Delete App"),
+                          content: const Text(
+                            "Are you sure you want to delete this app?",
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                              child: const Text("Cancel"),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                await appManager.deleteApp(
+                                  widget.client.user.id.toString(),
+                                );
+                                Navigator.of(context).pop();
+                                Navigator.of(context).pop();
+                              },
+                              child: const Text("Delete"),
+                            ),
+                          ],
+                        );
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return dialog;
+                          },
+                        );
+                      },
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.delete),
+                          SizedBox(width: 8),
+                          Text("Delete App"),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 80),
+                  ],
                 ),
               ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

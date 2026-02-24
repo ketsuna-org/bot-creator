@@ -181,7 +181,6 @@ class OptionWidgetState extends State<OptionWidget> {
     return Column(
       children: [
         ListView.builder(
-          controller: ScrollController(),
           physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.all(8.0),
           shrinkWrap: true,
@@ -200,7 +199,10 @@ class OptionWidgetState extends State<OptionWidget> {
               ),
               title: Text(
                 options[index].name,
-                style: const TextStyle(fontSize: 18),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               children: [
                 const SizedBox(height: 16),
@@ -287,7 +289,6 @@ class OptionWidgetState extends State<OptionWidget> {
                 if (checkIfChoicesShouldBeVisible(options[index].type) &&
                     options[index].choices != null)
                   ListView.builder(
-                    controller: ScrollController(),
                     physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(8.0),
                     shrinkWrap: true,
@@ -372,9 +373,10 @@ class OptionWidgetState extends State<OptionWidget> {
                 const SizedBox(height: 8),
                 if (checkIfChoicesShouldBeVisible(options[index].type))
                   SizedBox(
-                    width: MediaQuery.of(context).size.width - 32,
+                    width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(44),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8.0),
                         ),
@@ -415,9 +417,10 @@ class OptionWidgetState extends State<OptionWidget> {
         ),
         if (options.length < 25)
           SizedBox(
-            width: MediaQuery.of(context).size.width - 16,
+            width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(44),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8.0),
                 ),

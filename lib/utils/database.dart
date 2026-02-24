@@ -21,7 +21,8 @@ class AppManager {
     return directory.path;
   }
 
-  Future<String> get path async => (await getApplicationDocumentsDirectory()).path;
+  Future<String> get path async =>
+      (await getApplicationDocumentsDirectory()).path;
 
   Future<void> _init() async {
     final path = await _path();
@@ -138,7 +139,15 @@ class AppManager {
     if (!await file.exists()) return {};
 
     final data = await file.readAsString();
-    return data.isNotEmpty ? jsonDecode(data) : {};
+    if (data.isEmpty) return {};
+
+    final decoded = Map<String, dynamic>.from(jsonDecode(data));
+    final normalized = normalizeCommandData(decoded);
+    if (!_deepEquals(decoded, normalized)) {
+      await file.writeAsString(jsonEncode(normalized));
+    }
+
+    return normalized;
   }
 
   Future<void> saveAppCommand(
@@ -149,7 +158,78 @@ class AppManager {
     final path = await _path();
     final file = File("$path/apps/$id/$commandId.json");
     if (!await file.exists()) await file.create(recursive: true);
-    await file.writeAsString(jsonEncode(data));
+    await file.writeAsString(jsonEncode(normalizeCommandData(data)));
+  }
+
+  Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
+    final normalized = Map<String, dynamic>.from(command);
+    final rawData = Map<String, dynamic>.from(
+      (normalized['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+
+    final legacyResponse = rawData['response'];
+    final response = Map<String, dynamic>.from(
+      (legacyResponse is Map)
+          ? legacyResponse.cast<String, dynamic>()
+          : {
+            'mode': 'text',
+            'text': legacyResponse?.toString() ?? '',
+            'embed': {'title': '', 'description': '', 'url': ''},
+            'embeds': <Map<String, dynamic>>[],
+          },
+    );
+
+    final legacySingleEmbed = Map<String, dynamic>.from(
+      (response['embed'] as Map?)?.cast<String, dynamic>() ??
+          {'title': '', 'description': '', 'url': ''},
+    );
+    final embeds =
+        (response['embeds'] is List)
+            ? List<Map<String, dynamic>>.from(
+              (response['embeds'] as List).whereType<Map>().map(
+                (embed) => Map<String, dynamic>.from(embed),
+              ),
+            )
+            : <Map<String, dynamic>>[];
+
+    final hasLegacyEmbed =
+        (legacySingleEmbed['title']?.toString().isNotEmpty ?? false) ||
+        (legacySingleEmbed['description']?.toString().isNotEmpty ?? false) ||
+        (legacySingleEmbed['url']?.toString().isNotEmpty ?? false);
+    if (embeds.isEmpty && hasLegacyEmbed) {
+      embeds.add(legacySingleEmbed);
+    }
+
+    final actions =
+        (rawData['actions'] is List)
+            ? List<Map<String, dynamic>>.from(
+              (rawData['actions'] as List).whereType<Map>().map(
+                (action) => Map<String, dynamic>.from(action),
+              ),
+            )
+            : <Map<String, dynamic>>[];
+
+    normalized['data'] = {
+      'version': 1,
+      'response': {
+        'mode':
+            (embeds.isNotEmpty ? 'embed' : (response['mode'] ?? 'text'))
+                .toString(),
+        'text': (response['text'] ?? '').toString(),
+        'embed':
+            embeds.isNotEmpty
+                ? embeds.first
+                : {'title': '', 'description': '', 'url': ''},
+        'embeds': embeds.take(10).toList(),
+      },
+      'actions': actions,
+    };
+
+    return normalized;
+  }
+
+  bool _deepEquals(Map<String, dynamic> a, Map<String, dynamic> b) {
+    return jsonEncode(a) == jsonEncode(b);
   }
 
   Future<void> deleteAppCommand(String id, String commandId) async {

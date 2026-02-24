@@ -57,15 +57,18 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
 
     return Scaffold(
       appBar: AppBar(title: Text("Application Settings")),
-      body: Scrollable(
-        controller: ScrollController(),
-        viewportBuilder:
-            (context, position) => SingleChildScrollView(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final contentMaxWidth = constraints.maxWidth >= 900 ? 760.0 : 640.0;
+          return Center(
+            child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              controller: ScrollController(),
-              child: Center(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: contentMaxWidth),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     const SizedBox(height: 20),
                     if (app != null)
@@ -155,6 +158,8 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                 ),
               ),
             ),
+          );
+        },
       ),
     );
   }

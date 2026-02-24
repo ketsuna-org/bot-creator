@@ -136,7 +136,7 @@ class _MyMainPageState extends State<MyMainPage> {
           ),
         ],
       ),
-      body: Center(child: HomePage()),
+      body: const HomePage(),
       floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
       floatingActionButton: FloatingActionButton(
         onPressed: () {

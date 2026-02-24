@@ -2,6 +2,7 @@ import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/analytics.dart';
+import 'package:bot_creator/widgets/response_embeds_editor.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
@@ -20,6 +21,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   String _commandDescription = "";
   List<CommandOptionBuilder> _options = [];
   String _response = "";
+  final TextEditingController _responseController = TextEditingController();
+  List<Map<String, dynamic>> _responseEmbeds = [];
+  List<Map<String, dynamic>> _actions = [];
   bool _isLoading = true;
   List<ApplicationIntegrationType> _integrationTypes = [
     ApplicationIntegrationType.guildInstall,
@@ -51,8 +55,21 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   @override
   void initState() {
     super.initState();
+    _responseController.text = _response;
+    _responseController.addListener(() {
+      _response = _responseController.text;
+      if (mounted) {
+        setState(() {});
+      }
+    });
     _init();
     // Initialize any necessary data or state
+  }
+
+  @override
+  void dispose() {
+    _responseController.dispose();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -77,8 +94,56 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       // let's set the command data to the fields
       final data = commandData["data"];
       if (data != null) {
+        final normalized = appManager.normalizeCommandData(
+          Map<String, dynamic>.from(commandData),
+        );
+        final normalizedData = Map<String, dynamic>.from(
+          normalized["data"] ?? const {},
+        );
+        final response = Map<String, dynamic>.from(
+          (normalizedData["response"] as Map?)?.cast<String, dynamic>() ??
+              const {},
+        );
+        final embeds =
+            (response['embeds'] is List)
+                ? List<Map<String, dynamic>>.from(
+                  (response['embeds'] as List).whereType<Map>().map(
+                    (embed) => Map<String, dynamic>.from(
+                      embed.map(
+                        (key, value) => MapEntry(key.toString(), value),
+                      ),
+                    ),
+                  ),
+                )
+                : <Map<String, dynamic>>[];
+
+        if (embeds.isEmpty) {
+          final legacyEmbed = Map<String, dynamic>.from(
+            (response['embed'] as Map?)?.cast<String, dynamic>() ?? const {},
+          );
+          final hasLegacyEmbed =
+              (legacyEmbed['title']?.toString().isNotEmpty ?? false) ||
+              (legacyEmbed['description']?.toString().isNotEmpty ?? false) ||
+              (legacyEmbed['url']?.toString().isNotEmpty ?? false);
+          if (hasLegacyEmbed) {
+            embeds.add({
+              'title': legacyEmbed['title']?.toString() ?? '',
+              'description': legacyEmbed['description']?.toString() ?? '',
+              'url': legacyEmbed['url']?.toString() ?? '',
+            });
+          }
+        }
+
         setState(() {
-          _response = data["response"] ?? "";
+          _response = (response["text"] ?? "").toString();
+          _responseController.text = _response;
+          _responseEmbeds = embeds.take(10).toList();
+          _actions = List<Map<String, dynamic>>.from(
+            (normalizedData["actions"] as List?)?.whereType<Map>().map(
+                  (e) => Map<String, dynamic>.from(e),
+                ) ??
+                const [],
+          );
         });
       }
       if (command != null) {
@@ -147,6 +212,20 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       return;
     }
 
+    final commandData = {
+      "version": 1,
+      "response": {
+        "mode": _responseEmbeds.isNotEmpty ? "embed" : "text",
+        "text": _responseController.text,
+        "embed":
+            _responseEmbeds.isNotEmpty
+                ? _responseEmbeds.first
+                : {"title": "", "description": "", "url": ""},
+        "embeds": _responseEmbeds.take(10).toList(),
+      },
+      "actions": _actions,
+    };
+
     final client = widget.client;
     if (client == null) {
       // Handle error: client is null
@@ -165,11 +244,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         if (_options.isNotEmpty) {
           commandBuilder.options = _options;
         }
-        await createCommand(
-          client,
-          commandBuilder,
-          data: {"response": _response},
-        );
+        await createCommand(client, commandBuilder, data: commandData);
       } else {
         // Update the existing command
         final commandBuilder = ApplicationCommandUpdateBuilder(
@@ -187,7 +262,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           client,
           widget.id,
           commandBuilder: commandBuilder,
-          data: {"response": _response},
+          data: commandData,
         );
       }
       Navigator.pop(context);
@@ -247,6 +322,189 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     return null; // No error
   }
 
+  List<String> get _variableNames {
+    final base = _argsList
+        .map((e) => e['name'])
+        .whereType<String>()
+        .toList(growable: true);
+
+    for (final option in _options) {
+      final optionName = option.name;
+      if (optionName.isEmpty) {
+        continue;
+      }
+
+      base.add('opts.$optionName');
+
+      switch (option.type) {
+        case CommandOptionType.user:
+        case CommandOptionType.mentionable:
+          base.addAll(['opts.$optionName.id', 'opts.$optionName.avatar']);
+          break;
+        case CommandOptionType.channel:
+          base.addAll(['opts.$optionName.id', 'opts.$optionName.type']);
+          break;
+        case CommandOptionType.role:
+          base.add('opts.$optionName.id');
+          break;
+        default:
+          break;
+      }
+    }
+
+    return base.toSet().toList(growable: false)..sort();
+  }
+
+  String _currentVariableQuery(TextEditingController controller) {
+    final selection = controller.selection;
+    final cursor = selection.baseOffset;
+    if (cursor < 0) {
+      return '';
+    }
+
+    final beforeCursor = controller.text.substring(0, cursor);
+    final start = beforeCursor.lastIndexOf('((');
+    if (start == -1) {
+      return '';
+    }
+
+    final alreadyClosed = beforeCursor.substring(start).contains('))');
+    if (alreadyClosed) {
+      return '';
+    }
+
+    final raw = beforeCursor.substring(start + 2);
+    final parts = raw.split('|');
+    return parts.last.trimLeft();
+  }
+
+  void _insertVariable(TextEditingController controller, String variableName) {
+    final selection = controller.selection;
+    final cursor = selection.baseOffset;
+    if (cursor < 0) {
+      return;
+    }
+
+    final beforeCursor = controller.text.substring(0, cursor);
+    final afterCursor = controller.text.substring(cursor);
+    final start = beforeCursor.lastIndexOf('((');
+    if (start == -1) {
+      return;
+    }
+
+    final rawInner = beforeCursor.substring(start + 2);
+    final parts = rawInner.split('|');
+    final prefixParts =
+        parts.length > 1 ? parts.sublist(0, parts.length - 1) : <String>[];
+    final previous =
+        prefixParts.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    final merged = [...previous, variableName];
+    final inner = merged.join(' | ');
+
+    final newBefore = '${beforeCursor.substring(0, start)}(($inner))';
+    final nextText = '$newBefore$afterCursor';
+    final nextCursor = newBefore.length;
+
+    controller.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextCursor),
+    );
+  }
+
+  Widget _buildVariableSuggestionBar(TextEditingController controller) {
+    final query = _currentVariableQuery(controller).trim();
+    final cursor = controller.selection.baseOffset;
+    if (cursor < 0) {
+      return const SizedBox.shrink();
+    }
+
+    final beforeCursor = controller.text.substring(0, cursor);
+    final start = beforeCursor.lastIndexOf('((');
+    if (start == -1) {
+      return const SizedBox.shrink();
+    }
+
+    final inner = beforeCursor.substring(start + 2);
+    final inFallbackMode = inner.contains('|');
+
+    if (query.isEmpty && !inFallbackMode) {
+      return const SizedBox.shrink();
+    }
+
+    final suggestions =
+        _variableNames
+            .where((name) => name.toLowerCase().contains(query.toLowerCase()))
+            .take(8)
+            .toList();
+
+    if (suggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (inFallbackMode)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  'Fallback mode: next variable is used if previous is empty.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                ),
+              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children:
+                  suggestions
+                      .map(
+                        (name) => ActionChip(
+                          label: Text('(($name))'),
+                          onPressed: () => _insertVariable(controller, name),
+                        ),
+                      )
+                      .toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    String? subtitle,
+    required Widget child,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            ],
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -258,7 +516,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               final dialogFullscren = Dialog.fullscreen(
                 child: Scaffold(
                   appBar: AppBar(
-                    title: const Text("Command arguments"),
+                    title: const Text("Command Variables"),
                     leading: IconButton(
                       icon: const Icon(Icons.arrow_back),
                       onPressed: () {
@@ -308,11 +566,13 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 builder: (context) => dialogFullscren,
               );
             },
-            icon: const Icon(Icons.info),
+            tooltip: "Show variables",
+            icon: const Icon(Icons.info_outline),
           ),
           if (widget.id.isZero)
             IconButton(
               icon: const Icon(Icons.add),
+              tooltip: "Create command",
               onPressed: () {
                 if (_formKey.currentState!.validate()) {
                   _updateOrCreate();
@@ -341,6 +601,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             icon: Icon(
               widget.id.isZero ? Icons.cancel : Icons.save,
             ), // Change icon based on command existence
+            tooltip: widget.id.isZero ? "Cancel" : "Save command",
             onPressed: () async {
               if (widget.id.isZero) {
                 Navigator.pop(context);
@@ -380,6 +641,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           if (!widget.id.isZero)
             IconButton(
               icon: const Icon(Icons.delete),
+              tooltip: "Delete command",
               onPressed: () async {
                 await widget.client?.commands.delete(widget.id);
                 await appManager.deleteAppCommand(
@@ -393,12 +655,19 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             ),
         ],
       ),
-      body: Center(
-        child: Scrollable(
-          physics: const BouncingScrollPhysics(),
-          scrollBehavior: const ScrollBehavior(),
-          viewportBuilder:
-              (context, position) => SingleChildScrollView(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final contentMaxWidth =
+              constraints.maxWidth >= 1200
+                  ? 980.0
+                  : (constraints.maxWidth >= 900 ? 860.0 : 680.0);
+
+          return Center(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: contentMaxWidth),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
@@ -407,6 +676,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                           ? "Create a new command"
                           : "Update command",
                       style: const TextStyle(fontSize: 24),
+                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
                     if (_isLoading)
@@ -415,137 +685,233 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                       Form(
                         key: _formKey,
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            TextFormField(
-                              autocorrect: false,
-                              validator: _validateName,
-                              initialValue: _commandName,
-                              maxLength: 32,
-                              decoration: InputDecoration(
-                                labelText: "Name",
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (value) {
-                                setState(() {
-                                  _commandName = value;
-                                });
-                                // Handle command name input
-                              },
-                            ),
-                            const SizedBox(height: 20),
-                            TextFormField(
-                              autocorrect: false,
-                              maxLength: 100,
-                              maxLines: 3,
-                              minLines: 1,
-                              keyboardType: TextInputType.multiline,
-                              validator: (value) {
-                                if (value!.isEmpty) {
-                                  return "Please enter a command description";
-                                }
-                                if (value.length > 100) {
-                                  return "Command description must be at most 100 characters long";
-                                }
-                                return null; // No error
-                              },
-                              initialValue: _commandDescription,
-                              decoration: InputDecoration(
-                                labelText: "Description",
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (value) {
-                                setState(() {
-                                  _commandDescription = value;
-                                });
-                                // Handle command description input
-                              },
-                            ),
-                            const Text(
-                              "Where this command can be used",
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Checkbox(
-                                  value: _integrationTypes.contains(
-                                    ApplicationIntegrationType.guildInstall,
-                                  ),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      if (value == true) {
-                                        _integrationTypes.add(
-                                          ApplicationIntegrationType
-                                              .guildInstall,
-                                        );
-                                      } else {
-                                        _integrationTypes.remove(
-                                          ApplicationIntegrationType
-                                              .guildInstall,
-                                        );
+                            _buildSectionCard(
+                              title: "Command Info",
+                              subtitle: "Basic metadata and availability",
+                              child: LayoutBuilder(
+                                builder: (context, innerConstraints) {
+                                  final isWide =
+                                      innerConstraints.maxWidth >= 760;
+                                  final nameField = TextFormField(
+                                    autocorrect: false,
+                                    validator: _validateName,
+                                    initialValue: _commandName,
+                                    maxLength: 32,
+                                    decoration: const InputDecoration(
+                                      labelText: "Name",
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _commandName = value;
+                                      });
+                                    },
+                                  );
+
+                                  final descriptionField = TextFormField(
+                                    autocorrect: false,
+                                    maxLength: 100,
+                                    maxLines: 3,
+                                    minLines: 1,
+                                    keyboardType: TextInputType.multiline,
+                                    validator: (value) {
+                                      if (value!.isEmpty) {
+                                        return "Please enter a command description";
                                       }
-                                    });
-                                  },
-                                ),
-                                const Text("Guild install"),
-                                const SizedBox(width: 20),
-                                Checkbox(
-                                  value: _integrationTypes.contains(
-                                    ApplicationIntegrationType.userInstall,
-                                  ),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      if (value == true) {
-                                        _integrationTypes.add(
-                                          ApplicationIntegrationType
-                                              .userInstall,
-                                        );
-                                      } else {
-                                        _integrationTypes.remove(
-                                          ApplicationIntegrationType
-                                              .userInstall,
-                                        );
+                                      if (value.length > 100) {
+                                        return "Command description must be at most 100 characters long";
                                       }
-                                    });
-                                  },
+                                      return null;
+                                    },
+                                    initialValue: _commandDescription,
+                                    decoration: const InputDecoration(
+                                      labelText: "Description",
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _commandDescription = value;
+                                      });
+                                    },
+                                  );
+
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (isWide)
+                                        Row(
+                                          children: [
+                                            Expanded(child: nameField),
+                                            const SizedBox(width: 12),
+                                            Expanded(child: descriptionField),
+                                          ],
+                                        )
+                                      else ...[
+                                        nameField,
+                                        const SizedBox(height: 12),
+                                        descriptionField,
+                                      ],
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        "Where this command can be used",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        alignment: WrapAlignment.start,
+                                        spacing: 20,
+                                        runSpacing: 8,
+                                        children: [
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Checkbox(
+                                                value: _integrationTypes
+                                                    .contains(
+                                                      ApplicationIntegrationType
+                                                          .guildInstall,
+                                                    ),
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    if (value == true) {
+                                                      _integrationTypes.add(
+                                                        ApplicationIntegrationType
+                                                            .guildInstall,
+                                                      );
+                                                    } else {
+                                                      _integrationTypes.remove(
+                                                        ApplicationIntegrationType
+                                                            .guildInstall,
+                                                      );
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                              const Text("Guild install"),
+                                            ],
+                                          ),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Checkbox(
+                                                value: _integrationTypes
+                                                    .contains(
+                                                      ApplicationIntegrationType
+                                                          .userInstall,
+                                                    ),
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    if (value == true) {
+                                                      _integrationTypes.add(
+                                                        ApplicationIntegrationType
+                                                            .userInstall,
+                                                      );
+                                                    } else {
+                                                      _integrationTypes.remove(
+                                                        ApplicationIntegrationType
+                                                            .userInstall,
+                                                      );
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                              const Text("User Install"),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildSectionCard(
+                              title: "Command Reply",
+                              subtitle: "Text response + up to 10 embeds",
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextFormField(
+                                    autocorrect: false,
+                                    maxLines: 4,
+                                    minLines: 2,
+                                    keyboardType: TextInputType.multiline,
+                                    controller: _responseController,
+                                    decoration: const InputDecoration(
+                                      labelText: "Response Text",
+                                      border: OutlineInputBorder(),
+                                      helperText:
+                                          "Used as slash-command reply text. Supports placeholders like ((userName)).",
+                                    ),
+                                  ),
+                                  _buildVariableSuggestionBar(
+                                    _responseController,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ResponseEmbedsEditor(
+                                    embeds: _responseEmbeds,
+                                    onChanged: (embeds) {
+                                      setState(() {
+                                        _responseEmbeds = embeds;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildSectionCard(
+                              title: "Command Options",
+                              subtitle: "Slash-command parameters",
+                              child: OptionWidget(
+                                initialOptions: _options,
+                                onChange: (options) {
+                                  setState(() {
+                                    _options = options;
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildSectionCard(
+                              title: "Actions",
+                              subtitle:
+                                  "Build runtime actions for this command",
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(44),
                                 ),
-                                const Text("User Install"),
-                                const SizedBox(width: 20),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-                            const Text(
-                              "Options",
-                              style: TextStyle(fontSize: 18),
-                            ),
-                            const SizedBox(height: 10),
-                            OptionWidget(
-                              initialOptions: _options,
-                              onChange: (options) {
-                                setState(() {
-                                  _options = options;
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 20),
-                            if (!widget.id.isZero)
-                              FilledButton(
-                                onPressed: () {
-                                  // let's push to the Response Builder Page
-                                  Navigator.push(
+                                onPressed: () async {
+                                  final nextActions = await Navigator.push<
+                                    List<Map<String, dynamic>>
+                                  >(
                                     context,
                                     MaterialPageRoute(
                                       builder:
-                                          (context) => ActionsBuilderPage(),
+                                          (context) => ActionsBuilderPage(
+                                            initialActions: _actions,
+                                          ),
                                     ),
                                   );
+
+                                  if (nextActions != null) {
+                                    setState(() {
+                                      _actions = nextActions;
+                                    });
+                                  }
                                 },
-                                child: const Text("Build Response"),
+                                child: Text(
+                                  "Build Actions (${_actions.length})",
+                                ),
                               ),
+                            ),
                             const SizedBox(height: 20),
                           ],
                         ),
@@ -553,7 +919,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                   ],
                 ),
               ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

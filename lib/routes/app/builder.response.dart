@@ -47,9 +47,51 @@ class ParameterDefinition {
 class ActionItem {
   final String id;
   final BotCreatorActionType type;
+  bool enabled;
+  String onErrorMode;
   final Map<String, dynamic> parameters;
 
-  ActionItem({required this.id, required this.type, required this.parameters});
+  ActionItem({
+    required this.id,
+    required this.type,
+    required this.parameters,
+    this.enabled = true,
+    this.onErrorMode = 'stop',
+  });
+
+  factory ActionItem.fromJson(Map<String, dynamic> json) {
+    return ActionItem(
+      id: (json['id'] ?? '').toString(),
+      type: BotCreatorActionType.values.firstWhere(
+        (e) => e.name == json['type'],
+        orElse: () => BotCreatorActionType.sendMessage,
+      ),
+      enabled: json['enabled'] as bool? ?? true,
+      onErrorMode:
+          (Map<String, dynamic>.from(
+                    (json['error'] as Map?)?.cast<String, dynamic>() ??
+                        const {},
+                  )['mode'] ??
+                  'stop')
+              .toString(),
+      parameters: Map<String, dynamic>.from(
+        (json['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
+      ),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final actionKey = (parameters['key'] ?? id).toString();
+    return {
+      'id': id,
+      'type': type.name,
+      'enabled': enabled,
+      'key': actionKey,
+      'depend_on': <String>[],
+      'error': {'mode': onErrorMode},
+      'payload': parameters,
+    };
+  }
 }
 
 // Extension pour obtenir les détails des actions
@@ -299,8 +341,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'channelId',
             type: ParameterType.channelId,
             defaultValue: '',
-            hint: 'Target channel',
-            required: true,
+            hint: 'Target channel (optional: current command channel if empty)',
           ),
           ParameterDefinition(
             key: 'content',
@@ -456,13 +497,13 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
       ParameterType type = ParameterType.string;
       if (entry.value is bool) {
         type = ParameterType.boolean;
-      } else if (entry.value is int || entry.value is double){
+      } else if (entry.value is int || entry.value is double) {
         type = ParameterType.number;
-      } else if (entry.value is List){
+      } else if (entry.value is List) {
         type = ParameterType.list;
-    }else if (entry.key.toLowerCase().contains('id')){
+      } else if (entry.key.toLowerCase().contains('id')) {
         type = ParameterType.string;
-    }else if (entry.key.toLowerCase().contains('url')){
+      } else if (entry.key.toLowerCase().contains('url')) {
         type = ParameterType.url;
       }
       return ParameterDefinition(
@@ -485,7 +526,9 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
 }
 
 class ActionsBuilderPage extends StatefulWidget {
-  const ActionsBuilderPage({super.key});
+  final List<Map<String, dynamic>> initialActions;
+
+  const ActionsBuilderPage({super.key, this.initialActions = const []});
 
   @override
   State<ActionsBuilderPage> createState() => _ActionsBuilderPageState();
@@ -494,6 +537,16 @@ class ActionsBuilderPage extends StatefulWidget {
 class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
   final List<ActionItem> _actions = [];
   int _actionCounter = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final action in widget.initialActions) {
+      final item = ActionItem.fromJson(action);
+      _actions.add(item);
+      _actionCounter++;
+    }
+  }
 
   void _addAction(BotCreatorActionType type) {
     setState(() {
@@ -519,41 +572,61 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         (action) => action.id == actionId,
       );
       if (actionIndex != -1) {
+        if (key == '__enabled__') {
+          _actions[actionIndex].enabled = value == true;
+          return;
+        }
+
+        if (key == '__onErrorMode__') {
+          _actions[actionIndex].onErrorMode =
+              value == 'continue' ? 'continue' : 'stop';
+          return;
+        }
+
         _actions[actionIndex].parameters[key] = value;
       }
     });
   }
 
   void _saveActions() {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Actions Saved'),
-            content: Text(
-              '${_actions.length} actions have been saved successfully!',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-    );
-
-    // Debug: afficher les actions dans la console
     for (final action in _actions) {
-      if (kDebugMode) {
-        print('Action: ${action.type.displayName}');  
-        print('Parameters: ${action.parameters}');
-        print('---');
+      for (final def in action.type.parameterDefinitions) {
+        if (!def.required) {
+          continue;
+        }
+
+        final value = action.parameters[def.key];
+        if (value == null || (value is String && value.trim().isEmpty)) {
+          showDialog(
+            context: context,
+            builder:
+                (context) => AlertDialog(
+                  title: const Text('Missing Required Field'),
+                  content: Text(
+                    '${action.type.displayName}: ${def.key} is required.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+          );
+          return;
+        }
       }
-    
     }
+
+    final payload = _actions.map((action) => action.toJson()).toList();
+    if (kDebugMode) {
+      print('Saving actions payload: $payload');
+    }
+    Navigator.pop(context, payload);
   }
 
   void _showAddActionDialog() {
+    final maxHeight = MediaQuery.of(context).size.height * 0.7;
     showDialog(
       context: context,
       builder:
@@ -561,7 +634,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
             title: const Text('Add New Action'),
             content: SizedBox(
               width: double.maxFinite,
-              height: 400,
+              height: maxHeight,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -583,21 +656,10 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
                         children: [
                           _buildActionCategory('Messages', [
                             BotCreatorActionType.sendMessage,
-                            BotCreatorActionType.editMessage,
                             BotCreatorActionType.deleteMessages,
-                            BotCreatorActionType.pinMessage,
-                          ]),
-                          _buildActionCategory('Moderation', [
-                            BotCreatorActionType.banUser,
-                            BotCreatorActionType.unbanUser,
-                            BotCreatorActionType.kickUser,
-                            BotCreatorActionType.muteUser,
-                            BotCreatorActionType.unmuteUser,
-                            BotCreatorActionType.updateAutoMod,
                           ]),
                           _buildActionCategory('Channels', [
                             BotCreatorActionType.createChannel,
-                            BotCreatorActionType.updateChannel,
                             BotCreatorActionType.removeChannel,
                           ]),
                         ],
@@ -875,6 +937,43 @@ class ActionCard extends StatelessWidget {
                 border: OutlineInputBorder(),
               ),
               onChanged: (newValue) => onParameterChanged('key', newValue),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Enabled'),
+                    value: action.enabled,
+                    onChanged:
+                        (value) => onParameterChanged('__enabled__', value),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: action.onErrorMode,
+                    decoration: const InputDecoration(
+                      labelText: 'On Error',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'stop', child: Text('Stop')),
+                      DropdownMenuItem(
+                        value: 'continue',
+                        child: Text('Continue'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        onParameterChanged('__onErrorMode__', value);
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             ...action.type.parameterDefinitions.map((paramDef) {
@@ -1304,6 +1403,7 @@ class ActionCard extends StatelessWidget {
     ParameterDefinition paramDef,
     dynamic currentValue,
   ) {
+    final maxHeight = MediaQuery.of(context).size.height * 0.55;
     final List<String> items = List<String>.from(currentValue ?? []);
     final TextEditingController controller = TextEditingController();
 
@@ -1316,7 +1416,7 @@ class ActionCard extends StatelessWidget {
                   title: Text('Edit ${_formatParameterName(paramDef.key)}'),
                   content: SizedBox(
                     width: double.maxFinite,
-                    height: 300,
+                    height: maxHeight,
                     child: Column(
                       children: [
                         Row(
@@ -1458,6 +1558,7 @@ class ActionCard extends StatelessWidget {
     ParameterDefinition paramDef,
     dynamic currentValue,
   ) {
+    final maxHeight = MediaQuery.of(context).size.height * 0.7;
     final Map<String, dynamic> map = Map<String, dynamic>.from(
       currentValue ?? {},
     );
@@ -1473,7 +1574,7 @@ class ActionCard extends StatelessWidget {
                   title: Text('Edit ${_formatParameterName(paramDef.key)}'),
                   content: SizedBox(
                     width: double.maxFinite,
-                    height: 400,
+                    height: maxHeight,
                     child: Column(
                       children: [
                         Row(
