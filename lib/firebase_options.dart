@@ -33,10 +33,7 @@ class DefaultFirebaseOptions {
           'you can reconfigure this by running the FlutterFire CLI again.',
         );
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -66,6 +63,16 @@ class DefaultFirebaseOptions {
     androidClientId: '777382167262-4os7qabl85pvr7588l5vlbreuhr7kquc.apps.googleusercontent.com',
     iosClientId: '777382167262-454ckdtstv4jb7m1fue0foqcibvm6f7k.apps.googleusercontent.com',
     iosBundleId: 'com.cardiakexa.cardiaKexa',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyB5yd4n-tBx3j1W4eGPNBAO-aeGguTNSkg',
+    appId: '1:777382167262:web:22e57d04163e990029f84f',
+    messagingSenderId: '777382167262',
+    projectId: 'bot-creator-f884b',
+    authDomain: 'bot-creator-f884b.firebaseapp.com',
+    storageBucket: 'bot-creator-f884b.firebasestorage.app',
+    measurementId: 'G-M83RVGEH2C',
   );
 
 }

@@ -14,14 +14,6 @@
       },
       "oauth_client": [
         {
-          "client_id": "777382167262-4os7qabl85pvr7588l5vlbreuhr7kquc.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.cardia_kexa.cardia_kexa",
-            "certificate_hash": "9dac377b4ffa80b9c55b8e050f9e6f7d89a0b2b1"
-          }
-        },
-        {
           "client_id": "777382167262-83ljuklqu6u2jauver5a72qs1vbpkl19.apps.googleusercontent.com",
           "client_type": 3
         }
