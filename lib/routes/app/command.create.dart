@@ -1,8 +1,8 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
 import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -56,7 +56,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   }
 
   Future<void> _init() async {
-    await FirebaseAnalytics.instance.logScreenView(
+    await AppAnalytics.logScreenView(
       screenName: "CommandCreatePage",
       screenClass: "CommandCreatePage",
       parameters: {
@@ -349,7 +349,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               } else {
                 if (_formKey.currentState!.validate()) {
                   _updateOrCreate();
-                  FirebaseAnalytics.instance.logEvent(
+                  AppAnalytics.logEvent(
                     name: "update_command",
                     parameters: {
                       "command_name": _commandName,

@@ -2,7 +2,7 @@ import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/commands.list.dart';
 import 'package:bot_creator/routes/app/home.dart';
 import 'package:bot_creator/routes/app/settings.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:bot_creator/utils/analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -36,7 +36,7 @@ class _AppEditPageState extends State<AppEditPage>
   }
 
   Future<void> _init() async {
-    await FirebaseAnalytics.instance.logScreenView(
+    await AppAnalytics.logScreenView(
       screenName: "AppEditPage",
       screenClass: "AppEditPage",
       parameters: {"app_name": widget.appName, "app_id": widget.id.toString()},

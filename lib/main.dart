@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:bot_creator/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
@@ -10,34 +11,76 @@ import "routes/home.dart";
 import "routes/settings.dart";
 import 'package:provider/provider.dart';
 import 'routes/create.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'utils/database.dart';
+import 'utils/analytics.dart';
 
 @pragma('vm:entry-point')
 late AppManager appManager;
 List<String> currentLogList = [];
 @pragma('vm:entry-point')
 List<NyxxGateway> gateways = [];
-late FirebaseApp firebaseApp;
+FirebaseApp? firebaseApp;
+
+bool get _isFirebaseSupported {
+  if (kIsWeb) {
+    return true;
+  }
+
+  switch (defaultTargetPlatform) {
+    case TargetPlatform.android:
+    case TargetPlatform.iOS:
+    case TargetPlatform.macOS:
+      return true;
+    case TargetPlatform.windows:
+    case TargetPlatform.linux:
+      return false;
+    default:
+      return false;
+  }
+}
+
+bool get _isCrashlyticsSupported {
+  if (kIsWeb) {
+    return false;
+  }
+
+  switch (defaultTargetPlatform) {
+    case TargetPlatform.android:
+    case TargetPlatform.iOS:
+    case TargetPlatform.macOS:
+      return true;
+    case TargetPlatform.windows:
+    case TargetPlatform.linux:
+      return false;
+    default:
+      return false;
+  }
+}
 
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterForegroundTask.initCommunicationPort();
-  firebaseApp = await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  if (!firebaseApp.isAutomaticDataCollectionEnabled) {
-    await firebaseApp.setAutomaticDataCollectionEnabled(true);
+  if (_isFirebaseSupported) {
+    firebaseApp = await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    if (!firebaseApp!.isAutomaticDataCollectionEnabled) {
+      await firebaseApp!.setAutomaticDataCollectionEnabled(true);
+    }
   }
-  await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
-  FlutterError.onError = (errorDetails) {
-    FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
-  };
+  await AppAnalytics.setCollectionEnabled(true);
+  if (_isCrashlyticsSupported) {
+    FlutterError.onError = (errorDetails) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+    };
+  }
   // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+  if (_isCrashlyticsSupported) {
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  }
 
   appManager = AppManager();
   runApp(
@@ -52,7 +95,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    FirebaseAnalytics.instance.logAppOpen();
+    AppAnalytics.logAppOpen();
     return MaterialApp(
       title: 'Bot Creator',
       theme: ThemeData(

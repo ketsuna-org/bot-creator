@@ -1,6 +1,6 @@
 import 'package:bot_creator/main.dart';
+import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/global.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 import 'dart:developer' as developer;
@@ -19,7 +19,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
   @override
   void initState() {
     super.initState();
-    FirebaseAnalytics.instance.logScreenView(
+    AppAnalytics.logScreenView(
       screenName: "AppSettingsPage",
       screenClass: "AppSettingsPage",
       parameters: {"app_id": widget.client.application.id.toString()},

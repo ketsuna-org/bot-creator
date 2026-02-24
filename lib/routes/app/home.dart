@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/bot.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:bot_creator/utils/analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart';
@@ -88,7 +88,7 @@ class _AppHomePageState extends State<AppHomePage>
   Future<void> _init() async {
     final app = await appManager.getApp(widget.client.user.id.toString());
     final isRunning = await FlutterForegroundTask.isRunningService;
-    await FirebaseAnalytics.instance.logScreenView(
+    await AppAnalytics.logScreenView(
       screenName: "AppHomePage",
       screenClass: "AppHomePage",
       parameters: {

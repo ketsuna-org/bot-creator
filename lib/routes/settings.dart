@@ -1,6 +1,6 @@
 import 'package:bot_creator/main.dart';
+import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/drive.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:googleapis/drive/v3.dart';
 
@@ -38,10 +38,10 @@ class _SettingPageState extends State<SettingPage> {
       userId = account.id;
     } catch (_) {}
 
-    await FirebaseAnalytics.instance.logScreenView(
+    await AppAnalytics.logScreenView(
       screenName: "SettingPage",
       screenClass: "SettingPage",
-      parameters: {"user_id": userId},
+      parameters: {"user_id": userId as Object},
     );
 
     try {
