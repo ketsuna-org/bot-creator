@@ -12,6 +12,48 @@ NyxxGateway? _desktopGateway;
 
 bool get isDesktopBotRunning => _desktopGateway != null;
 
+/// Convert the intents configuration map to GatewayIntents
+Flags<GatewayIntents> buildGatewayIntents(Map<String, bool>? intentsMap) {
+  if (intentsMap == null || intentsMap.isEmpty) {
+    return GatewayIntents.allUnprivileged;
+  }
+
+  Flags<GatewayIntents> intents = GatewayIntents.none;
+
+  if (intentsMap['Guild Presence'] == true)
+    intents = intents | GatewayIntents.guildPresences;
+  if (intentsMap['Guild Members'] == true)
+    intents = intents | GatewayIntents.guildMembers;
+  if (intentsMap['Message Content'] == true)
+    intents = intents | GatewayIntents.messageContent;
+  if (intentsMap['Direct Messages'] == true)
+    intents = intents | GatewayIntents.directMessages;
+  if (intentsMap['Guilds'] == true) intents = intents | GatewayIntents.guilds;
+  if (intentsMap['Guild Messages'] == true)
+    intents = intents | GatewayIntents.guildMessages;
+  if (intentsMap['Guild Message Reactions'] == true)
+    intents = intents | GatewayIntents.guildMessageReactions;
+  if (intentsMap['Direct Message Reactions'] == true)
+    intents = intents | GatewayIntents.directMessageReactions;
+  if (intentsMap['Guild Message Typing'] == true)
+    intents = intents | GatewayIntents.guildMessageTyping;
+  if (intentsMap['Direct Message Typing'] == true)
+    intents = intents | GatewayIntents.directMessageTyping;
+  if (intentsMap['Guild Scheduled Events'] == true)
+    intents = intents | GatewayIntents.guildScheduledEvents;
+  if (intentsMap['Auto Moderation Configuration'] == true)
+    intents = intents | GatewayIntents.autoModerationConfiguration;
+  if (intentsMap['Auto Moderation Execution'] == true)
+    intents = intents | GatewayIntents.autoModerationExecution;
+
+  // If no intents were selected, use allUnprivileged as default
+  if (intents == GatewayIntents.none) {
+    return GatewayIntents.allUnprivileged;
+  }
+
+  return intents;
+}
+
 Future<void> startDesktopBot(String token) async {
   if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
     throw Exception('Desktop bot mode is only available on desktop platforms.');
@@ -21,9 +63,15 @@ Future<void> startDesktopBot(String token) async {
     return;
   }
 
+  // Get the bot's configured intents from the database
+  final botUser = await getDiscordUser(token);
+  final appData = await appManager.getApp(botUser.id.toString());
+  final intentsMap = Map<String, bool>.from(appData['intents'] as Map? ?? {});
+  final intents = buildGatewayIntents(intentsMap);
+
   final gateway = await Nyxx.connectGateway(
     token,
-    GatewayIntents.allUnprivileged,
+    intents,
     options: GatewayClientOptions(
       loggerName: 'CardiaKexaDesktop',
       plugins: [Logging(logLevel: Level.ALL)],
@@ -310,11 +358,19 @@ class DiscordBotTaskHandler extends TaskHandler {
     final token = await FlutterForegroundTask.getData<String>(key: "token");
     if (token != null) {
       try {
-        appManager = AppManager();
         developer.log("Token: $token", name: "DiscordBotTaskHandler");
+
+        // Get the bot's configured intents from the database
+        final botUser = await getDiscordUser(token);
+        final appData = await appManager.getApp(botUser.id.toString());
+        final intentsMap = Map<String, bool>.from(
+          appData['intents'] as Map? ?? {},
+        );
+        final intents = buildGatewayIntents(intentsMap);
+
         final gateway = await Nyxx.connectGateway(
           token,
-          GatewayIntents.allUnprivileged,
+          intents,
           options: GatewayClientOptions(
             loggerName: "CardiaKexa",
             plugins: [Logging(logLevel: Level.ALL)],
