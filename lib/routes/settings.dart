@@ -40,8 +40,11 @@ class _SettingPageState extends State<SettingPage> {
     }
   }
 
-  Future<void> _ensureDriveApiConnected() async {
-    final drive = await getDriveApi();
+  Future<void> _ensureDriveApiConnected({bool interactive = true}) async {
+    if (driveApi != null) {
+      return;
+    }
+    final drive = await getDriveApi(interactive: interactive);
     if (!mounted) {
       return;
     }
@@ -75,16 +78,10 @@ class _SettingPageState extends State<SettingPage> {
     );
 
     try {
-      await _ensureDriveApiConnected();
+      await _ensureDriveApiConnected(interactive: false);
     } catch (e, st) {
       debugPrint('Drive API init failed: $e');
       debugPrintStack(stackTrace: st);
-      if (context.mounted) {
-        // Show an error message if the context is still mounted
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error initializing Drive API: $e")),
-        );
-      }
     }
   }
 

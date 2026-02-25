@@ -145,7 +145,7 @@ Future<GoogleSignInAccount> _getMobileSignedInAccount({
   return account;
 }
 
-Future<DriveApi> _getMobileDriveApi() async {
+Future<DriveApi> _getMobileDriveApi({bool interactive = true}) async {
   if (_mobileDriveApiCache != null) {
     return _mobileDriveApiCache!;
   }
@@ -156,7 +156,7 @@ Future<DriveApi> _getMobileDriveApi() async {
   }
 
   final future = () async {
-    final account = await _getMobileSignedInAccount();
+    final account = await _getMobileSignedInAccount(interactive: interactive);
     final authz =
         await account.authorizationClient.authorizationForScopes(
           _mobileDriveScopes,
@@ -310,7 +310,7 @@ Future<void> _clearDesktopTokens() async {
 /// - **Android / iOS**: uses native GoogleSignIn (Credential Manager on
 ///   Android 14+, legacy on older versions).
 /// - **Desktop**: opens the system browser for Google OAuth (PKCE).
-Future<DriveApi> getDriveApi() async {
+Future<DriveApi> getDriveApi({bool interactive = true}) async {
   // Desktop (Windows / Linux / macOS)
   if (_isDesktopPlatform) {
     await _authenticateDesktopIfNeeded();
@@ -319,7 +319,7 @@ Future<DriveApi> getDriveApi() async {
 
   // Mobile (Android + iOS) — native GoogleSignIn
   if (_isMobilePlatform) {
-    return _getMobileDriveApi();
+    return _getMobileDriveApi(interactive: interactive);
   }
 
   throw Exception('Google Drive sync is not supported on this platform.');
