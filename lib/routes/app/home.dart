@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/bot_logs.dart';
+import 'package:bot_creator/routes/app/bot_stats.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:flutter/material.dart';
@@ -218,6 +219,7 @@ class _AppHomePageState extends State<AppHomePage>
 
                           final botId = widget.client.user.id.toString();
                           if (!_botLaunched) {
+                            clearBotBaselineRss();
                             startBotLogSession(botId: botId);
                             appendBotLog(
                               'Démarrage du bot demandé',
@@ -247,6 +249,8 @@ class _AppHomePageState extends State<AppHomePage>
                               await FlutterForegroundTask.removeData(
                                 key: "token",
                               );
+                              setBotRuntimeActive(false);
+                              clearBotBaselineRss();
                               if (mounted) {
                                 setState(() {
                                   _botLaunched = false;
@@ -279,6 +283,8 @@ class _AppHomePageState extends State<AppHomePage>
                                 botId: botId,
                               );
                               await stopDesktopBot();
+                              setBotRuntimeActive(false);
+                              clearBotBaselineRss();
                               if (mounted) {
                                 setState(() {
                                   _botLaunched = false;
@@ -340,6 +346,28 @@ class _AppHomePageState extends State<AppHomePage>
                           Icon(Icons.receipt_long),
                           SizedBox(width: 8),
                           Text('Voir les logs du bot'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(44),
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const BotStatsPage(),
+                          ),
+                        );
+                      },
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.monitor_heart_outlined),
+                          SizedBox(width: 8),
+                          Text('Voir les stats du bot'),
                         ],
                       ),
                     ),

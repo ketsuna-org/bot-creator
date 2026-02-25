@@ -12,6 +12,9 @@ class BotLogsPage extends StatefulWidget {
 class _BotLogsPageState extends State<BotLogsPage> {
   late bool _debugEnabled;
   final Set<String> _expandedLogs = <String>{};
+  final ScrollController _scrollController = ScrollController();
+  bool _showNewestFirst = true;
+  int _visibleLimit = 200;
 
   static const int _collapseThreshold = 240;
 
@@ -19,6 +22,28 @@ class _BotLogsPageState extends State<BotLogsPage> {
   void initState() {
     super.initState();
     _debugEnabled = isBotDebugLogsEnabled;
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _jumpToEdge() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+
+    final target =
+        _showNewestFirst
+            ? _scrollController.position.minScrollExtent
+            : _scrollController.position.maxScrollExtent;
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
@@ -53,115 +78,234 @@ class _BotLogsPageState extends State<BotLogsPage> {
               }
             },
           ),
+          IconButton(
+            tooltip:
+                _showNewestFirst
+                    ? 'Afficher les plus anciens en premier'
+                    : 'Afficher les plus récents en premier',
+            icon: Icon(
+              _showNewestFirst
+                  ? Icons.vertical_align_top
+                  : Icons.vertical_align_bottom,
+            ),
+            onPressed: () {
+              setState(() {
+                _showNewestFirst = !_showNewestFirst;
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _jumpToEdge();
+              });
+            },
+          ),
+          PopupMenuButton<int>(
+            tooltip: 'Nombre de logs affichés',
+            icon: const Icon(Icons.filter_list),
+            initialValue: _visibleLimit,
+            onSelected: (value) {
+              setState(() {
+                _visibleLimit = value;
+              });
+            },
+            itemBuilder:
+                (context) => const [
+                  PopupMenuItem(value: 100, child: Text('Afficher 100 logs')),
+                  PopupMenuItem(value: 200, child: Text('Afficher 200 logs')),
+                  PopupMenuItem(value: 500, child: Text('Afficher 500 logs')),
+                  PopupMenuItem(value: 0, child: Text('Afficher tout')),
+                ],
+          ),
         ],
       ),
-      body: StreamBuilder<List<String>>(
-        stream: getBotLogsStream(),
-        initialData: getBotLogsSnapshot(),
-        builder: (context, snapshot) {
-          final logs = snapshot.data ?? const <String>[];
-          if (logs.isEmpty) {
-            return const Center(child: Text('Aucun log pour le moment'));
-          }
-
-          final textTheme = Theme.of(context).textTheme;
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(12),
-            itemCount: logs.length,
-            separatorBuilder:
-                (BuildContext context, int index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final raw = logs[index];
-              final parsed = _parseLog(raw);
-              final displayMessage = _formatMessageForDisplay(parsed.message);
-              final isExpanded = _expandedLogs.contains(raw);
-              final shouldCollapse = displayMessage.length > _collapseThreshold;
-              final visibleMessage =
-                  shouldCollapse && !isExpanded
-                      ? '${displayMessage.substring(0, _collapseThreshold)}…'
-                      : displayMessage;
-
-              return Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(10),
+      body: StreamBuilder<int?>(
+        stream: getBotProcessRssStream(),
+        initialData: getBotProcessRssBytes(),
+        builder: (context, metricsSnapshot) {
+          final memoryText = _formatMemory(metricsSnapshot.data);
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.memory, size: 18),
+                      const SizedBox(width: 8),
+                      Text('RAM process bot: $memoryText'),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        _Badge(
-                          text: parsed.time,
-                          background: Theme.of(context).colorScheme.surface,
-                          foreground: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        const SizedBox(width: 8),
-                        _Badge(
-                          text: parsed.level,
-                          background: _levelBackground(
-                            context,
-                            parsed.level,
-                            parsed.isDebug,
-                          ),
-                          foreground: _levelForeground(
-                            context,
-                            parsed.level,
-                            parsed.isDebug,
-                          ),
-                        ),
-                        if (parsed.logger.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              parsed.logger,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.labelMedium,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    SelectableText(
-                      visibleMessage,
-                      style: textTheme.bodyMedium?.copyWith(
-                        fontFamily: 'monospace',
-                        height: 1.35,
+              ),
+              Expanded(
+                child: StreamBuilder<List<String>>(
+                  stream: getBotLogsStream(),
+                  initialData: getBotLogsSnapshot(),
+                  builder: (context, snapshot) {
+                    final allLogs = snapshot.data ?? const <String>[];
+                    if (allLogs.isEmpty) {
+                      return const Center(
+                        child: Text('Aucun log pour le moment'),
+                      );
+                    }
+
+                    final sourceLogs =
+                        (_visibleLimit > 0 && allLogs.length > _visibleLimit)
+                            ? allLogs.sublist(allLogs.length - _visibleLimit)
+                            : allLogs;
+
+                    final logs =
+                        _showNewestFirst
+                            ? sourceLogs.reversed.toList(growable: false)
+                            : sourceLogs;
+
+                    final textTheme = Theme.of(context).textTheme;
+                    final bottomInset = MediaQuery.of(context).padding.bottom;
+
+                    return ListView.separated(
+                      controller: _scrollController,
+                      padding: EdgeInsets.fromLTRB(
+                        12,
+                        12,
+                        12,
+                        16 + bottomInset + 64,
                       ),
-                    ),
-                    if (shouldCollapse)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              if (isExpanded) {
-                                _expandedLogs.remove(raw);
-                              } else {
-                                _expandedLogs.add(raw);
-                              }
-                            });
-                          },
-                          icon: Icon(
-                            isExpanded ? Icons.expand_less : Icons.expand_more,
+                      itemCount: logs.length,
+                      separatorBuilder:
+                          (BuildContext context, int index) =>
+                              const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final raw = logs[index];
+                        final parsed = _parseLog(raw);
+                        final displayMessage = _formatMessageForDisplay(
+                          parsed.message,
+                        );
+                        final isExpanded = _expandedLogs.contains(raw);
+                        final shouldCollapse =
+                            displayMessage.length > _collapseThreshold;
+                        final visibleMessage =
+                            shouldCollapse && !isExpanded
+                                ? '${displayMessage.substring(0, _collapseThreshold)}…'
+                                : displayMessage;
+
+                        return Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color:
+                                Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          label: Text(
-                            isExpanded ? 'Afficher moins' : 'Afficher plus',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  _Badge(
+                                    text: parsed.time,
+                                    background:
+                                        Theme.of(context).colorScheme.surface,
+                                    foreground:
+                                        Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _Badge(
+                                    text: parsed.level,
+                                    background: _levelBackground(
+                                      context,
+                                      parsed.level,
+                                      parsed.isDebug,
+                                    ),
+                                    foreground: _levelForeground(
+                                      context,
+                                      parsed.level,
+                                      parsed.isDebug,
+                                    ),
+                                  ),
+                                  if (parsed.logger.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        parsed.logger,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: textTheme.labelMedium,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              SelectableText(
+                                visibleMessage,
+                                style: textTheme.bodyMedium?.copyWith(
+                                  fontFamily: 'monospace',
+                                  height: 1.35,
+                                ),
+                              ),
+                              if (shouldCollapse)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton.icon(
+                                    onPressed: () {
+                                      setState(() {
+                                        if (isExpanded) {
+                                          _expandedLogs.remove(raw);
+                                        } else {
+                                          _expandedLogs.add(raw);
+                                        }
+                                      });
+                                    },
+                                    icon: Icon(
+                                      isExpanded
+                                          ? Icons.expand_less
+                                          : Icons.expand_more,
+                                    ),
+                                    label: Text(
+                                      isExpanded
+                                          ? 'Afficher moins'
+                                          : 'Afficher plus',
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
-                        ),
-                      ),
-                  ],
+                        );
+                      },
+                    );
+                  },
                 ),
-              );
-            },
+              ),
+            ],
           );
         },
       ),
+      floatingActionButton: FloatingActionButton.small(
+        tooltip: _showNewestFirst ? 'Aller au dernier log' : 'Aller au bas',
+        onPressed: _jumpToEdge,
+        child: Icon(
+          _showNewestFirst
+              ? Icons.vertical_align_top
+              : Icons.vertical_align_bottom,
+        ),
+      ),
     );
+  }
+
+  String _formatMemory(int? bytes) {
+    if (bytes == null || bytes <= 0) {
+      return 'N/A';
+    }
+    final mb = bytes / (1024 * 1024);
+    return '${mb.toStringAsFixed(1)} MB';
   }
 
   _ParsedLog _parseLog(String raw) {
