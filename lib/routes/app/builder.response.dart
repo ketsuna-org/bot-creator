@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../types/action.dart' show BotCreatorActionType;
@@ -152,6 +154,18 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return 'Get Webhook';
       case BotCreatorActionType.makeList:
         return 'Make List';
+      case BotCreatorActionType.httpRequest:
+        return 'HTTP Request';
+      case BotCreatorActionType.setGlobalVariable:
+        return 'Set Global Variable';
+      case BotCreatorActionType.getGlobalVariable:
+        return 'Get Global Variable';
+      case BotCreatorActionType.removeGlobalVariable:
+        return 'Remove Global Variable';
+      case BotCreatorActionType.listGlobalVariables:
+        return 'List Global Variables';
+      case BotCreatorActionType.runWorkflow:
+        return 'Run Workflow';
     }
   }
 
@@ -211,6 +225,18 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.search;
       case BotCreatorActionType.makeList:
         return Icons.format_list_bulleted;
+      case BotCreatorActionType.httpRequest:
+        return Icons.http;
+      case BotCreatorActionType.setGlobalVariable:
+        return Icons.save_as;
+      case BotCreatorActionType.getGlobalVariable:
+        return Icons.key;
+      case BotCreatorActionType.removeGlobalVariable:
+        return Icons.key_off;
+      case BotCreatorActionType.listGlobalVariables:
+        return Icons.inventory_2;
+      case BotCreatorActionType.runWorkflow:
+        return Icons.account_tree;
     }
   }
 
@@ -485,6 +511,132 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             maxValue: 50,
           ),
         ];
+      case BotCreatorActionType.httpRequest:
+        return [
+          ParameterDefinition(
+            key: 'url',
+            type: ParameterType.url,
+            defaultValue: '',
+            hint: 'Request URL (supports placeholders ((...)))',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'method',
+            type: ParameterType.string,
+            defaultValue: 'GET',
+            hint: 'GET/POST/PUT/PATCH/DELETE/HEAD (placeholder allowed)',
+          ),
+          ParameterDefinition(
+            key: 'bodyMode',
+            type: ParameterType.multiSelect,
+            defaultValue: 'json',
+            hint: 'Body format',
+            options: ['json', 'text'],
+          ),
+          ParameterDefinition(
+            key: 'bodyJson',
+            type: ParameterType.map,
+            defaultValue: <String, dynamic>{},
+            hint: 'JSON body builder map',
+          ),
+          ParameterDefinition(
+            key: 'bodyText',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Raw text body',
+          ),
+          ParameterDefinition(
+            key: 'headers',
+            type: ParameterType.map,
+            defaultValue: <String, dynamic>{},
+            hint: 'Custom headers',
+          ),
+          ParameterDefinition(
+            key: 'saveBodyToGlobalVar',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional global var key to store response body',
+          ),
+          ParameterDefinition(
+            key: 'saveStatusToGlobalVar',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional global var key to store status code',
+          ),
+          ParameterDefinition(
+            key: 'extractJsonPath',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'JSON path to extract (ex: \$.data.access_token)',
+          ),
+          ParameterDefinition(
+            key: 'saveJsonPathToGlobalVar',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional global var key to store extracted value',
+          ),
+        ];
+      case BotCreatorActionType.setGlobalVariable:
+        return [
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Global variable key',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'value',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Value (supports placeholders ((...)))',
+          ),
+        ];
+      case BotCreatorActionType.getGlobalVariable:
+        return [
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Global variable key',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Runtime variable alias (ex: token)',
+          ),
+        ];
+      case BotCreatorActionType.removeGlobalVariable:
+        return [
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Global variable key',
+            required: true,
+          ),
+        ];
+      case BotCreatorActionType.listGlobalVariables:
+        return [
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: 'global.list',
+            hint: 'Runtime variable key that stores JSON list',
+          ),
+        ];
+      case BotCreatorActionType.runWorkflow:
+        return [
+          ParameterDefinition(
+            key: 'workflowName',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Saved workflow name to execute',
+            required: true,
+          ),
+        ];
       default:
         // Fallback pour les autres actions - convertir les anciens paramètres
         return _convertLegacyParameters();
@@ -662,6 +814,16 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
                             BotCreatorActionType.createChannel,
                             BotCreatorActionType.removeChannel,
                           ]),
+                          _buildActionCategory('HTTP & Variables', [
+                            BotCreatorActionType.httpRequest,
+                            BotCreatorActionType.setGlobalVariable,
+                            BotCreatorActionType.getGlobalVariable,
+                            BotCreatorActionType.removeGlobalVariable,
+                            BotCreatorActionType.listGlobalVariables,
+                          ]),
+                          _buildActionCategory('Workflows', [
+                            BotCreatorActionType.runWorkflow,
+                          ]),
                         ],
                       ),
                     ),
@@ -745,6 +907,10 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return Colors.indigo;
       case 'Utilities':
         return Colors.brown;
+      case 'HTTP & Variables':
+        return Colors.cyan;
+      case 'Workflows':
+        return Colors.deepPurple;
       default:
         return Colors.grey;
     }
@@ -806,6 +972,18 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Get member information';
       case BotCreatorActionType.makeList:
         return 'Create formatted lists';
+      case BotCreatorActionType.httpRequest:
+        return 'Send HTTP request with dynamic URL, method, headers and body';
+      case BotCreatorActionType.setGlobalVariable:
+        return 'Create or update a global variable for this bot';
+      case BotCreatorActionType.getGlobalVariable:
+        return 'Read a global variable and inject into runtime variables';
+      case BotCreatorActionType.removeGlobalVariable:
+        return 'Delete a global variable';
+      case BotCreatorActionType.listGlobalVariables:
+        return 'List all global variables as JSON';
+      case BotCreatorActionType.runWorkflow:
+        return 'Execute a saved workflow by name';
     }
   }
 
@@ -1333,29 +1511,24 @@ class ActionCard extends StatelessWidget {
                 border: Border.all(color: Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (currentValue is Map && currentValue.isNotEmpty)
-                    ...currentValue.entries.map((entry) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Text(
-                          '${entry.key}: ${entry.value}',
-                          style: const TextStyle(fontSize: 14),
+              child:
+                  (currentValue is Map && currentValue.isNotEmpty)
+                      ? SelectableText(
+                        const JsonEncoder.withIndent(
+                          '  ',
+                        ).convert(currentValue),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontFamily: 'monospace',
                         ),
-                      );
-                    })
-                  else
-                    Text(
-                      'No properties - tap edit to configure',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 14,
+                      )
+                      : Text(
+                        'No properties - tap edit to configure',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                ],
-              ),
             ),
           ],
         );
@@ -1559,100 +1732,84 @@ class ActionCard extends StatelessWidget {
     dynamic currentValue,
   ) {
     final maxHeight = MediaQuery.of(context).size.height * 0.7;
-    final Map<String, dynamic> map = Map<String, dynamic>.from(
-      currentValue ?? {},
+    final rawMap =
+        (currentValue is Map)
+            ? Map<String, dynamic>.from(currentValue.cast<String, dynamic>())
+            : <String, dynamic>{};
+    final TextEditingController jsonController = TextEditingController(
+      text: const JsonEncoder.withIndent('  ').convert(rawMap),
     );
-    final TextEditingController keyController = TextEditingController();
-    final TextEditingController valueController = TextEditingController();
 
     showDialog(
       context: context,
       builder:
-          (dialogContext) => StatefulBuilder(
-            builder:
-                (context, setDialogState) => AlertDialog(
-                  title: Text('Edit ${_formatParameterName(paramDef.key)}'),
-                  content: SizedBox(
-                    width: double.maxFinite,
-                    height: maxHeight,
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: keyController,
-                                decoration: const InputDecoration(
-                                  hintText: 'Key',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: valueController,
-                                decoration: const InputDecoration(
-                                  hintText: 'Value',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add),
-                              onPressed: () {
-                                if (keyController.text.trim().isNotEmpty &&
-                                    valueController.text.trim().isNotEmpty) {
-                                  setDialogState(() {
-                                    map[keyController.text.trim()] =
-                                        valueController.text.trim();
-                                    keyController.clear();
-                                    valueController.clear();
-                                  });
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Expanded(
-                          child: ListView.builder(
-                            itemCount: map.length,
-                            itemBuilder: (context, index) {
-                              final entry = map.entries.elementAt(index);
-                              return ListTile(
-                                title: Text('${entry.key}: ${entry.value}'),
-                                trailing: IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed:
-                                      () => setDialogState(
-                                        () => map.remove(entry.key),
-                                      ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
+          (dialogContext) => AlertDialog(
+            title: Text('Edit ${_formatParameterName(paramDef.key)}'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: maxHeight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'JSON object editor (supports nested objects/arrays)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: jsonController,
+                      maxLines: null,
+                      expands: true,
+                      keyboardType: TextInputType.multiline,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                      ),
+                      style: const TextStyle(fontFamily: 'monospace'),
                     ),
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        onParameterChanged(paramDef.key, map);
-                        Navigator.pop(dialogContext);
-                      },
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  try {
+                    final decoded = jsonDecode(jsonController.text.trim());
+                    if (decoded is! Map) {
+                      throw const FormatException('Root must be a JSON object');
+                    }
+
+                    onParameterChanged(
+                      paramDef.key,
+                      Map<String, dynamic>.from(decoded),
+                    );
+                    Navigator.pop(dialogContext);
+                  } catch (error) {
+                    showDialog(
+                      context: dialogContext,
+                      builder:
+                          (context) => AlertDialog(
+                            title: const Text('Invalid JSON'),
+                            content: Text(error.toString()),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                    );
+                  }
+                },
+                child: const Text('Save'),
+              ),
+            ],
           ),
     );
   }

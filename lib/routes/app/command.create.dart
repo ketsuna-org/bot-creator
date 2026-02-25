@@ -1,5 +1,8 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
+import 'package:bot_creator/routes/app/command.response_workflow.dart';
+import 'package:bot_creator/routes/app/global.variables.dart';
+import 'package:bot_creator/routes/app/workflows.page.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/widgets/response_embeds_editor.dart';
@@ -24,10 +27,62 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   final TextEditingController _responseController = TextEditingController();
   List<Map<String, dynamic>> _responseEmbeds = [];
   List<Map<String, dynamic>> _actions = [];
+  Map<String, dynamic> _responseWorkflow = _defaultWorkflow();
   bool _isLoading = true;
   List<ApplicationIntegrationType> _integrationTypes = [
     ApplicationIntegrationType.guildInstall,
   ];
+
+  static Map<String, dynamic> _defaultWorkflow() {
+    return {
+      'autoDeferIfActions': true,
+      'visibility': 'public',
+      'onError': 'edit_error',
+      'conditional': {
+        'enabled': false,
+        'variable': '',
+        'whenTrueText': '',
+        'whenFalseText': '',
+      },
+    };
+  }
+
+  Map<String, dynamic> _normalizeWorkflow(Map<String, dynamic> input) {
+    final conditional = Map<String, dynamic>.from(
+      (input['conditional'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+
+    return {
+      'autoDeferIfActions': input['autoDeferIfActions'] != false,
+      'visibility':
+          (input['visibility']?.toString().toLowerCase() == 'ephemeral')
+              ? 'ephemeral'
+              : 'public',
+      'onError': 'edit_error',
+      'conditional': {
+        'enabled': conditional['enabled'] == true,
+        'variable': (conditional['variable'] ?? '').toString(),
+        'whenTrueText': (conditional['whenTrueText'] ?? '').toString(),
+        'whenFalseText': (conditional['whenFalseText'] ?? '').toString(),
+      },
+    };
+  }
+
+  String _workflowSummary() {
+    final visibility =
+        _responseWorkflow['visibility'] == 'ephemeral' ? 'Ephemeral' : 'Public';
+    final autoDefer = _responseWorkflow['autoDeferIfActions'] != false;
+    final conditional = Map<String, dynamic>.from(
+      (_responseWorkflow['conditional'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+    );
+    final conditionEnabled = conditional['enabled'] == true;
+    final conditionLabel = conditionEnabled ? 'Condition ON' : 'Condition OFF';
+
+    return '${autoDefer ? 'Auto defer if actions' : 'No auto defer'} • $visibility • $conditionLabel';
+  }
+
+  String? get _botIdForConfig => widget.client?.user.id.toString();
 
   final List<Map<String, String>> _argsList = [
     {"name": "guildName", "description": "Name of the guild"},
@@ -138,6 +193,12 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           _response = (response["text"] ?? "").toString();
           _responseController.text = _response;
           _responseEmbeds = embeds.take(10).toList();
+          _responseWorkflow = _normalizeWorkflow(
+            Map<String, dynamic>.from(
+              (response['workflow'] as Map?)?.cast<String, dynamic>() ??
+                  _defaultWorkflow(),
+            ),
+          );
           _actions = List<Map<String, dynamic>>.from(
             (normalizedData["actions"] as List?)?.whereType<Map>().map(
                   (e) => Map<String, dynamic>.from(e),
@@ -222,6 +283,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 ? _responseEmbeds.first
                 : {"title": "", "description": "", "url": ""},
         "embeds": _responseEmbeds.take(10).toList(),
+        "workflow": _normalizeWorkflow(_responseWorkflow),
       },
       "actions": _actions,
     };
@@ -863,6 +925,49 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                       });
                                     },
                                   ),
+                                  const SizedBox(height: 12),
+                                  OutlinedButton.icon(
+                                    onPressed: () async {
+                                      final nextWorkflow = await Navigator.push<
+                                        Map<String, dynamic>
+                                      >(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  CommandResponseWorkflowPage(
+                                                    initialWorkflow:
+                                                        _normalizeWorkflow(
+                                                          _responseWorkflow,
+                                                        ),
+                                                    variableSuggestions:
+                                                        _variableNames,
+                                                  ),
+                                        ),
+                                      );
+
+                                      if (nextWorkflow != null) {
+                                        setState(() {
+                                          _responseWorkflow =
+                                              _normalizeWorkflow(nextWorkflow);
+                                        });
+                                      }
+                                    },
+                                    icon: const Icon(
+                                      Icons.account_tree_outlined,
+                                    ),
+                                    label: const Text(
+                                      'Configure Response Workflow',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _workflowSummary(),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -884,32 +989,86 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               title: "Actions",
                               subtitle:
                                   "Build runtime actions for this command",
-                              child: FilledButton(
-                                style: FilledButton.styleFrom(
-                                  minimumSize: const Size.fromHeight(44),
-                                ),
-                                onPressed: () async {
-                                  final nextActions = await Navigator.push<
-                                    List<Map<String, dynamic>>
-                                  >(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => ActionsBuilderPage(
-                                            initialActions: _actions,
-                                          ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(44),
                                     ),
-                                  );
+                                    onPressed: () async {
+                                      final nextActions = await Navigator.push<
+                                        List<Map<String, dynamic>>
+                                      >(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) => ActionsBuilderPage(
+                                                initialActions: _actions,
+                                              ),
+                                        ),
+                                      );
 
-                                  if (nextActions != null) {
-                                    setState(() {
-                                      _actions = nextActions;
-                                    });
-                                  }
-                                },
-                                child: Text(
-                                  "Build Actions (${_actions.length})",
-                                ),
+                                      if (nextActions != null) {
+                                        setState(() {
+                                          _actions = nextActions;
+                                        });
+                                      }
+                                    },
+                                    child: Text(
+                                      "Build Actions (${_actions.length})",
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed:
+                                            _botIdForConfig == null
+                                                ? null
+                                                : () {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder:
+                                                          (
+                                                            context,
+                                                          ) => GlobalVariablesPage(
+                                                            botId:
+                                                                _botIdForConfig!,
+                                                          ),
+                                                    ),
+                                                  );
+                                                },
+                                        icon: const Icon(Icons.key),
+                                        label: const Text('Global Variables'),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed:
+                                            _botIdForConfig == null
+                                                ? null
+                                                : () {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder:
+                                                          (
+                                                            context,
+                                                          ) => WorkflowsPage(
+                                                            botId:
+                                                                _botIdForConfig!,
+                                                          ),
+                                                    ),
+                                                  );
+                                                },
+                                        icon: const Icon(Icons.account_tree),
+                                        label: const Text('Workflows'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 20),

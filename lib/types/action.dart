@@ -26,6 +26,12 @@ enum BotCreatorActionType {
   listWebhooks,
   getWebhook,
   makeList,
+  httpRequest,
+  setGlobalVariable,
+  getGlobalVariable,
+  removeGlobalVariable,
+  listGlobalVariables,
+  runWorkflow,
 }
 
 enum ActionOnErrorMode { stop, continueMode }

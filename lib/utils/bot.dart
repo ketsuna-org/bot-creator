@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/actions/handler.dart';
 import 'package:bot_creator/types/action.dart';
@@ -37,6 +38,126 @@ String _two(int value) => value < 10 ? '0$value' : '$value';
 String _timestampNow() {
   final now = DateTime.now();
   return '${_two(now.hour)}:${_two(now.minute)}:${_two(now.second)}';
+}
+
+dynamic _extractJsonPath(dynamic data, String rawPath) {
+  var path = rawPath.trim();
+  if (path.isEmpty) {
+    return null;
+  }
+
+  if (path.startsWith(r'$.')) {
+    path = path.substring(2);
+  } else if (path.startsWith(r'$')) {
+    path = path.substring(1);
+  }
+
+  if (path.isEmpty) {
+    return data;
+  }
+
+  final segments = <Object>[];
+  final token = StringBuffer();
+
+  void flushToken() {
+    if (token.isNotEmpty) {
+      segments.add(token.toString());
+      token.clear();
+    }
+  }
+
+  for (var index = 0; index < path.length; index++) {
+    final char = path[index];
+    if (char == '.') {
+      flushToken();
+      continue;
+    }
+
+    if (char == '[') {
+      flushToken();
+      final closing = path.indexOf(']', index + 1);
+      if (closing == -1) {
+        return null;
+      }
+      final indexText = path.substring(index + 1, closing).trim();
+      final listIndex = int.tryParse(indexText);
+      if (listIndex == null) {
+        return null;
+      }
+      segments.add(listIndex);
+      index = closing;
+      continue;
+    }
+
+    token.write(char);
+  }
+
+  flushToken();
+
+  dynamic current = data;
+  for (final segment in segments) {
+    if (segment is String) {
+      if (segment.isEmpty) {
+        continue;
+      }
+      if (current is Map && current.containsKey(segment)) {
+        current = current[segment];
+      } else {
+        return null;
+      }
+      continue;
+    }
+
+    if (segment is int) {
+      if (current is List && segment >= 0 && segment < current.length) {
+        current = current[segment];
+      } else {
+        return null;
+      }
+    }
+  }
+
+  return current;
+}
+
+String? _resolveComputedVariable(String key, Map<String, String> updates) {
+  final marker = '.body.';
+  final markerIndex = key.indexOf(marker);
+  if (markerIndex == -1) {
+    return null;
+  }
+
+  final bodyVariableKey = key.substring(0, markerIndex + '.body'.length);
+  final jsonPathRaw = key.substring(markerIndex + marker.length);
+  if (!jsonPathRaw.startsWith(r'$')) {
+    return null;
+  }
+
+  final rawBody = updates[bodyVariableKey];
+  if (rawBody == null || rawBody.isEmpty) {
+    return null;
+  }
+
+  dynamic decoded;
+  try {
+    decoded = jsonDecode(rawBody);
+  } catch (_) {
+    return null;
+  }
+
+  final extracted = _extractJsonPath(decoded, jsonPathRaw);
+  if (extracted == null) {
+    return null;
+  }
+
+  if (extracted is String) {
+    return extracted;
+  }
+  if (extracted is num || extracted is bool) {
+    return extracted.toString();
+  }
+
+  return jsonEncode(extracted);
 }
 
 void _publishBotLogs() {
@@ -255,6 +376,11 @@ String updateString(String initial, Map<String, String> updates) {
       if (updates.containsKey(key)) {
         return updates[key]!;
       }
+
+      final computed = _resolveComputedVariable(key, updates);
+      if (computed != null) {
+        return computed;
+      }
     }
 
     return ''; // Aucune clé trouvée -> remplacement par chaîne vide
@@ -283,8 +409,13 @@ Future<void> handleLocalCommands(
 
     if (action["id"] == command.id.toString()) {
       final listOfArgs = await generateKeyValues(interaction);
+      final runtimeVariables = <String, String>{...listOfArgs};
+      final globalVars = await manager.getGlobalVariables(clientId);
+      for (final entry in globalVars.entries) {
+        runtimeVariables['global.${entry.key}'] = entry.value;
+      }
       appendBotDebugLog(
-        'Arguments générés: ${listOfArgs.length}',
+        'Arguments générés: ${runtimeVariables.length}',
         botId: clientId,
       );
 
@@ -297,6 +428,12 @@ Future<void> handleLocalCommands(
       final response = Map<String, dynamic>.from(
         (value["response"] as Map?)?.cast<String, dynamic>() ?? const {},
       );
+      final workflow = Map<String, dynamic>.from(
+        (response['workflow'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final workflowConditional = Map<String, dynamic>.from(
+        (workflow['conditional'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
       final actionsJson = List<Map<String, dynamic>>.from(
         (value["actions"] as List?)?.whereType<Map>().map(
               (e) => Map<String, dynamic>.from(e),
@@ -304,192 +441,280 @@ Future<void> handleLocalCommands(
             const [],
       );
 
-      if (actionsJson.isNotEmpty) {
-        appendBotDebugLog(
-          'Actions à exécuter: ${actionsJson.length}',
-          botId: clientId,
-        );
-        final actions = actionsJson.map(Action.fromJson).toList();
-        await handleActions(
-          event.gateway.client,
-          interaction,
-          actions: actions,
-        );
-      }
+      final shouldDefer =
+          actionsJson.isNotEmpty && workflow['autoDeferIfActions'] != false;
+      final isEphemeral =
+          workflow['visibility']?.toString().toLowerCase() == 'ephemeral';
+      final useCondition = workflowConditional['enabled'] == true;
+      final conditionVariable =
+          (workflowConditional['variable'] ?? '').toString().trim();
+      final whenTrueText =
+          (workflowConditional['whenTrueText'] ?? '').toString();
+      final whenFalseText =
+          (workflowConditional['whenFalseText'] ?? '').toString();
 
-      String responseText = (response["text"] ?? "").toString();
-      responseText = updateString(responseText, listOfArgs);
+      var didDefer = false;
 
-      final embedsRaw =
-          (response['embeds'] is List)
-              ? List<Map<String, dynamic>>.from(
-                (response['embeds'] as List).whereType<Map>().map(
-                  (embed) => Map<String, dynamic>.from(embed),
+      try {
+        if (shouldDefer) {
+          await interaction.acknowledge(isEphemeral: isEphemeral);
+          didDefer = true;
+          appendBotLog('Réponse différée (defer ACK)', botId: clientId);
+          await _emitTaskLogToMain(
+            'Réponse différée (defer ACK)',
+            botId: clientId,
+          );
+        }
+
+        if (actionsJson.isNotEmpty) {
+          appendBotDebugLog(
+            'Actions à exécuter: ${actionsJson.length}',
+            botId: clientId,
+          );
+          final actions = actionsJson.map(Action.fromJson).toList();
+          final actionResults = await handleActions(
+            event.gateway.client,
+            interaction,
+            actions: actions,
+            manager: manager,
+            botId: clientId,
+            variables: runtimeVariables,
+            resolveTemplate:
+                (input) => updateString(
+                  input,
+                  Map<String, String>.from(runtimeVariables),
                 ),
-              )
-              : <Map<String, dynamic>>[];
-      appendBotDebugLog(
-        'Embeds détectés: ${embedsRaw.length}',
-        botId: clientId,
-      );
-
-      if (embedsRaw.isEmpty) {
-        final legacyEmbed = Map<String, dynamic>.from(
-          (response['embed'] as Map?)?.cast<String, dynamic>() ?? const {},
-        );
-        final hasLegacyEmbed =
-            (legacyEmbed['title']?.toString().isNotEmpty ?? false) ||
-            (legacyEmbed['description']?.toString().isNotEmpty ?? false) ||
-            (legacyEmbed['url']?.toString().isNotEmpty ?? false);
-        if (hasLegacyEmbed) {
-          embedsRaw.add(legacyEmbed);
-        }
-      }
-
-      final embeds = <EmbedBuilder>[];
-      for (final embedJson in embedsRaw.take(10)) {
-        embedJson.remove('video');
-        embedJson.remove('provider');
-        final embed = EmbedBuilder();
-        final title = updateString(
-          (embedJson['title'] ?? '').toString(),
-          listOfArgs,
-        );
-        final description = updateString(
-          (embedJson['description'] ?? '').toString(),
-          listOfArgs,
-        );
-        final url = updateString(
-          (embedJson['url'] ?? '').toString(),
-          listOfArgs,
-        );
-
-        if (title.isNotEmpty) {
-          embed.title = title;
-        }
-        if (description.isNotEmpty) {
-          embed.description = description;
-        }
-        if (url.isNotEmpty) {
-          embed.url = Uri.tryParse(url);
-        }
-
-        final timestampRaw = (embedJson['timestamp'] ?? '').toString();
-        final timestamp = DateTime.tryParse(timestampRaw);
-        if (timestamp != null) {
-          (embed as dynamic).timestamp = timestamp;
-        }
-
-        final colorRaw = (embedJson['color'] ?? '').toString();
-        if (colorRaw.isNotEmpty) {
-          int? colorInt;
-          if (colorRaw.startsWith('#')) {
-            colorInt = int.tryParse(colorRaw.substring(1), radix: 16);
-          } else {
-            colorInt = int.tryParse(colorRaw);
-          }
-
-          if (colorInt != null) {
-            (embed as dynamic).color = DiscordColor(colorInt);
+          );
+          for (final entry in actionResults.entries) {
+            runtimeVariables['action.${entry.key}'] = entry.value;
           }
         }
 
-        final footerJson = Map<String, dynamic>.from(
-          (embedJson['footer'] as Map?)?.cast<String, dynamic>() ?? const {},
-        );
-        final footerText = (footerJson['text'] ?? '').toString();
-        final footerIcon = (footerJson['icon_url'] ?? '').toString();
-        if (footerText.isNotEmpty || footerIcon.isNotEmpty) {
-          (embed as dynamic).footer = EmbedFooterBuilder(
-            text: footerText,
-            iconUrl: footerIcon.isNotEmpty ? Uri.tryParse(footerIcon) : null,
+        String responseText = (response["text"] ?? "").toString();
+        responseText = updateString(responseText, runtimeVariables);
+
+        if (useCondition && conditionVariable.isNotEmpty) {
+          final variableValue =
+              (runtimeVariables[conditionVariable] ?? '').trim();
+          final conditionMatched = variableValue.isNotEmpty;
+          appendBotDebugLog(
+            'Condition variable=$conditionVariable matched=$conditionMatched',
+            botId: clientId,
           );
+
+          if (conditionMatched && whenTrueText.trim().isNotEmpty) {
+            responseText = updateString(whenTrueText, runtimeVariables);
+          } else if (!conditionMatched && whenFalseText.trim().isNotEmpty) {
+            responseText = updateString(whenFalseText, runtimeVariables);
+          }
         }
 
-        final authorJson = Map<String, dynamic>.from(
-          (embedJson['author'] as Map?)?.cast<String, dynamic>() ?? const {},
-        );
-        final authorName = (authorJson['name'] ?? '').toString();
-        final authorUrl = (authorJson['url'] ?? '').toString();
-        final authorIcon = (authorJson['icon_url'] ?? '').toString();
-        if (authorName.isNotEmpty ||
-            authorUrl.isNotEmpty ||
-            authorIcon.isNotEmpty) {
-          (embed as dynamic).author = EmbedAuthorBuilder(
-            name: authorName,
-            url: authorUrl.isNotEmpty ? Uri.tryParse(authorUrl) : null,
-            iconUrl: authorIcon.isNotEmpty ? Uri.tryParse(authorIcon) : null,
-          );
-        }
-
-        final imageJson = Map<String, dynamic>.from(
-          (embedJson['image'] as Map?)?.cast<String, dynamic>() ?? const {},
-        );
-        final imageUrl = (imageJson['url'] ?? '').toString();
-        if (imageUrl.isNotEmpty) {
-          (embed as dynamic).image = EmbedImageBuilder(
-            url: Uri.parse(imageUrl),
-          );
-        }
-
-        final thumbnailJson = Map<String, dynamic>.from(
-          (embedJson['thumbnail'] as Map?)?.cast<String, dynamic>() ?? const {},
-        );
-        final thumbnailUrl = (thumbnailJson['url'] ?? '').toString();
-        if (thumbnailUrl.isNotEmpty) {
-          (embed as dynamic).thumbnail = EmbedThumbnailBuilder(
-            url: Uri.parse(thumbnailUrl),
-          );
-        }
-
-        final fields =
-            (embedJson['fields'] is List)
+        final embedsRaw =
+            (response['embeds'] is List)
                 ? List<Map<String, dynamic>>.from(
-                  (embedJson['fields'] as List).whereType<Map>().map(
-                    (field) => Map<String, dynamic>.from(field),
+                  (response['embeds'] as List).whereType<Map>().map(
+                    (embed) => Map<String, dynamic>.from(embed),
                   ),
                 )
                 : <Map<String, dynamic>>[];
+        appendBotDebugLog(
+          'Embeds détectés: ${embedsRaw.length}',
+          botId: clientId,
+        );
 
-        for (final field in fields.take(25)) {
-          final fieldName = (field['name'] ?? '').toString();
-          final fieldValue = (field['value'] ?? '').toString();
-          if (fieldName.isEmpty || fieldValue.isEmpty) {
-            continue;
-          }
-
-          (embed as dynamic).fields.add(
-            EmbedFieldBuilder(
-              name: fieldName,
-              value: fieldValue,
-              isInline: field['inline'] == true,
-            ),
+        if (embedsRaw.isEmpty) {
+          final legacyEmbed = Map<String, dynamic>.from(
+            (response['embed'] as Map?)?.cast<String, dynamic>() ?? const {},
           );
+          final hasLegacyEmbed =
+              (legacyEmbed['title']?.toString().isNotEmpty ?? false) ||
+              (legacyEmbed['description']?.toString().isNotEmpty ?? false) ||
+              (legacyEmbed['url']?.toString().isNotEmpty ?? false);
+          if (hasLegacyEmbed) {
+            embedsRaw.add(legacyEmbed);
+          }
         }
 
-        embeds.add(embed);
-      }
+        final embeds = <EmbedBuilder>[];
+        for (final embedJson in embedsRaw.take(10)) {
+          embedJson.remove('video');
+          embedJson.remove('provider');
+          final embed = EmbedBuilder();
+          final title = updateString(
+            (embedJson['title'] ?? '').toString(),
+            runtimeVariables,
+          );
+          final description = updateString(
+            (embedJson['description'] ?? '').toString(),
+            runtimeVariables,
+          );
+          final url = updateString(
+            (embedJson['url'] ?? '').toString(),
+            runtimeVariables,
+          );
 
-      if (embeds.isNotEmpty) {
-        await interaction.respond(
-          MessageBuilder(
-            content: responseText.isEmpty ? null : responseText,
-            embeds: embeds,
-          ),
-        );
-        appendBotLog('Réponse envoyée (embed)', botId: clientId);
-        await _emitTaskLogToMain('Réponse envoyée (embed)', botId: clientId);
-      } else {
-        await interaction.respond(
-          MessageBuilder(
-            content:
-                responseText.isEmpty
-                    ? 'Command executed successfully.'
-                    : responseText,
-          ),
-        );
-        appendBotLog('Réponse envoyée (texte)', botId: clientId);
-        await _emitTaskLogToMain('Réponse envoyée (texte)', botId: clientId);
+          if (title.isNotEmpty) {
+            embed.title = title;
+          }
+          if (description.isNotEmpty) {
+            embed.description = description;
+          }
+          if (url.isNotEmpty) {
+            embed.url = Uri.tryParse(url);
+          }
+
+          final timestampRaw = (embedJson['timestamp'] ?? '').toString();
+          final timestamp = DateTime.tryParse(timestampRaw);
+          if (timestamp != null) {
+            (embed as dynamic).timestamp = timestamp;
+          }
+
+          final colorRaw = (embedJson['color'] ?? '').toString();
+          if (colorRaw.isNotEmpty) {
+            int? colorInt;
+            if (colorRaw.startsWith('#')) {
+              colorInt = int.tryParse(colorRaw.substring(1), radix: 16);
+            } else {
+              colorInt = int.tryParse(colorRaw);
+            }
+
+            if (colorInt != null) {
+              (embed as dynamic).color = DiscordColor(colorInt);
+            }
+          }
+
+          final footerJson = Map<String, dynamic>.from(
+            (embedJson['footer'] as Map?)?.cast<String, dynamic>() ?? const {},
+          );
+          final footerText = (footerJson['text'] ?? '').toString();
+          final footerIcon = (footerJson['icon_url'] ?? '').toString();
+          if (footerText.isNotEmpty || footerIcon.isNotEmpty) {
+            (embed as dynamic).footer = EmbedFooterBuilder(
+              text: footerText,
+              iconUrl: footerIcon.isNotEmpty ? Uri.tryParse(footerIcon) : null,
+            );
+          }
+
+          final authorJson = Map<String, dynamic>.from(
+            (embedJson['author'] as Map?)?.cast<String, dynamic>() ?? const {},
+          );
+          final authorName = (authorJson['name'] ?? '').toString();
+          final authorUrl = (authorJson['url'] ?? '').toString();
+          final authorIcon = (authorJson['icon_url'] ?? '').toString();
+          if (authorName.isNotEmpty ||
+              authorUrl.isNotEmpty ||
+              authorIcon.isNotEmpty) {
+            (embed as dynamic).author = EmbedAuthorBuilder(
+              name: authorName,
+              url: authorUrl.isNotEmpty ? Uri.tryParse(authorUrl) : null,
+              iconUrl: authorIcon.isNotEmpty ? Uri.tryParse(authorIcon) : null,
+            );
+          }
+
+          final imageJson = Map<String, dynamic>.from(
+            (embedJson['image'] as Map?)?.cast<String, dynamic>() ?? const {},
+          );
+          final imageUrl = (imageJson['url'] ?? '').toString();
+          if (imageUrl.isNotEmpty) {
+            (embed as dynamic).image = EmbedImageBuilder(
+              url: Uri.parse(imageUrl),
+            );
+          }
+
+          final thumbnailJson = Map<String, dynamic>.from(
+            (embedJson['thumbnail'] as Map?)?.cast<String, dynamic>() ??
+                const {},
+          );
+          final thumbnailUrl = (thumbnailJson['url'] ?? '').toString();
+          if (thumbnailUrl.isNotEmpty) {
+            (embed as dynamic).thumbnail = EmbedThumbnailBuilder(
+              url: Uri.parse(thumbnailUrl),
+            );
+          }
+
+          final fields =
+              (embedJson['fields'] is List)
+                  ? List<Map<String, dynamic>>.from(
+                    (embedJson['fields'] as List).whereType<Map>().map(
+                      (field) => Map<String, dynamic>.from(field),
+                    ),
+                  )
+                  : <Map<String, dynamic>>[];
+
+          for (final field in fields.take(25)) {
+            final fieldName = (field['name'] ?? '').toString();
+            final fieldValue = (field['value'] ?? '').toString();
+            if (fieldName.isEmpty || fieldValue.isEmpty) {
+              continue;
+            }
+
+            (embed as dynamic).fields.add(
+              EmbedFieldBuilder(
+                name: fieldName,
+                value: fieldValue,
+                isInline: field['inline'] == true,
+              ),
+            );
+          }
+
+          embeds.add(embed);
+        }
+
+        final finalText =
+            responseText.isEmpty && embeds.isEmpty
+                ? 'Command executed successfully.'
+                : responseText;
+
+        if (didDefer) {
+          await interaction.updateOriginalResponse(
+            MessageUpdateBuilder(
+              content: finalText.isEmpty ? null : finalText,
+              embeds: embeds,
+            ),
+          );
+          appendBotLog('Réponse éditée après defer', botId: clientId);
+          await _emitTaskLogToMain(
+            'Réponse éditée après defer',
+            botId: clientId,
+          );
+        } else {
+          await interaction.respond(
+            MessageBuilder(
+              content: finalText.isEmpty ? null : finalText,
+              embeds: embeds.isEmpty ? null : embeds,
+              flags: isEphemeral ? MessageFlags.ephemeral : null,
+            ),
+          );
+          appendBotLog('Réponse envoyée', botId: clientId);
+          await _emitTaskLogToMain('Réponse envoyée', botId: clientId);
+        }
+      } catch (error, stackTrace) {
+        appendBotLog('Erreur workflow commande: $error', botId: clientId);
+        appendBotDebugLog('$stackTrace', botId: clientId);
+        final errorText = 'An error occurred while executing this command.';
+
+        try {
+          if (didDefer) {
+            await interaction.updateOriginalResponse(
+              MessageUpdateBuilder(
+                content: errorText,
+                embeds: const <EmbedBuilder>[],
+              ),
+            );
+          } else {
+            await interaction.respond(
+              MessageBuilder(
+                content: errorText,
+                flags: isEphemeral ? MessageFlags.ephemeral : null,
+              ),
+            );
+          }
+        } catch (sendError) {
+          appendBotLog(
+            'Impossible d\'envoyer le message d\'erreur: $sendError',
+            botId: clientId,
+          );
+        }
       }
 
       return;

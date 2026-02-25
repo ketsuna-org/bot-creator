@@ -71,6 +71,16 @@ class AppManager {
       "createdAt":
           existingData?["createdAt"] ?? DateTime.now().toIso8601String(),
       "intents": intents ?? existingData?["intents"] ?? {},
+      "globalVariables": Map<String, dynamic>.from(
+        (existingData?["globalVariables"] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      ),
+      "workflows": List<Map<String, dynamic>>.from(
+        (existingData?["workflows"] as List?)?.whereType<Map>().map(
+              (workflow) => Map<String, dynamic>.from(workflow),
+            ) ??
+            const <Map<String, dynamic>>[],
+      ),
     };
 
     await file.writeAsString(jsonEncode(data));
@@ -149,6 +159,129 @@ class AppManager {
 
     final data = await file.readAsString();
     return data.isNotEmpty ? jsonDecode(data) : {};
+  }
+
+  Future<void> saveApp(String id, Map<String, dynamic> data) async {
+    final path = await _path();
+    final file = File("$path/apps/$id.json");
+    if (!await file.exists()) {
+      await file.create(recursive: true);
+    }
+    await file.writeAsString(jsonEncode(data));
+  }
+
+  Future<Map<String, String>> getGlobalVariables(String id) async {
+    final app = await getApp(id);
+    return Map<String, String>.from(
+      (app['globalVariables'] as Map?)?.map(
+            (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
+          ) ??
+          const <String, String>{},
+    );
+  }
+
+  Future<void> setGlobalVariable(String id, String key, String value) async {
+    final app = Map<String, dynamic>.from(await getApp(id));
+    final vars = Map<String, dynamic>.from(
+      (app['globalVariables'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    vars[key] = value;
+    app['globalVariables'] = vars;
+    await saveApp(id, app);
+  }
+
+  Future<String?> getGlobalVariable(String id, String key) async {
+    final vars = await getGlobalVariables(id);
+    return vars[key];
+  }
+
+  Future<void> removeGlobalVariable(String id, String key) async {
+    final app = Map<String, dynamic>.from(await getApp(id));
+    final vars = Map<String, dynamic>.from(
+      (app['globalVariables'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    vars.remove(key);
+    app['globalVariables'] = vars;
+    await saveApp(id, app);
+  }
+
+  Future<List<Map<String, dynamic>>> getWorkflows(String id) async {
+    final app = await getApp(id);
+    return List<Map<String, dynamic>>.from(
+      (app['workflows'] as List?)?.whereType<Map>().map(
+            (workflow) => Map<String, dynamic>.from(workflow),
+          ) ??
+          const <Map<String, dynamic>>[],
+    );
+  }
+
+  Future<void> saveWorkflow(
+    String id, {
+    required String name,
+    required List<Map<String, dynamic>> actions,
+  }) async {
+    final app = Map<String, dynamic>.from(await getApp(id));
+    final workflows = List<Map<String, dynamic>>.from(
+      (app['workflows'] as List?)?.whereType<Map>().map(
+            (workflow) => Map<String, dynamic>.from(workflow),
+          ) ??
+          const <Map<String, dynamic>>[],
+    );
+
+    final normalizedName = name.trim();
+    final index = workflows.indexWhere(
+      (workflow) =>
+          (workflow['name'] ?? '').toString().toLowerCase() ==
+          normalizedName.toLowerCase(),
+    );
+
+    final payload = <String, dynamic>{
+      'name': normalizedName,
+      'actions': List<Map<String, dynamic>>.from(actions),
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+
+    if (index >= 0) {
+      workflows[index] = payload;
+    } else {
+      workflows.add(payload);
+    }
+
+    app['workflows'] = workflows;
+    await saveApp(id, app);
+  }
+
+  Future<void> deleteWorkflow(String id, String name) async {
+    final app = Map<String, dynamic>.from(await getApp(id));
+    final workflows = List<Map<String, dynamic>>.from(
+      (app['workflows'] as List?)?.whereType<Map>().map(
+            (workflow) => Map<String, dynamic>.from(workflow),
+          ) ??
+          const <Map<String, dynamic>>[],
+    );
+
+    workflows.removeWhere(
+      (workflow) =>
+          (workflow['name'] ?? '').toString().toLowerCase() ==
+          name.toLowerCase(),
+    );
+
+    app['workflows'] = workflows;
+    await saveApp(id, app);
+  }
+
+  Future<Map<String, dynamic>?> getWorkflowByName(
+    String id,
+    String name,
+  ) async {
+    final workflows = await getWorkflows(id);
+    for (final workflow in workflows) {
+      if ((workflow['name'] ?? '').toString().toLowerCase() ==
+          name.toLowerCase()) {
+        return workflow;
+      }
+    }
+    return null;
   }
 
   Future<Map<String, dynamic>> getAppCommand(
@@ -230,6 +363,28 @@ class AppManager {
             )
             : <Map<String, dynamic>>[];
 
+    final rawWorkflow = Map<String, dynamic>.from(
+      (response['workflow'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final rawConditional = Map<String, dynamic>.from(
+      (rawWorkflow['conditional'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+
+    final normalizedWorkflow = <String, dynamic>{
+      'autoDeferIfActions': rawWorkflow['autoDeferIfActions'] != false,
+      'visibility':
+          (rawWorkflow['visibility']?.toString().toLowerCase() == 'ephemeral')
+              ? 'ephemeral'
+              : 'public',
+      'onError': 'edit_error',
+      'conditional': {
+        'enabled': rawConditional['enabled'] == true,
+        'variable': (rawConditional['variable'] ?? '').toString(),
+        'whenTrueText': (rawConditional['whenTrueText'] ?? '').toString(),
+        'whenFalseText': (rawConditional['whenFalseText'] ?? '').toString(),
+      },
+    };
+
     normalized['data'] = {
       'version': 1,
       'response': {
@@ -242,6 +397,7 @@ class AppManager {
                 ? embeds.first
                 : {'title': '', 'description': '', 'url': ''},
         'embeds': embeds.take(10).toList(),
+        'workflow': normalizedWorkflow,
       },
       'actions': actions,
     };
