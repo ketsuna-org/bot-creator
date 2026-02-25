@@ -1511,24 +1511,7 @@ class ActionCard extends StatelessWidget {
                 border: Border.all(color: Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child:
-                  (currentValue is Map && currentValue.isNotEmpty)
-                      ? SelectableText(
-                        const JsonEncoder.withIndent(
-                          '  ',
-                        ).convert(currentValue),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontFamily: 'monospace',
-                        ),
-                      )
-                      : Text(
-                        'No properties - tap edit to configure',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
-                        ),
-                      ),
+              child: _buildMapPreview(paramDef.key, currentValue),
             ),
           ],
         );
@@ -1731,6 +1714,10 @@ class ActionCard extends StatelessWidget {
     ParameterDefinition paramDef,
     dynamic currentValue,
   ) {
+    if (paramDef.key == 'headers') {
+      _showHeadersEditor(context, paramDef, currentValue);
+      return;
+    }
     final maxHeight = MediaQuery.of(context).size.height * 0.7;
     final rawMap =
         (currentValue is Map)
@@ -1810,6 +1797,288 @@ class ActionCard extends StatelessWidget {
                 child: const Text('Save'),
               ),
             ],
+          ),
+    );
+  }
+
+  Widget _buildMapPreview(String key, dynamic currentValue) {
+    if (currentValue is Map && currentValue.isNotEmpty) {
+      if (key == 'headers') {
+        final entries = currentValue.entries.toList();
+        final preview = entries
+            .take(6)
+            .map((entry) {
+              final headerKey = entry.key.toString();
+              final headerValue = entry.value?.toString() ?? '';
+              return '$headerKey: $headerValue';
+            })
+            .join('\n');
+        final extraCount = entries.length - 6;
+        return SelectableText(
+          extraCount > 0 ? '$preview\n… ($extraCount more)' : preview,
+          style: const TextStyle(fontSize: 13, fontFamily: 'monospace'),
+        );
+      }
+
+      return SelectableText(
+        const JsonEncoder.withIndent('  ').convert(currentValue),
+        style: const TextStyle(fontSize: 13, fontFamily: 'monospace'),
+      );
+    }
+
+    return Text(
+      key == 'headers'
+          ? 'No headers - tap edit to add'
+          : 'No properties - tap edit to configure',
+      style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+    );
+  }
+
+  void _showHeadersEditor(
+    BuildContext context,
+    ParameterDefinition paramDef,
+    dynamic currentValue,
+  ) {
+    final maxHeight = MediaQuery.of(context).size.height * 0.7;
+    final rawMap =
+        (currentValue is Map)
+            ? Map<String, dynamic>.from(currentValue.cast<String, dynamic>())
+            : <String, dynamic>{};
+
+    final headers =
+        rawMap.entries
+            .map(
+              (entry) => {
+                'keyController': TextEditingController(
+                  text: entry.key.toString(),
+                ),
+                'valueController': TextEditingController(
+                  text: entry.value?.toString() ?? '',
+                ),
+              },
+            )
+            .toList();
+
+    if (headers.isEmpty) {
+      headers.add({
+        'keyController': TextEditingController(),
+        'valueController': TextEditingController(),
+      });
+    }
+
+    final pasteController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  title: Text('Edit ${_formatParameterName(paramDef.key)}'),
+                  content: SizedBox(
+                    width: double.maxFinite,
+                    height: maxHeight,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Add headers as key/value pairs.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: headers.length,
+                            itemBuilder: (context, index) {
+                              final keyController =
+                                  headers[index]['keyController']
+                                      as TextEditingController;
+                              final valueController =
+                                  headers[index]['valueController']
+                                      as TextEditingController;
+
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 4,
+                                      child: TextField(
+                                        controller: keyController,
+                                        decoration: const InputDecoration(
+                                          hintText: 'Header name',
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      flex: 6,
+                                      child: TextField(
+                                        controller: valueController,
+                                        decoration: const InputDecoration(
+                                          hintText: 'Header value',
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          if (headers.length > 1) {
+                                            headers.removeAt(index);
+                                          } else {
+                                            keyController.clear();
+                                            valueController.clear();
+                                          }
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                setDialogState(() {
+                                  headers.add({
+                                    'keyController': TextEditingController(),
+                                    'valueController': TextEditingController(),
+                                  });
+                                });
+                              },
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add header'),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: () {
+                                setDialogState(() {
+                                  for (final entry in headers) {
+                                    (entry['keyController']
+                                            as TextEditingController)
+                                        .clear();
+                                    (entry['valueController']
+                                            as TextEditingController)
+                                        .clear();
+                                  }
+                                });
+                              },
+                              child: const Text('Clear'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Paste headers (one per line: Key: Value)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: pasteController,
+                                maxLines: 3,
+                                decoration: const InputDecoration(
+                                  hintText:
+                                      'Authorization: Bearer ...\nAccept: application/json',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: () {
+                                final raw = pasteController.text.trim();
+                                if (raw.isEmpty) {
+                                  return;
+                                }
+                                final lines = raw.split(RegExp(r'\r?\n'));
+                                setDialogState(() {
+                                  for (final line in lines) {
+                                    final separatorIndex = line.indexOf(':');
+                                    if (separatorIndex <= 0) {
+                                      continue;
+                                    }
+                                    final key =
+                                        line
+                                            .substring(0, separatorIndex)
+                                            .trim();
+                                    final value =
+                                        line
+                                            .substring(separatorIndex + 1)
+                                            .trim();
+                                    if (key.isEmpty) {
+                                      continue;
+                                    }
+                                    headers.add({
+                                      'keyController': TextEditingController(
+                                        text: key,
+                                      ),
+                                      'valueController': TextEditingController(
+                                        text: value,
+                                      ),
+                                    });
+                                  }
+                                  pasteController.clear();
+                                });
+                              },
+                              child: const Text('Paste'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        final Map<String, dynamic> result = {};
+                        for (final entry in headers) {
+                          final key =
+                              (entry['keyController'] as TextEditingController)
+                                  .text
+                                  .trim();
+                          final value =
+                              (entry['valueController']
+                                      as TextEditingController)
+                                  .text
+                                  .trim();
+                          if (key.isNotEmpty) {
+                            result[key] = value;
+                          }
+                        }
+                        onParameterChanged(paramDef.key, result);
+                        Navigator.pop(dialogContext);
+                      },
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
           ),
     );
   }

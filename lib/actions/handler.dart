@@ -146,6 +146,7 @@ Future<Map<String, String>> handleActions(
   required Map<String, String> variables,
   required String Function(String input) resolveTemplate,
   Set<String>? workflowStack,
+  void Function(String message)? onLog,
 }) async {
   final results = <String, String>{};
   final fallbackChannelId = interaction.channel?.id;
@@ -553,10 +554,19 @@ Future<Map<String, String>> handleActions(
             request.body = requestBody.toString();
           }
 
+          onLog?.call('HTTP: $method $resolvedUrl');
+          if (request.body.isNotEmpty) {
+            onLog?.call('HTTP Payload envoyée: ${request.body}');
+          }
+
           final streamed = await http.Client().send(request);
           final responseBody = await streamed.stream.bytesToString();
           final status = streamed.statusCode;
 
+          onLog?.call('HTTP Réponse: $status (${responseBody.length} bytes)');
+          if (responseBody.isNotEmpty) {
+            onLog?.call('HTTP Payload reçue: $responseBody');
+          }
           results[resultKey] = 'HTTP $status';
           variables['action.$resultKey.status'] = '$status';
           variables['action.$resultKey.body'] = responseBody;
@@ -707,6 +717,7 @@ Future<Map<String, String>> handleActions(
             variables: variables,
             resolveTemplate: resolveTemplate,
             workflowStack: activeWorkflowStack,
+            onLog: onLog,
           );
           activeWorkflowStack.remove(lowered);
 

@@ -434,12 +434,59 @@ Future<void> handleLocalCommands(
       final workflowConditional = Map<String, dynamic>.from(
         (workflow['conditional'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
-      final actionsJson = List<Map<String, dynamic>>.from(
+
+      // Récupérer les actions : d'abord de la commande, puis du workflow sauvegardé si spécifié
+      var actionsJson = List<Map<String, dynamic>>.from(
         (value["actions"] as List?)?.whereType<Map>().map(
               (e) => Map<String, dynamic>.from(e),
             ) ??
             const [],
       );
+
+      appendBotDebugLog(
+        'Actions trouvées dans la commande: ${actionsJson.length}',
+        botId: clientId,
+      );
+      if (actionsJson.isNotEmpty) {
+        for (var i = 0; i < actionsJson.length; i++) {
+          final action = actionsJson[i];
+          appendBotDebugLog(
+            'Action $i: type=${action["type"]}, enabled=${action["enabled"]}',
+            botId: clientId,
+          );
+        }
+      }
+
+      // Si un workflow sauvegardé est spécifié, le charger et utiliser ses actions
+      final workflowName = (workflow['name'] ?? '').toString().trim();
+      if (workflowName.isNotEmpty && actionsJson.isEmpty) {
+        try {
+          final savedWorkflows = await manager.getWorkflows(clientId);
+          final savedWorkflow = savedWorkflows.firstWhere(
+            (w) =>
+                (w['name'] ?? '').toString().toLowerCase() ==
+                workflowName.toLowerCase(),
+            orElse: () => <String, dynamic>{},
+          );
+          if (savedWorkflow.isNotEmpty) {
+            actionsJson = List<Map<String, dynamic>>.from(
+              (savedWorkflow['actions'] as List?)?.whereType<Map>().map(
+                    (e) => Map<String, dynamic>.from(e),
+                  ) ??
+                  const [],
+            );
+            appendBotDebugLog(
+              'Workflow sauvegardé chargé: $workflowName avec ${actionsJson.length} actions',
+              botId: clientId,
+            );
+          }
+        } catch (e) {
+          appendBotDebugLog(
+            'Erreur lors du chargement du workflow $workflowName: $e',
+            botId: clientId,
+          );
+        }
+      }
 
       final shouldDefer =
           actionsJson.isNotEmpty && workflow['autoDeferIfActions'] != false;
@@ -471,22 +518,39 @@ Future<void> handleLocalCommands(
             'Actions à exécuter: ${actionsJson.length}',
             botId: clientId,
           );
-          final actions = actionsJson.map(Action.fromJson).toList();
-          final actionResults = await handleActions(
-            event.gateway.client,
-            interaction,
-            actions: actions,
-            manager: manager,
-            botId: clientId,
-            variables: runtimeVariables,
-            resolveTemplate:
-                (input) => updateString(
-                  input,
-                  Map<String, String>.from(runtimeVariables),
-                ),
-          );
-          for (final entry in actionResults.entries) {
-            runtimeVariables['action.${entry.key}'] = entry.value;
+          try {
+            final actions = actionsJson.map(Action.fromJson).toList();
+            appendBotDebugLog(
+              'Actions converties en Action objects: ${actions.length}',
+              botId: clientId,
+            );
+            final actionResults = await handleActions(
+              event.gateway.client,
+              interaction,
+              actions: actions,
+              manager: manager,
+              botId: clientId,
+              variables: runtimeVariables,
+              resolveTemplate:
+                  (input) => updateString(
+                    input,
+                    Map<String, String>.from(runtimeVariables),
+                  ),
+              onLog: (msg) => appendBotLog(msg, botId: clientId),
+            );
+            appendBotDebugLog(
+              'Actions exécutées, résultats: ${actionResults.length}',
+              botId: clientId,
+            );
+            for (final entry in actionResults.entries) {
+              runtimeVariables['action.${entry.key}'] = entry.value;
+            }
+          } catch (e, st) {
+            appendBotDebugLog(
+              'Erreur lors de l\'exécution des actions: $e',
+              botId: clientId,
+            );
+            appendBotDebugLog('Stack: $st', botId: clientId);
           }
         }
 
