@@ -200,12 +200,28 @@ Future<void> _authenticateDesktopIfNeeded() async {
   }
 
   if (current?.refreshToken case final refreshToken?) {
-    _desktopTokens = await _refreshBrowserToken(
-      refreshToken,
-      clientId: _desktopClientId,
-    );
-    await _saveDesktopTokens(_desktopTokens!);
-    return;
+    try {
+      _desktopTokens = await _refreshBrowserToken(
+        refreshToken,
+        clientId: _desktopClientId,
+      );
+      await _saveDesktopTokens(_desktopTokens!);
+      return;
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      final isInvalidGrant =
+          msg.contains('invalid_grant') ||
+          msg.contains('expired') ||
+          msg.contains('revoked');
+      if (!isInvalidGrant) {
+        rethrow;
+      }
+
+      // Refresh token expiré/révoqué: on nettoie le cache puis on relance
+      // une authentification navigateur complète.
+      await _clearDesktopTokens();
+      _desktopTokens = null;
+    }
   }
 
   _desktopTokens = await _runBrowserOAuthFlow(clientId: _desktopClientId);
