@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.cardia_kexa.cardia_kexa">
     <application android:label="Bot Creator" android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity android:enableOnBackInvokedCallback="true" android:name=".MainActivity"

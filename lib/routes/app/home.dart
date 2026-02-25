@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:bot_creator/main.dart';
+import 'package:bot_creator/routes/app/bot_logs.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/services.dart';
 import 'package:nyxx/nyxx.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:developer' as developer;
 
 class AppHomePage extends StatefulWidget {
   final NyxxRest client;
@@ -23,6 +25,7 @@ class _AppHomePageState extends State<AppHomePage>
   NyxxRest? client; // Changez en nullable
   String avatar = "";
   bool _botLaunched = false;
+  void Function(Object)? _taskDataCallback;
 
   bool get _supportsForegroundTask => Platform.isAndroid || Platform.isIOS;
 
@@ -81,12 +84,38 @@ class _AppHomePageState extends State<AppHomePage>
   @override
   void initState() {
     super.initState();
+    if (_supportsForegroundTask) {
+      _taskDataCallback = (Object data) {
+        consumeForegroundTaskDataForBotLogs(data);
+        if (mounted) {
+          setState(() {});
+        }
+      };
+      try {
+        FlutterForegroundTask.addTaskDataCallback(_taskDataCallback!);
+      } on MissingPluginException {
+        debugPrint('Foreground callback registration unavailable on platform');
+      }
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Request permissions and initialize the service.
       _requestPermissions();
       _initService();
     });
     _init();
+  }
+
+  @override
+  void dispose() {
+    final callback = _taskDataCallback;
+    if (callback != null) {
+      try {
+        FlutterForegroundTask.removeTaskDataCallback(callback);
+      } on MissingPluginException {
+        debugPrint('Foreground callback removal unavailable on platform');
+      }
+    }
+    super.dispose();
   }
 
   Future<List<ApplicationCommand>> getCommands() async {
@@ -177,48 +206,105 @@ class _AppHomePageState extends State<AppHomePage>
                         minimumSize: const Size.fromHeight(44),
                       ),
                       onPressed: () async {
-                        final app = await appManager.getApp(
-                          widget.client.user.id.toString(),
-                        );
-
-                        final token = app["token"];
-                        if (token == null) {
-                          throw Exception("Token not found");
-                        }
-
-                        if (_supportsForegroundTask) {
-                          if (_botLaunched) {
-                            setState(() {
-                              _botLaunched = false;
-                            });
-                            await FlutterForegroundTask.stopService();
-                            await FlutterForegroundTask.removeData(
-                              key: "token",
-                            );
-                            return;
-                          }
-
-                          await FlutterForegroundTask.saveData(
-                            key: "token",
-                            value: token,
+                        try {
+                          final app = await appManager.getApp(
+                            widget.client.user.id.toString(),
                           );
-                          await Future.delayed(const Duration(seconds: 1));
-                          await startService();
-                        } else {
-                          if (_botLaunched) {
-                            await stopDesktopBot();
-                            setState(() {
-                              _botLaunched = false;
-                            });
-                            return;
+
+                          final token = app["token"]?.toString();
+                          if (token == null || token.trim().isEmpty) {
+                            throw Exception("Token not found");
                           }
 
-                          await startDesktopBot(token.toString());
-                        }
+                          final botId = widget.client.user.id.toString();
+                          if (!_botLaunched) {
+                            startBotLogSession(botId: botId);
+                            appendBotLog(
+                              'Démarrage du bot demandé',
+                              botId: botId,
+                            );
+                          }
 
-                        setState(() {
-                          _botLaunched = true;
-                        });
+                          if (_supportsForegroundTask) {
+                            await _requestPermissions();
+                            await _initService();
+
+                            final notificationPermission =
+                                await FlutterForegroundTask.checkNotificationPermission();
+                            if (notificationPermission !=
+                                NotificationPermission.granted) {
+                              throw Exception(
+                                'Notification permission is required to start the bot service.',
+                              );
+                            }
+
+                            if (_botLaunched) {
+                              appendBotLog(
+                                'Arrêt du bot demandé',
+                                botId: botId,
+                              );
+                              await FlutterForegroundTask.stopService();
+                              await FlutterForegroundTask.removeData(
+                                key: "token",
+                              );
+                              if (mounted) {
+                                setState(() {
+                                  _botLaunched = false;
+                                });
+                              }
+                              return;
+                            }
+
+                            await FlutterForegroundTask.saveData(
+                              key: "token",
+                              value: token,
+                            );
+                            developer.log(
+                              'Token saved, starting foreground service',
+                              name: 'AppHomePage',
+                            );
+                            await startService();
+
+                            final running =
+                                await FlutterForegroundTask.isRunningService;
+                            if (!running) {
+                              throw Exception(
+                                'Foreground service did not start.',
+                              );
+                            }
+                          } else {
+                            if (_botLaunched) {
+                              appendBotLog(
+                                'Arrêt du bot desktop demandé',
+                                botId: botId,
+                              );
+                              await stopDesktopBot();
+                              if (mounted) {
+                                setState(() {
+                                  _botLaunched = false;
+                                });
+                              }
+                              return;
+                            }
+
+                            await startDesktopBot(token);
+                          }
+
+                          if (mounted) {
+                            setState(() {
+                              _botLaunched = true;
+                            });
+                          }
+                        } catch (e) {
+                          if (!mounted) {
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Impossible de démarrer: $e'),
+                            ),
+                          );
+                        }
                       },
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -236,6 +322,28 @@ class _AppHomePageState extends State<AppHomePage>
                       endIndent: 20,
                     ),
                     // Sync Button
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(44),
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const BotLogsPage(),
+                          ),
+                        );
+                      },
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.receipt_long),
+                          SizedBox(width: 8),
+                          Text('Voir les logs du bot'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size.fromHeight(44),

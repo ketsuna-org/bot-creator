@@ -125,6 +125,11 @@ class AppManager {
 
   Stream<List<dynamic>> getAppStream() => _appsStreamController.stream;
 
+  Future<void> refreshApps() async {
+    await getAllApps();
+    _appsStreamController.add(_apps);
+  }
+
   Future<void> clearLogs(String id) async {
     final path = await _path();
     await File("$path/apps/$id/logs.json").delete();

@@ -14,7 +14,15 @@
       },
       "oauth_client": [
         {
-          "client_id": "777382167262-83ljuklqu6u2jauver5a72qs1vbpkl19.apps.googleusercontent.com",
+          "client_id": "777382167262-akm5kepn8uhq60vfautku47472vphvc9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cardia_kexa.cardia_kexa",
+            "certificate_hash": "b828a6b78b560cbbd3ddc69fb1868581342393a2"
+          }
+        },
+        {
+          "client_id": "777382167262-on5tpqhctm19sa84jfke5igbn0m9q5uc.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
@@ -27,7 +35,7 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "777382167262-83ljuklqu6u2jauver5a72qs1vbpkl19.apps.googleusercontent.com",
+              "client_id": "777382167262-on5tpqhctm19sa84jfke5igbn0m9q5uc.apps.googleusercontent.com",
               "client_type": 3
             },
             {
