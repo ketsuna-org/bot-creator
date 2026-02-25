@@ -107,10 +107,6 @@ Future<Map<String, String>> updateAutoModAction(
             exemptRoleIds: exemptRoleIds,
             metadata: TriggerMetadataBuilder(keywordFilter: filterWords),
           ),
-          auditLogReason:
-              (reason != null && reason.isNotEmpty)
-                  ? reason
-                  : 'Update auto-moderation keyword rule',
         );
       }
     } else if (keywordRule != null) {
@@ -119,10 +115,6 @@ Future<Map<String, String>> updateAutoModAction(
           isEnabled: false,
           exemptRoleIds: exemptRoleIds,
         ),
-        auditLogReason:
-            (reason != null && reason.isNotEmpty)
-                ? reason
-                : 'Disable auto-moderation keyword rule',
       );
     }
 
@@ -151,10 +143,6 @@ Future<Map<String, String>> updateAutoModAction(
           exemptRoleIds: exemptRoleIds,
           metadata: TriggerMetadataBuilder(mentionTotalLimit: maxMentions),
         ),
-        auditLogReason:
-            (reason != null && reason.isNotEmpty)
-                ? reason
-                : 'Update auto-moderation mention rule',
       );
     }
 

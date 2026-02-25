@@ -74,7 +74,7 @@ Future<Map<String, String>> updateGuildAction(
     if (payload.containsKey('verificationLevel')) {
       final raw = int.tryParse((payload['verificationLevel'] ?? '').toString());
       if (raw != null) {
-        builder.verificationLevel = VerificationLevel.parse(raw);
+        builder.verificationLevel = VerificationLevel(raw);
       }
     }
     if (payload.containsKey('defaultMessageNotificationLevel')) {
@@ -82,8 +82,7 @@ Future<Map<String, String>> updateGuildAction(
         (payload['defaultMessageNotificationLevel'] ?? '').toString(),
       );
       if (raw != null) {
-        builder.defaultMessageNotificationLevel =
-            MessageNotificationLevel.parse(raw);
+        builder.defaultMessageNotificationLevel = MessageNotificationLevel(raw);
       }
     }
     if (payload.containsKey('explicitContentFilterLevel')) {
@@ -91,9 +90,7 @@ Future<Map<String, String>> updateGuildAction(
         (payload['explicitContentFilterLevel'] ?? '').toString(),
       );
       if (raw != null) {
-        builder.explicitContentFilterLevel = ExplicitContentFilterLevel.parse(
-          raw,
-        );
+        builder.explicitContentFilterLevel = ExplicitContentFilterLevel(raw);
       }
     }
 

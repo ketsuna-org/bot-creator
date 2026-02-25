@@ -65,7 +65,7 @@ Future<Map<String, String>> editWebhookAction(
     return {
       'webhookId': updated.id.toString(),
       'name': updated.name ?? '',
-      'url': updated.url ?? '',
+      'url': (updated.url ?? '').toString(),
     };
   } catch (error) {
     return {'error': 'Failed to edit webhook: $error', 'webhookId': ''};

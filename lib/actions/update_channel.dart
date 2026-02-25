@@ -122,7 +122,6 @@ Future<Map<String, String>> updateChannelAction(
       await channel.update(
         GuildCategoryUpdateBuilder(
           name: (name != null && name.isNotEmpty) ? name : null,
-          isNsfw: nsfw,
         ),
       );
     } else if (channel is GuildChannel) {

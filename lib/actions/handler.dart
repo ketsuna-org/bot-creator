@@ -30,6 +30,7 @@ import 'package:http/http.dart' as http;
 import 'package:nyxx/nyxx.dart';
 import 'dart:convert';
 import '../types/action.dart';
+import 'handler_utils.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   if (value == null) {
@@ -121,6 +122,30 @@ dynamic _extractByJsonPath(dynamic data, String rawPath) {
   }
 
   return current;
+}
+
+// Helper functions for common action patterns
+
+Future<Map<String, String>> _executeUserAction(
+  Future<Map<String, String>> Function() action, {
+  required Snowflake? guildId,
+  String actionName = 'User action',
+}) async {
+  if (guildId == null) {
+    throw Exception('$actionName requires a guild context');
+  }
+  return action();
+}
+
+Future<Map<String, String>> _executeChannelAction(
+  Future<Map<String, String>> Function() action, {
+  required Snowflake? channelId,
+  String actionName = 'Channel action',
+}) async {
+  if (channelId == null) {
+    throw Exception('$actionName requires a valid channelId');
+  }
+  return action();
 }
 
 Future<Map<String, String>> handleActions(
@@ -285,6 +310,7 @@ Future<Map<String, String>> handleActions(
           final result = await addReactionAction(
             client,
             payload: action.payload,
+            fallbackChannelId: fallbackChannelId,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -295,6 +321,7 @@ Future<Map<String, String>> handleActions(
           final result = await removeReactionAction(
             client,
             payload: action.payload,
+            fallbackChannelId: fallbackChannelId,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -313,59 +340,44 @@ Future<Map<String, String>> handleActions(
           results[resultKey] = result['status'] ?? 'OK';
           break;
         case BotCreatorActionType.banUser:
-          final result = await banUserAction(
-            client,
-            guildId: guildId,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['userId'] ?? '';
-          break;
         case BotCreatorActionType.unbanUser:
-          final result = await unbanUserAction(
-            client,
-            guildId: guildId,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['userId'] ?? '';
-          break;
         case BotCreatorActionType.kickUser:
-          final result = await kickUserAction(
-            client,
-            guildId: guildId,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['userId'] ?? '';
-          break;
         case BotCreatorActionType.muteUser:
-          final result = await muteUserAction(
-            client,
-            guildId: guildId,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['userId'] ?? '';
-          break;
         case BotCreatorActionType.unmuteUser:
-          final result = await unmuteUserAction(
-            client,
-            guildId: guildId,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
+          final result = await _executeUserAction(() async {
+            return switch (action.type) {
+              BotCreatorActionType.banUser => banUserAction(
+                client,
+                guildId: guildId,
+                payload: action.payload,
+              ),
+              BotCreatorActionType.unbanUser => unbanUserAction(
+                client,
+                guildId: guildId,
+                payload: action.payload,
+              ),
+              BotCreatorActionType.kickUser => kickUserAction(
+                client,
+                guildId: guildId,
+                payload: action.payload,
+              ),
+              BotCreatorActionType.muteUser => muteUserAction(
+                client,
+                guildId: guildId,
+                payload: action.payload,
+              ),
+              BotCreatorActionType.unmuteUser => unmuteUserAction(
+                client,
+                guildId: guildId,
+                payload: action.payload,
+              ),
+              _ => throw Exception('Unexpected action type'),
+            };
+          }, guildId: guildId);
+          if (result.hasError) {
+            throw Exception(result.error);
           }
-          results[resultKey] = result['userId'] ?? '';
+          results[resultKey] = result.getOrEmpty('userId');
           break;
         case BotCreatorActionType.pinMessage:
           final result = await pinMessageAction(
@@ -444,34 +456,27 @@ Future<Map<String, String>> handleActions(
           results[resultKey] = result['messageId'] ?? '';
           break;
         case BotCreatorActionType.sendWebhook:
-          final result = await sendWebhookAction(
-            client,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['messageId'] ?? '';
-          break;
         case BotCreatorActionType.editWebhook:
-          final result = await editWebhookAction(
-            client,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['webhookId'] ?? '';
-          break;
         case BotCreatorActionType.deleteWebhook:
-          final result = await deleteWebhookAction(
-            client,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
+          final result = await switch (action.type) {
+            BotCreatorActionType.sendWebhook => sendWebhookAction(
+              client,
+              payload: action.payload,
+            ),
+            BotCreatorActionType.editWebhook => editWebhookAction(
+              client,
+              payload: action.payload,
+            ),
+            BotCreatorActionType.deleteWebhook => deleteWebhookAction(
+              client,
+              payload: action.payload,
+            ),
+            _ => throw Exception('Unexpected action type'),
+          };
+          if (result.hasError) {
+            throw Exception(result.error);
           }
-          results[resultKey] = result['webhookId'] ?? '';
+          results[resultKey] = result.getOrEmpty('webhookId');
           break;
         case BotCreatorActionType.listWebhooks:
           final result = await listWebhooksAction(

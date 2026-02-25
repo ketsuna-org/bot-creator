@@ -45,7 +45,7 @@ Future<Map<String, String>> listMembersAction(
     final guild = await client.guilds.get(guildId);
 
     final limitRaw = int.tryParse((payload['limit'] ?? '').toString());
-    final limit = limitRaw == null ? null : limitRaw.clamp(1, 1000);
+    final limit = limitRaw?.clamp(1, 1000);
     final after = _toSnowflake(payload['after']);
     final query = (payload['query'] ?? '').toString().trim();
 
