@@ -137,17 +137,6 @@ Future<Map<String, String>> _executeUserAction(
   return action();
 }
 
-Future<Map<String, String>> _executeChannelAction(
-  Future<Map<String, String>> Function() action, {
-  required Snowflake? channelId,
-  String actionName = 'Channel action',
-}) async {
-  if (channelId == null) {
-    throw Exception('$actionName requires a valid channelId');
-  }
-  return action();
-}
-
 Future<Map<String, String>> handleActions(
   NyxxGateway client,
   ApplicationCommandInteraction interaction, {

@@ -1,5 +1,4 @@
 import 'package:nyxx/nyxx.dart';
-import '../types/action.dart';
 
 /// Helper pour exécuter une action simple et récupérer un résultat
 Future<Map<String, String>> executeSimpleAction(
