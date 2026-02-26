@@ -481,6 +481,14 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       return rootKey;
     }
 
+    final parameters = Map<String, dynamic>.from(
+      (action['parameters'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final parametersKey = (parameters['key'] ?? '').toString().trim();
+    if (parametersKey.isNotEmpty) {
+      return parametersKey;
+    }
+
     final payload = Map<String, dynamic>.from(
       (action['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
@@ -612,12 +620,29 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       }
     }
 
-    for (final action in _actions) {
-      final actionKey = (action['key'] ?? '').toString().trim();
+    for (var i = 0; i < _actions.length; i++) {
+      final action = _actions[i];
+      final actionKey = _resolveActionKey(action, i);
       if (actionKey.isEmpty) {
         continue;
       }
       addSuggestion('action.$actionKey', kind: VariableSuggestionKind.unknown);
+
+      final type = (action['type'] ?? '').toString();
+      if (type == 'httpRequest') {
+        addSuggestion(
+          'action.$actionKey.status',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion(
+          'action.$actionKey.body',
+          kind: VariableSuggestionKind.nonNumeric,
+        );
+        addSuggestion(
+          'action.$actionKey.jsonPath',
+          kind: VariableSuggestionKind.nonNumeric,
+        );
+      }
     }
 
     final suggestions = suggestionsByName.values.toList(growable: false)
