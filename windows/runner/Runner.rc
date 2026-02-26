@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.cardia_kexa" "\0"
+            VALUE "CompanyName", "fr.botcreator.app" "\0"
             VALUE "FileDescription", "bot_creator" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "bot_creator" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.cardia_kexa. All rights reserved." "\0"
+            VALUE "InternalName", "botcreator" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 bot-creator.fr. All rights reserved." "\0"
             VALUE "OriginalFilename", "bot_creator.exe" "\0"
             VALUE "ProductName", "bot_creator" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

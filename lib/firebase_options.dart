@@ -48,7 +48,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAc5ZRkTOWEE-9O9HxScFxn0Q9HsNdixnY',
-    appId: '1:777382167262:android:dedbbd40768d96af29f84f',
+    appId: '1:777382167262:android:76282da1e4a1046129f84f',
     messagingSenderId: '777382167262',
     projectId: 'bot-creator-f884b',
     storageBucket: 'bot-creator-f884b.firebasestorage.app',
@@ -56,13 +56,13 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDK1o4PAeInCotKhGH_qLI-6eShgjJK6Bc',
-    appId: '1:777382167262:ios:0f1a5a7f88a1120629f84f',
+    appId: '1:777382167262:ios:083d0f09a8b8ea9329f84f',
     messagingSenderId: '777382167262',
     projectId: 'bot-creator-f884b',
     storageBucket: 'bot-creator-f884b.firebasestorage.app',
-    androidClientId: '777382167262-4os7qabl85pvr7588l5vlbreuhr7kquc.apps.googleusercontent.com',
-    iosClientId: '777382167262-454ckdtstv4jb7m1fue0foqcibvm6f7k.apps.googleusercontent.com',
-    iosBundleId: 'com.cardiakexa.cardiaKexa',
+    androidClientId: '777382167262-akm5kepn8uhq60vfautku47472vphvc9.apps.googleusercontent.com',
+    iosClientId: '777382167262-2clnpnd4ijkjp71gvmpp5u0rik446kn8.apps.googleusercontent.com',
+    iosBundleId: 'fr.botcreator.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

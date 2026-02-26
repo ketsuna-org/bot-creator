@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:777382167262:android:dedbbd40768d96af29f84f",
+        "mobilesdk_app_id": "1:777382167262:android:76282da1e4a1046129f84f",
         "android_client_info": {
-          "package_name": "com.cardia_kexa.cardia_kexa"
+          "package_name": "fr.botcreator.app"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "777382167262-akm5kepn8uhq60vfautku47472vphvc9.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.cardia_kexa.cardia_kexa",
+            "package_name": "fr.botcreator.app",
             "certificate_hash": "9b5d3207af68476b99e3149a6b15743eba42b1da"
           }
         },
@@ -39,10 +39,10 @@
               "client_type": 3
             },
             {
-              "client_id": "777382167262-454ckdtstv4jb7m1fue0foqcibvm6f7k.apps.googleusercontent.com",
+              "client_id": "777382167262-2clnpnd4ijkjp71gvmpp5u0rik446kn8.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.cardiakexa.cardiaKexa"
+                "bundle_id": "fr.botcreator.app"
               }
             }
           ]
