@@ -112,6 +112,22 @@ Future<void> handleLocalCommands(
           (workflowConditional['whenTrueText'] ?? '').toString();
       final whenFalseText =
           (workflowConditional['whenFalseText'] ?? '').toString();
+      final whenTrueEmbeds =
+          (workflowConditional['whenTrueEmbeds'] is List)
+              ? List<Map<String, dynamic>>.from(
+                (workflowConditional['whenTrueEmbeds'] as List)
+                    .whereType<Map>()
+                    .map((embed) => Map<String, dynamic>.from(embed)),
+              )
+              : <Map<String, dynamic>>[];
+      final whenFalseEmbeds =
+          (workflowConditional['whenFalseEmbeds'] is List)
+              ? List<Map<String, dynamic>>.from(
+                (workflowConditional['whenFalseEmbeds'] as List)
+                    .whereType<Map>()
+                    .map((embed) => Map<String, dynamic>.from(embed)),
+              )
+              : <Map<String, dynamic>>[];
 
       var didDefer = false;
 
@@ -161,6 +177,16 @@ Future<void> handleLocalCommands(
             for (final entry in actionResults.entries) {
               runtimeVariables['action.${entry.key}'] = entry.value;
             }
+            // Debug: log all action.* variables (include counts even if '0')
+            final actionVars =
+                runtimeVariables.entries
+                    .where((e) => e.key.startsWith('action.'))
+                    .map((e) => '${e.key}=${e.value}')
+                    .toList();
+            appendBotDebugLog(
+              'Action runtime variables: $actionVars',
+              botId: clientId,
+            );
           } catch (e, st) {
             appendBotDebugLog(
               'Erreur lors de l\'exécution des actions: $e',
@@ -172,6 +198,15 @@ Future<void> handleLocalCommands(
 
         String responseText = (response["text"] ?? "").toString();
         responseText = updateString(responseText, runtimeVariables);
+
+        var embedsRaw =
+            (response['embeds'] is List)
+                ? List<Map<String, dynamic>>.from(
+                  (response['embeds'] as List).whereType<Map>().map(
+                    (embed) => Map<String, dynamic>.from(embed),
+                  ),
+                )
+                : <Map<String, dynamic>>[];
 
         if (useCondition && conditionVariable.isNotEmpty) {
           final variableValue =
@@ -187,16 +222,14 @@ Future<void> handleLocalCommands(
           } else if (!conditionMatched && whenFalseText.trim().isNotEmpty) {
             responseText = updateString(whenFalseText, runtimeVariables);
           }
+
+          if (conditionMatched && whenTrueEmbeds.isNotEmpty) {
+            embedsRaw = List<Map<String, dynamic>>.from(whenTrueEmbeds);
+          } else if (!conditionMatched && whenFalseEmbeds.isNotEmpty) {
+            embedsRaw = List<Map<String, dynamic>>.from(whenFalseEmbeds);
+          }
         }
 
-        final embedsRaw =
-            (response['embeds'] is List)
-                ? List<Map<String, dynamic>>.from(
-                  (response['embeds'] as List).whereType<Map>().map(
-                    (embed) => Map<String, dynamic>.from(embed),
-                  ),
-                )
-                : <Map<String, dynamic>>[];
         appendBotDebugLog(
           'Embeds détectés: ${embedsRaw.length}',
           botId: clientId,
@@ -357,6 +390,31 @@ Future<void> handleLocalCommands(
             'Réponse éditée après defer',
             botId: clientId,
           );
+          // deletion after defer if requested (only when action flagged deleteItself)
+          final matching =
+              runtimeVariables.entries
+                  .where(
+                    (entry) =>
+                        (entry.key.toLowerCase().endsWith('deleteitself') ||
+                            entry.key.toLowerCase().endsWith(
+                              'deleteresponse',
+                            )) &&
+                        entry.value.toString().toLowerCase() == 'true',
+                  )
+                  .toList();
+          if (matching.isNotEmpty) {
+            appendBotLog(
+              'Entries triggering delete: $matching',
+              botId: clientId,
+            );
+            try {
+              await interaction.deleteOriginalResponse();
+              appendBotLog(
+                'Réponse supprimée automatiquement',
+                botId: clientId,
+              );
+            } catch (_) {}
+          }
         } else {
           await interaction.respond(
             MessageBuilder(
@@ -367,6 +425,34 @@ Future<void> handleLocalCommands(
           );
           appendBotLog('Réponse envoyée', botId: clientId);
           await _emitTaskLogToMain('Réponse envoyée', botId: clientId);
+
+          // if any action requested deletion of the response itself, do it now
+          final matching =
+              runtimeVariables.entries
+                  .where(
+                    (entry) =>
+                        (entry.key.toLowerCase().endsWith('deleteitself') ||
+                            entry.key.toLowerCase().endsWith(
+                              'deleteresponse',
+                            )) &&
+                        entry.value.toString().toLowerCase() == 'true',
+                  )
+                  .toList();
+          if (matching.isNotEmpty) {
+            appendBotLog(
+              'Entries triggering delete: $matching',
+              botId: clientId,
+            );
+            try {
+              await interaction.deleteOriginalResponse();
+              appendBotLog(
+                'Réponse supprimée automatiquement',
+                botId: clientId,
+              );
+            } catch (_) {
+              // ignore; maybe already deleted or ephemeral
+            }
+          }
         }
       } catch (error, stackTrace) {
         appendBotLog('Erreur workflow commande: $error', botId: clientId);

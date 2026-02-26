@@ -1,12 +1,11 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
-import 'package:bot_creator/routes/app/command.response_workflow.dart';
-import 'package:bot_creator/routes/app/global.variables.dart';
-import 'package:bot_creator/routes/app/workflows.page.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/analytics.dart';
-import 'package:bot_creator/widgets/response_embeds_editor.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
+import 'package:bot_creator/widgets/command_create_cards/basic_info_card.dart';
+import 'package:bot_creator/widgets/command_create_cards/reply_card.dart';
+import 'package:bot_creator/widgets/command_create_cards/actions_card.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -32,6 +31,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   List<ApplicationIntegrationType> _integrationTypes = [
     ApplicationIntegrationType.guildInstall,
   ];
+  List<InteractionContextType> _contexts = [InteractionContextType.guild];
 
   static Map<String, dynamic> _defaultWorkflow() {
     return {
@@ -43,8 +43,26 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         'variable': '',
         'whenTrueText': '',
         'whenFalseText': '',
+        'whenTrueEmbeds': <Map<String, dynamic>>[],
+        'whenFalseEmbeds': <Map<String, dynamic>>[],
       },
     };
+  }
+
+  List<Map<String, dynamic>> _normalizeEmbedsPayload(dynamic rawEmbeds) {
+    if (rawEmbeds is! List) {
+      return <Map<String, dynamic>>[];
+    }
+
+    return rawEmbeds
+        .whereType<Map>()
+        .map((embed) {
+          return Map<String, dynamic>.from(
+            embed.map((key, value) => MapEntry(key.toString(), value)),
+          );
+        })
+        .take(10)
+        .toList(growable: false);
   }
 
   Map<String, dynamic> _normalizeWorkflow(Map<String, dynamic> input) {
@@ -64,6 +82,12 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         'variable': (conditional['variable'] ?? '').toString(),
         'whenTrueText': (conditional['whenTrueText'] ?? '').toString(),
         'whenFalseText': (conditional['whenFalseText'] ?? '').toString(),
+        'whenTrueEmbeds': _normalizeEmbedsPayload(
+          conditional['whenTrueEmbeds'],
+        ),
+        'whenFalseEmbeds': _normalizeEmbedsPayload(
+          conditional['whenFalseEmbeds'],
+        ),
       },
     };
   }
@@ -140,7 +164,19 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     );
     // first let's check if the command is already created or not
     if (!widget.id.isZero) {
-      final command = await widget.client?.commands.fetch(widget.id);
+      ApplicationCommand? command;
+      try {
+        final commandsList = await widget.client?.commands.list(
+          withLocalizations: true,
+        );
+        command = commandsList?.cast<ApplicationCommand?>().firstWhere(
+          (c) => c?.id == widget.id,
+          orElse: () => null,
+        );
+      } catch (_) {}
+
+      command ??= await widget.client?.commands.fetch(widget.id);
+
       // check if we also have the command in the database
       final commandData = await appManager.getAppCommand(
         widget.client!.user.id.toString(),
@@ -208,17 +244,22 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         });
       }
       if (command != null) {
+        final currentCommand = command;
         setState(() {
-          _commandName = command.name;
-          _commandDescription = command.description;
-          if (command.options != null) {
+          _commandName = currentCommand.name;
+          _commandDescription = currentCommand.description;
+          if (currentCommand.options != null) {
             _options =
-                command.options!.map((e) {
+                currentCommand.options!.map((e) {
                   final option = CommandOptionBuilder(
                     type: e.type,
                     name: e.name,
                     description: e.description,
                     isRequired: e.isRequired,
+                    minValue: e.minValue,
+                    maxValue: e.maxValue,
+                    nameLocalizations: e.nameLocalizations,
+                    descriptionLocalizations: e.descriptionLocalizations,
                   );
                   if (e.choices?.isNotEmpty ?? false) {
                     option.choices =
@@ -235,7 +276,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             _options = [];
           }
           _integrationTypes =
-              command.integrationTypes.map((e) {
+              currentCommand.integrationTypes.map((e) {
                 if (e == ApplicationIntegrationType.guildInstall) {
                   return ApplicationIntegrationType.guildInstall;
                 } else if (e == ApplicationIntegrationType.userInstall) {
@@ -244,6 +285,13 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                   return ApplicationIntegrationType.guildInstall;
                 }
               }).toList();
+          _contexts = [];
+          if (currentCommand.contexts != null) {
+            _contexts = currentCommand.contexts!.toList();
+          } else {
+            // legacy defaults to guild
+            _contexts = [InteractionContextType.guild];
+          }
           _isLoading = false;
         });
       }
@@ -303,6 +351,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         );
 
         commandBuilder.integrationTypes = _integrationTypes;
+        if (_contexts.isNotEmpty) {
+          commandBuilder.contexts = _contexts;
+        }
         if (_options.isNotEmpty) {
           commandBuilder.options = _options;
         }
@@ -314,6 +365,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           description: _commandDescription,
         );
         commandBuilder.integrationTypes = _integrationTypes;
+        if (_contexts.isNotEmpty) {
+          commandBuilder.contexts = _contexts;
+        } else {
+          commandBuilder.contexts = [];
+        }
         if (_options.isNotEmpty) {
           commandBuilder.options = _options;
         } else {
@@ -414,7 +470,160 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       }
     }
 
+    base.addAll(_actionOutputVariableNames());
+
     return base.toSet().toList(growable: false)..sort();
+  }
+
+  String _resolveActionKey(Map<String, dynamic> action, int index) {
+    final rootKey = (action['key'] ?? '').toString().trim();
+    if (rootKey.isNotEmpty) {
+      return rootKey;
+    }
+
+    final payload = Map<String, dynamic>.from(
+      (action['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final payloadKey = (payload['key'] ?? '').toString().trim();
+    if (payloadKey.isNotEmpty) {
+      return payloadKey;
+    }
+
+    return 'action_$index';
+  }
+
+  List<String> _actionOutputVariableNames() {
+    final outputVariables = <String>{};
+
+    for (var i = 0; i < _actions.length; i++) {
+      final action = _actions[i];
+      final actionKey = _resolveActionKey(action, i);
+      if (actionKey.isEmpty) {
+        continue;
+      }
+
+      outputVariables.add('action.$actionKey');
+
+      final type = (action['type'] ?? '').toString();
+      if (type == 'deleteMessages') {
+        outputVariables.addAll([
+          'action.$actionKey.count',
+          '$actionKey.count',
+          'action.$actionKey.deleteItself',
+          '$actionKey.deleteItself',
+        ]);
+      }
+
+      if (type == 'httpRequest') {
+        outputVariables.addAll([
+          'action.$actionKey.status',
+          'action.$actionKey.body',
+          'action.$actionKey.jsonPath',
+          '$actionKey.status',
+          '$actionKey.body',
+          '$actionKey.jsonPath',
+        ]);
+      }
+    }
+
+    return outputVariables.toList(growable: false)..sort();
+  }
+
+  List<VariableSuggestion> get _actionVariableSuggestions {
+    final suggestionsByName = <String, VariableSuggestion>{};
+
+    void addSuggestion(String name, {required VariableSuggestionKind kind}) {
+      final existing = suggestionsByName[name];
+      if (existing == null) {
+        suggestionsByName[name] = VariableSuggestion(name: name, kind: kind);
+        return;
+      }
+
+      if (existing.kind == VariableSuggestionKind.numeric ||
+          existing.kind == kind) {
+        return;
+      }
+
+      if (kind == VariableSuggestionKind.numeric) {
+        suggestionsByName[name] = VariableSuggestion(name: name, kind: kind);
+      }
+    }
+
+    for (final arg in _argsList) {
+      final name = (arg['name'] ?? '').toString().trim();
+      if (name.isEmpty) {
+        continue;
+      }
+
+      addSuggestion(
+        name,
+        kind:
+            name == 'guildCount'
+                ? VariableSuggestionKind.numeric
+                : VariableSuggestionKind.nonNumeric,
+      );
+    }
+
+    for (final option in _options) {
+      final optionName = option.name.trim();
+      if (optionName.isEmpty) {
+        continue;
+      }
+
+      addSuggestion('opts.$optionName', kind: VariableSuggestionKind.unknown);
+
+      switch (option.type) {
+        case CommandOptionType.integer:
+        case CommandOptionType.number:
+          addSuggestion(
+            'opts.$optionName',
+            kind: VariableSuggestionKind.numeric,
+          );
+          break;
+        case CommandOptionType.user:
+        case CommandOptionType.mentionable:
+          addSuggestion(
+            'opts.$optionName.id',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          addSuggestion(
+            'opts.$optionName.avatar',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          break;
+        case CommandOptionType.channel:
+          addSuggestion(
+            'opts.$optionName.id',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          addSuggestion(
+            'opts.$optionName.type',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          break;
+        case CommandOptionType.role:
+          addSuggestion(
+            'opts.$optionName.id',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          break;
+        default:
+          break;
+      }
+    }
+
+    for (final action in _actions) {
+      final actionKey = (action['key'] ?? '').toString().trim();
+      if (actionKey.isEmpty) {
+        continue;
+      }
+      addSuggestion('action.$actionKey', kind: VariableSuggestionKind.unknown);
+    }
+
+    final suggestions = suggestionsByName.values.toList(growable: false)
+      ..sort((a, b) => a.name.compareTo(b.name));
+
+    return suggestions;
   }
 
   String _currentVariableQuery(TextEditingController controller) {
@@ -537,35 +746,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     );
   }
 
-  Widget _buildSectionCard({
-    required String title,
-    String? subtitle,
-    required Widget child,
-  }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-            ],
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
+  // Card helper removed.
 
   @override
   Widget build(BuildContext context) {
@@ -749,327 +930,103 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _buildSectionCard(
-                              title: "Command Info",
-                              subtitle: "Basic metadata and availability",
-                              child: LayoutBuilder(
-                                builder: (context, innerConstraints) {
-                                  final isWide =
-                                      innerConstraints.maxWidth >= 760;
-                                  final nameField = TextFormField(
-                                    autocorrect: false,
-                                    validator: _validateName,
-                                    initialValue: _commandName,
-                                    maxLength: 32,
-                                    decoration: const InputDecoration(
-                                      labelText: "Name",
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _commandName = value;
-                                      });
-                                    },
-                                  );
-
-                                  final descriptionField = TextFormField(
-                                    autocorrect: false,
-                                    maxLength: 100,
-                                    maxLines: 3,
-                                    minLines: 1,
-                                    keyboardType: TextInputType.multiline,
-                                    validator: (value) {
-                                      if (value!.isEmpty) {
-                                        return "Please enter a command description";
-                                      }
-                                      if (value.length > 100) {
-                                        return "Command description must be at most 100 characters long";
-                                      }
-                                      return null;
-                                    },
-                                    initialValue: _commandDescription,
-                                    decoration: const InputDecoration(
-                                      labelText: "Description",
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _commandDescription = value;
-                                      });
-                                    },
-                                  );
-
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      if (isWide)
-                                        Row(
-                                          children: [
-                                            Expanded(child: nameField),
-                                            const SizedBox(width: 12),
-                                            Expanded(child: descriptionField),
-                                          ],
-                                        )
-                                      else ...[
-                                        nameField,
-                                        const SizedBox(height: 12),
-                                        descriptionField,
-                                      ],
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        "Where this command can be used",
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Wrap(
-                                        alignment: WrapAlignment.start,
-                                        spacing: 20,
-                                        runSpacing: 8,
-                                        children: [
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Checkbox(
-                                                value: _integrationTypes
-                                                    .contains(
-                                                      ApplicationIntegrationType
-                                                          .guildInstall,
-                                                    ),
-                                                onChanged: (value) {
-                                                  setState(() {
-                                                    if (value == true) {
-                                                      _integrationTypes.add(
-                                                        ApplicationIntegrationType
-                                                            .guildInstall,
-                                                      );
-                                                    } else {
-                                                      _integrationTypes.remove(
-                                                        ApplicationIntegrationType
-                                                            .guildInstall,
-                                                      );
-                                                    }
-                                                  });
-                                                },
-                                              ),
-                                              const Text("Guild install"),
-                                            ],
-                                          ),
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Checkbox(
-                                                value: _integrationTypes
-                                                    .contains(
-                                                      ApplicationIntegrationType
-                                                          .userInstall,
-                                                    ),
-                                                onChanged: (value) {
-                                                  setState(() {
-                                                    if (value == true) {
-                                                      _integrationTypes.add(
-                                                        ApplicationIntegrationType
-                                                            .userInstall,
-                                                      );
-                                                    } else {
-                                                      _integrationTypes.remove(
-                                                        ApplicationIntegrationType
-                                                            .userInstall,
-                                                      );
-                                                    }
-                                                  });
-                                                },
-                                              ),
-                                              const Text("User Install"),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
+                            BasicInfoCard(
+                              commandName: _commandName,
+                              commandDescription: _commandDescription,
+                              integrationTypes: _integrationTypes,
+                              contexts: _contexts,
+                              onNameChanged: (val) {
+                                setState(() {
+                                  _commandName = val;
+                                });
+                              },
+                              onDescriptionChanged: (val) {
+                                setState(() {
+                                  _commandDescription = val;
+                                });
+                              },
+                              onIntegrationTypesChanged: (val) {
+                                setState(() {
+                                  _integrationTypes = val;
+                                });
+                              },
+                              onContextsChanged: (val) {
+                                setState(() {
+                                  _contexts = val;
+                                });
+                              },
+                              nameValidator: _validateName,
                             ),
                             const SizedBox(height: 12),
-                            _buildSectionCard(
-                              title: "Command Reply",
-                              subtitle: "Text response + up to 10 embeds",
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  TextFormField(
-                                    autocorrect: false,
-                                    maxLines: 4,
-                                    minLines: 2,
-                                    keyboardType: TextInputType.multiline,
-                                    controller: _responseController,
-                                    decoration: const InputDecoration(
-                                      labelText: "Response Text",
-                                      border: OutlineInputBorder(),
-                                      helperText:
-                                          "Used as slash-command reply text. Supports placeholders like ((userName)).",
-                                    ),
-                                  ),
+                            ReplyCard(
+                              responseController: _responseController,
+                              variableSuggestionBar:
                                   _buildVariableSuggestionBar(
                                     _responseController,
                                   ),
-                                  const SizedBox(height: 12),
-                                  ResponseEmbedsEditor(
-                                    embeds: _responseEmbeds,
-                                    onChanged: (embeds) {
-                                      setState(() {
-                                        _responseEmbeds = embeds;
-                                      });
-                                    },
-                                  ),
-                                  const SizedBox(height: 12),
-                                  OutlinedButton.icon(
-                                    onPressed: () async {
-                                      final nextWorkflow = await Navigator.push<
-                                        Map<String, dynamic>
-                                      >(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder:
-                                              (context) =>
-                                                  CommandResponseWorkflowPage(
-                                                    initialWorkflow:
-                                                        _normalizeWorkflow(
-                                                          _responseWorkflow,
-                                                        ),
-                                                    variableSuggestions:
-                                                        _variableNames,
-                                                  ),
-                                        ),
-                                      );
-
-                                      if (nextWorkflow != null) {
+                              responseEmbeds: _responseEmbeds,
+                              onEmbedsChanged: (embeds) {
+                                setState(() {
+                                  _responseEmbeds = embeds;
+                                });
+                              },
+                              responseWorkflow: _responseWorkflow,
+                              normalizeWorkflow: _normalizeWorkflow,
+                              variableNames: _variableNames,
+                              onWorkflowChanged: (workflow) {
+                                setState(() {
+                                  _responseWorkflow = workflow;
+                                });
+                              },
+                              workflowSummary: _workflowSummary(),
+                            ),
+                            const SizedBox(height: 16),
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    const Text(
+                                      "Command Options",
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      "Slash-command parameters",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    OptionWidget(
+                                      initialOptions: _options,
+                                      onChange: (options) {
                                         setState(() {
-                                          _responseWorkflow =
-                                              _normalizeWorkflow(nextWorkflow);
+                                          _options = options;
                                         });
-                                      }
-                                    },
-                                    icon: const Icon(
-                                      Icons.account_tree_outlined,
+                                      },
                                     ),
-                                    label: const Text(
-                                      'Configure Response Workflow',
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    _workflowSummary(),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(height: 16),
-                            _buildSectionCard(
-                              title: "Command Options",
-                              subtitle: "Slash-command parameters",
-                              child: OptionWidget(
-                                initialOptions: _options,
-                                onChange: (options) {
-                                  setState(() {
-                                    _options = options;
-                                  });
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            _buildSectionCard(
-                              title: "Actions",
-                              subtitle:
-                                  "Build runtime actions for this command",
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      minimumSize: const Size.fromHeight(44),
-                                    ),
-                                    onPressed: () async {
-                                      final nextActions = await Navigator.push<
-                                        List<Map<String, dynamic>>
-                                      >(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder:
-                                              (context) => ActionsBuilderPage(
-                                                initialActions: _actions,
-                                              ),
-                                        ),
-                                      );
-
-                                      if (nextActions != null) {
-                                        setState(() {
-                                          _actions = nextActions;
-                                        });
-                                      }
-                                    },
-                                    child: Text(
-                                      "Build Actions (${_actions.length})",
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: [
-                                      OutlinedButton.icon(
-                                        onPressed:
-                                            _botIdForConfig == null
-                                                ? null
-                                                : () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder:
-                                                          (
-                                                            context,
-                                                          ) => GlobalVariablesPage(
-                                                            botId:
-                                                                _botIdForConfig!,
-                                                          ),
-                                                    ),
-                                                  );
-                                                },
-                                        icon: const Icon(Icons.key),
-                                        label: const Text('Global Variables'),
-                                      ),
-                                      OutlinedButton.icon(
-                                        onPressed:
-                                            _botIdForConfig == null
-                                                ? null
-                                                : () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder:
-                                                          (
-                                                            context,
-                                                          ) => WorkflowsPage(
-                                                            botId:
-                                                                _botIdForConfig!,
-                                                          ),
-                                                    ),
-                                                  );
-                                                },
-                                        icon: const Icon(Icons.account_tree),
-                                        label: const Text('Workflows'),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                            ActionsCard(
+                              actions: _actions,
+                              onActionsChanged: (val) {
+                                setState(() {
+                                  _actions = val;
+                                });
+                              },
+                              actionVariableSuggestions:
+                                  _actionVariableSuggestions,
+                              botIdForConfig: _botIdForConfig,
                             ),
                             const SizedBox(height: 20),
                           ],

@@ -249,6 +249,55 @@ class OptionWidgetState extends State<OptionWidget> {
                   },
                 ),
                 const SizedBox(height: 8),
+                if (options[index].type == CommandOptionType.integer ||
+                    options[index].type == CommandOptionType.number) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Min Value',
+                            border: OutlineInputBorder(),
+                          ),
+                          initialValue: options[index].minValue?.toString(),
+                          onChanged: (value) {
+                            setState(() {
+                              if (value.isEmpty) {
+                                options[index].minValue = null;
+                              } else {
+                                options[index].minValue = num.tryParse(value);
+                              }
+                              _updateWidget();
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextFormField(
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Max Value',
+                            border: OutlineInputBorder(),
+                          ),
+                          initialValue: options[index].maxValue?.toString(),
+                          onChanged: (value) {
+                            setState(() {
+                              if (value.isEmpty) {
+                                options[index].maxValue = null;
+                              } else {
+                                options[index].maxValue = num.tryParse(value);
+                              }
+                              _updateWidget();
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 Row(
                   children: [
                     const Text('Type'),
@@ -261,6 +310,12 @@ class OptionWidgetState extends State<OptionWidget> {
                           options[index].type = newValue;
                           if (!checkIfChoicesShouldBeVisible(newValue)) {
                             options[index].choices = null;
+                          }
+                          // clear min/max when type is not numeric
+                          if (newValue != CommandOptionType.integer &&
+                              newValue != CommandOptionType.number) {
+                            options[index].minValue = null;
+                            options[index].maxValue = null;
                           }
                           _updateWidget(); // Trigger the callback
                         });
@@ -284,6 +339,121 @@ class OptionWidgetState extends State<OptionWidget> {
                       _updateWidget(); // Trigger the callback
                     });
                   },
+                ),
+                ExpansionTile(
+                  title: const Text('Add Localizations'),
+                  childrenPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  children: [
+                    DropdownButtonFormField<Locale>(
+                      decoration: const InputDecoration(
+                        labelText: 'Select Language',
+                        border: OutlineInputBorder(),
+                      ),
+                      initialValue: Locale.fr,
+                      items:
+                          Locale.values.map((Locale locale) {
+                            return DropdownMenuItem<Locale>(
+                              value: locale,
+                              child: Text(locale.toString().split('.').last),
+                            );
+                          }).toList(),
+                      onChanged: (Locale? value) {
+                        if (value != null) {
+                          setState(() {
+                            options[index].nameLocalizations ??= {};
+                            options[index].descriptionLocalizations ??= {};
+                            if (!options[index].nameLocalizations!.containsKey(
+                              value,
+                            )) {
+                              options[index].nameLocalizations![value] = '';
+                              options[index].descriptionLocalizations![value] =
+                                  '';
+                            }
+                            _updateWidget();
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    if (options[index].nameLocalizations != null &&
+                        options[index].nameLocalizations!.isNotEmpty)
+                      ...options[index].nameLocalizations!.entries.map((entry) {
+                        final locale = entry.key;
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      locale.toString().split('.').last,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, size: 20),
+                                      onPressed: () {
+                                        setState(() {
+                                          options[index].nameLocalizations!
+                                              .remove(locale);
+                                          options[index]
+                                              .descriptionLocalizations!
+                                              .remove(locale);
+                                          _updateWidget();
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                TextFormField(
+                                  decoration: const InputDecoration(
+                                    labelText: 'Localized Name',
+                                    isDense: true,
+                                  ),
+                                  initialValue:
+                                      options[index].nameLocalizations![locale],
+                                  onChanged: (val) {
+                                    setState(() {
+                                      options[index]
+                                              .nameLocalizations![locale] =
+                                          val;
+                                      _updateWidget();
+                                    });
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  decoration: const InputDecoration(
+                                    labelText: 'Localized Description',
+                                    isDense: true,
+                                  ),
+                                  initialValue:
+                                      options[index]
+                                          .descriptionLocalizations![locale],
+                                  onChanged: (val) {
+                                    setState(() {
+                                      options[index]
+                                              .descriptionLocalizations![locale] =
+                                          val;
+                                      _updateWidget();
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 if (checkIfChoicesShouldBeVisible(options[index].type) &&

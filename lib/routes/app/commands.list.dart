@@ -95,8 +95,8 @@ class _AppCommandsPageState extends State<AppCommandsPage>
                               fontWeight: FontWeight.w400,
                             ),
                           ),
-                          onTap: () {
-                            Navigator.push(
+                          onTap: () async {
+                            await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder:
@@ -106,6 +106,10 @@ class _AppCommandsPageState extends State<AppCommandsPage>
                                     ),
                               ),
                             );
+                            if (!mounted) {
+                              return;
+                            }
+                            setState(() {});
                           },
                         ),
                       );
@@ -118,13 +122,17 @@ class _AppCommandsPageState extends State<AppCommandsPage>
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => CommandCreatePage(client: client),
             ),
           );
+          if (!mounted) {
+            return;
+          }
+          setState(() {});
         },
         label: const Text("Create command"),
         icon: const Icon(Icons.add),

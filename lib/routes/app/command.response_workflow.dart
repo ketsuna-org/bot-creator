@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:bot_creator/widgets/response_embeds_editor.dart';
 
 class CommandResponseWorkflowPage extends StatefulWidget {
   const CommandResponseWorkflowPage({
@@ -24,6 +25,24 @@ class _CommandResponseWorkflowPageState
   late TextEditingController _variableController;
   late TextEditingController _whenTrueController;
   late TextEditingController _whenFalseController;
+  late List<Map<String, dynamic>> _whenTrueEmbeds;
+  late List<Map<String, dynamic>> _whenFalseEmbeds;
+
+  List<Map<String, dynamic>> _normalizeEmbedsPayload(dynamic rawEmbeds) {
+    if (rawEmbeds is! List) {
+      return <Map<String, dynamic>>[];
+    }
+
+    return rawEmbeds
+        .whereType<Map>()
+        .map((embed) {
+          return Map<String, dynamic>.from(
+            embed.map((key, value) => MapEntry(key.toString(), value)),
+          );
+        })
+        .take(10)
+        .toList(growable: false);
+  }
 
   @override
   void initState() {
@@ -51,6 +70,8 @@ class _CommandResponseWorkflowPageState
     _whenFalseController = TextEditingController(
       text: (conditional['whenFalseText'] ?? '').toString(),
     );
+    _whenTrueEmbeds = _normalizeEmbedsPayload(conditional['whenTrueEmbeds']);
+    _whenFalseEmbeds = _normalizeEmbedsPayload(conditional['whenFalseEmbeds']);
   }
 
   @override
@@ -71,6 +92,8 @@ class _CommandResponseWorkflowPageState
         'variable': _variableController.text.trim(),
         'whenTrueText': _whenTrueController.text,
         'whenFalseText': _whenFalseController.text,
+        'whenTrueEmbeds': _whenTrueEmbeds,
+        'whenFalseEmbeds': _whenFalseEmbeds,
       },
     };
   }
@@ -207,6 +230,15 @@ class _CommandResponseWorkflowPageState
                     ),
                   ),
                   const SizedBox(height: 8),
+                  ResponseEmbedsEditor(
+                    embeds: _whenTrueEmbeds,
+                    onChanged: (embeds) {
+                      setState(() {
+                        _whenTrueEmbeds = embeds;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _whenFalseController,
                     maxLines: 3,
@@ -215,6 +247,15 @@ class _CommandResponseWorkflowPageState
                       labelText: 'ELSE response text (optional)',
                       border: OutlineInputBorder(),
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  ResponseEmbedsEditor(
+                    embeds: _whenFalseEmbeds,
+                    onChanged: (embeds) {
+                      setState(() {
+                        _whenFalseEmbeds = embeds;
+                      });
+                    },
                   ),
                 ],
               ),

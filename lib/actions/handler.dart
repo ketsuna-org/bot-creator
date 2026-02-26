@@ -197,22 +197,89 @@ Future<Map<String, String>> handleActions(
     try {
       switch (action.type) {
         case BotCreatorActionType.deleteMessages:
+          final resolvedChannelIdRaw = resolveValue(
+            (action.payload['channelId'] ?? '').toString(),
+          );
           final channelId =
-              _toSnowflake(action.payload['channelId']) ?? fallbackChannelId;
+              _toSnowflake(resolvedChannelIdRaw) ?? fallbackChannelId;
           if (channelId == null) {
             throw Exception('Missing or invalid channelId for deleteMessages');
           }
 
+          final rawCount = action.payload['messageCount'];
+          final resolvedCountRaw = resolveValue((rawCount ?? '').toString());
+          double? parsedCount = double.tryParse(resolvedCountRaw);
+          final count =
+              parsedCount != null
+                  ? parsedCount.round()
+                  : (rawCount is num ? rawCount.toInt() : 0);
+
+          final onlyUserId = resolveValue(
+            (action.payload['onlyUserId'] ?? '').toString(),
+          );
+
+          // optional before message id for deleting messages above
+          final beforeRaw = resolveValue(
+            (action.payload['beforeMessageId'] ?? '').toString(),
+          );
+          Snowflake? beforeMessageId = _toSnowflake(beforeRaw);
+          // when beforeMessageId is null we will fetch recent messages (no
+          // restriction). this means count=1 will remove the last message in
+          // the channel. deleteItself only works when a specific message ID is
+          // supplied, since otherwise we have nothing to delete.
+
+          // optional flag to delete the command message itself
+          final deleteItselfRaw =
+              resolveValue(
+                (action.payload['deleteItself'] ?? '').toString(),
+              ).toLowerCase();
+          bool deleteItself = false;
+          if (deleteItselfRaw.isNotEmpty) {
+            if (deleteItselfRaw == 'true' ||
+                deleteItselfRaw == 'yes' ||
+                deleteItselfRaw == 'y' ||
+                deleteItselfRaw == '1') {
+              deleteItself = true;
+            } else {
+              final num? numVal = num.tryParse(deleteItselfRaw);
+              if (numVal != null && numVal > 0) {
+                deleteItself = true;
+              }
+            }
+          }
+
+          Snowflake? commandMessageId;
+          try {
+            final resp = await interaction.fetchOriginalResponse();
+            commandMessageId = resp.id;
+          } catch (_) {}
+
           final result = await deleteMessage(
             client,
             channelId,
-            count: action.payload['messageCount'] ?? 0,
-            onlyThisUserID: action.payload['onlyUserId']?.toString() ?? '',
+            count: count,
+            onlyThisUserID: onlyUserId,
+            beforeMessageId: beforeMessageId,
+            deleteItself: deleteItself,
+            commandMessageId: commandMessageId,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
           }
-          results[resultKey] = result['count'] ?? '0';
+          final deletedCount = result['count'] ?? '0';
+          results[resultKey] = deletedCount;
+          variables['action.$resultKey.count'] = deletedCount;
+          variables['$resultKey.count'] = deletedCount;
+          // propagate flag for external handling (e.g. deleting bot response)
+          if (deleteItself) {
+            // propagate both legacy flag and explicit response-deletion flag
+            variables['action.$resultKey.deleteItself'] =
+                deleteItself.toString();
+            variables['$resultKey.deleteItself'] = deleteItself.toString();
+            variables['action.$resultKey.deleteResponse'] =
+                deleteItself.toString();
+            variables['$resultKey.deleteResponse'] = deleteItself.toString();
+          }
           break;
         case BotCreatorActionType.createChannel:
           if (guildId == null) {

@@ -22,6 +22,18 @@ enum ParameterType {
   multiSelect,
 }
 
+enum VariableSuggestionKind { numeric, nonNumeric, unknown }
+
+class VariableSuggestion {
+  final String name;
+  final VariableSuggestionKind kind;
+
+  const VariableSuggestion({required this.name, required this.kind});
+
+  bool get isNumeric => kind == VariableSuggestionKind.numeric;
+  bool get isUnknown => kind == VariableSuggestionKind.unknown;
+}
+
 // Modèle pour définir un paramètre avec son type
 class ParameterDefinition {
   final String key;
@@ -62,6 +74,14 @@ class ActionItem {
   });
 
   factory ActionItem.fromJson(Map<String, dynamic> json) {
+    final parameters = Map<String, dynamic>.from(
+      (json['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final persistedKey = (json['key'] ?? '').toString().trim();
+    if (persistedKey.isNotEmpty) {
+      parameters['key'] = persistedKey;
+    }
+
     return ActionItem(
       id: (json['id'] ?? '').toString(),
       type: BotCreatorActionType.values.firstWhere(
@@ -76,9 +96,7 @@ class ActionItem {
                   )['mode'] ??
                   'stop')
               .toString(),
-      parameters: Map<String, dynamic>.from(
-        (json['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
-      ),
+      parameters: parameters,
     );
   }
 
@@ -249,8 +267,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'channelId',
             type: ParameterType.channelId,
             defaultValue: '',
-            hint: 'Select channel to delete messages from',
-            required: true,
+            hint: 'Optional: target channel (uses current channel if empty)',
           ),
           ParameterDefinition(
             key: 'messageCount',
@@ -259,6 +276,26 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             hint: 'Number of messages to delete',
             minValue: 1,
             maxValue: 100,
+          ),
+          ParameterDefinition(
+            key: 'onlyUserId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'Optional: only delete messages from this user',
+          ),
+          ParameterDefinition(
+            key: 'beforeMessageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint:
+                'Optional: delete messages posted before the given message ID',
+          ),
+          ParameterDefinition(
+            key: 'deleteItself',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint:
+                'If true and beforeMessageId is set, also delete that message',
           ),
           ParameterDefinition(
             key: 'reason',
@@ -679,8 +716,13 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
 
 class ActionsBuilderPage extends StatefulWidget {
   final List<Map<String, dynamic>> initialActions;
+  final List<VariableSuggestion> variableSuggestions;
 
-  const ActionsBuilderPage({super.key, this.initialActions = const []});
+  const ActionsBuilderPage({
+    super.key,
+    this.initialActions = const [],
+    this.variableSuggestions = const [],
+  });
 
   @override
   State<ActionsBuilderPage> createState() => _ActionsBuilderPageState();
@@ -688,6 +730,7 @@ class ActionsBuilderPage extends StatefulWidget {
 
 class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
   final List<ActionItem> _actions = [];
+  final Map<String, int> _fieldRefreshVersions = {};
   int _actionCounter = 0;
 
   @override
@@ -715,10 +758,18 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
   void _removeAction(String actionId) {
     setState(() {
       _actions.removeWhere((action) => action.id == actionId);
+      _fieldRefreshVersions.removeWhere(
+        (compositeKey, _) => compositeKey.startsWith('$actionId::'),
+      );
     });
   }
 
-  void _updateActionParameter(String actionId, String key, dynamic value) {
+  void _updateActionParameter(
+    String actionId,
+    String key,
+    dynamic value, {
+    bool forceFieldRefresh = false,
+  }) {
     setState(() {
       final actionIndex = _actions.indexWhere(
         (action) => action.id == actionId,
@@ -736,6 +787,11 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         }
 
         _actions[actionIndex].parameters[key] = value;
+        if (forceFieldRefresh) {
+          final compositeKey = '$actionId::$key';
+          _fieldRefreshVersions[compositeKey] =
+              (_fieldRefreshVersions[compositeKey] ?? 0) + 1;
+        }
       }
     });
   }
@@ -779,6 +835,18 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
 
   void _showAddActionDialog() {
     final maxHeight = MediaQuery.of(context).size.height * 0.7;
+    final actionsByCategory = <String, List<BotCreatorActionType>>{};
+
+    for (final actionType in BotCreatorActionType.values) {
+      final category = _getCategoryForAction(actionType);
+      actionsByCategory.putIfAbsent(category, () => <BotCreatorActionType>[]);
+      actionsByCategory[category]!.add(actionType);
+    }
+
+    for (final entry in actionsByCategory.entries) {
+      entry.value.sort((a, b) => a.displayName.compareTo(b.displayName));
+    }
+
     showDialog(
       context: context,
       builder:
@@ -806,24 +874,10 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildActionCategory('Messages', [
-                            BotCreatorActionType.sendMessage,
-                            BotCreatorActionType.deleteMessages,
-                          ]),
-                          _buildActionCategory('Channels', [
-                            BotCreatorActionType.createChannel,
-                            BotCreatorActionType.removeChannel,
-                          ]),
-                          _buildActionCategory('HTTP & Variables', [
-                            BotCreatorActionType.httpRequest,
-                            BotCreatorActionType.setGlobalVariable,
-                            BotCreatorActionType.getGlobalVariable,
-                            BotCreatorActionType.removeGlobalVariable,
-                            BotCreatorActionType.listGlobalVariables,
-                          ]),
-                          _buildActionCategory('Workflows', [
-                            BotCreatorActionType.runWorkflow,
-                          ]),
+                          ...actionsByCategory.entries.map(
+                            (entry) =>
+                                _buildActionCategory(entry.key, entry.value),
+                          ),
                         ],
                       ),
                     ),
@@ -839,6 +893,54 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
             ],
           ),
     );
+  }
+
+  String _getCategoryForAction(BotCreatorActionType type) {
+    switch (type) {
+      case BotCreatorActionType.sendMessage:
+      case BotCreatorActionType.editMessage:
+      case BotCreatorActionType.deleteMessages:
+      case BotCreatorActionType.pinMessage:
+        return 'Messages';
+      case BotCreatorActionType.addReaction:
+      case BotCreatorActionType.removeReaction:
+      case BotCreatorActionType.clearAllReactions:
+        return 'Reactions';
+      case BotCreatorActionType.createChannel:
+      case BotCreatorActionType.updateChannel:
+      case BotCreatorActionType.removeChannel:
+        return 'Channels';
+      case BotCreatorActionType.banUser:
+      case BotCreatorActionType.unbanUser:
+      case BotCreatorActionType.kickUser:
+      case BotCreatorActionType.muteUser:
+      case BotCreatorActionType.unmuteUser:
+        return 'Moderation';
+      case BotCreatorActionType.sendComponentV2:
+      case BotCreatorActionType.editComponentV2:
+        return 'Components';
+      case BotCreatorActionType.sendWebhook:
+      case BotCreatorActionType.editWebhook:
+      case BotCreatorActionType.deleteWebhook:
+      case BotCreatorActionType.listWebhooks:
+      case BotCreatorActionType.getWebhook:
+        return 'Webhooks';
+      case BotCreatorActionType.updateGuild:
+      case BotCreatorActionType.updateAutoMod:
+      case BotCreatorActionType.listMembers:
+      case BotCreatorActionType.getMember:
+        return 'Guild & Members';
+      case BotCreatorActionType.makeList:
+        return 'Utilities';
+      case BotCreatorActionType.httpRequest:
+      case BotCreatorActionType.setGlobalVariable:
+      case BotCreatorActionType.getGlobalVariable:
+      case BotCreatorActionType.removeGlobalVariable:
+      case BotCreatorActionType.listGlobalVariables:
+        return 'HTTP & Variables';
+      case BotCreatorActionType.runWorkflow:
+        return 'Workflows';
+    }
   }
 
   Widget _buildActionCategory(
@@ -1029,10 +1131,29 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
                       itemCount: _actions.length,
                       itemBuilder: (context, index) {
                         final action = _actions[index];
+                        final computedActionKey =
+                            (action.parameters['key'] ?? action.id)
+                                .toString()
+                                .trim();
                         return ActionCard(
                           action: action,
-                          actionKey: action.type.name,
+                          actionKey:
+                              computedActionKey.isNotEmpty
+                                  ? computedActionKey
+                                  : action.type.name,
                           onRemove: () => _removeAction(action.id),
+                          variableSuggestions: widget.variableSuggestions,
+                          fieldRefreshVersionOf:
+                              (paramKey) =>
+                                  _fieldRefreshVersions['${action.id}::$paramKey'] ??
+                                  0,
+                          onSuggestionSelected:
+                              (key, value) => _updateActionParameter(
+                                action.id,
+                                key,
+                                value,
+                                forceFieldRefresh: true,
+                              ),
                           onParameterChanged:
                               (key, value) =>
                                   _updateActionParameter(action.id, key, value),
@@ -1068,6 +1189,9 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
 class ActionCard extends StatelessWidget {
   final ActionItem action;
   final String actionKey;
+  final List<VariableSuggestion> variableSuggestions;
+  final int Function(String paramKey) fieldRefreshVersionOf;
+  final Function(String key, dynamic value) onSuggestionSelected;
   final VoidCallback onRemove;
   final Function(String key, dynamic value) onParameterChanged;
 
@@ -1076,8 +1200,16 @@ class ActionCard extends StatelessWidget {
     required this.action,
     required this.onRemove,
     required this.onParameterChanged,
+    required this.onSuggestionSelected,
+    required this.fieldRefreshVersionOf,
     required this.actionKey,
+    required this.variableSuggestions,
   });
+
+  Key _parameterInputKey(String paramKey) {
+    final version = fieldRefreshVersionOf(paramKey);
+    return ValueKey('param-input-${action.id}-$paramKey-v$version');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1109,6 +1241,7 @@ class ActionCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             TextFormField(
+              key: ValueKey('action-key-${action.id}'),
               initialValue: actionKey,
               decoration: const InputDecoration(
                 labelText: 'Action Key',
@@ -1212,8 +1345,9 @@ class ActionCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             TextFormField(
+              key: _parameterInputKey(paramDef.key),
               initialValue: (currentValue ?? paramDef.defaultValue).toString(),
-              keyboardType: TextInputType.number,
+              keyboardType: TextInputType.text,
               decoration: InputDecoration(
                 hintText: paramDef.hint,
                 border: const OutlineInputBorder(),
@@ -1224,7 +1358,13 @@ class ActionCard extends StatelessWidget {
                         : null,
               ),
               onChanged: (newValue) {
-                final intValue = int.tryParse(newValue);
+                final trimmed = newValue.trim();
+                if (trimmed.isEmpty) {
+                  onParameterChanged(paramDef.key, '');
+                  return;
+                }
+
+                final intValue = int.tryParse(trimmed);
                 if (intValue != null) {
                   // Vérifier les limites
                   if (paramDef.minValue != null &&
@@ -1236,8 +1376,16 @@ class ActionCard extends StatelessWidget {
                     return;
                   }
                   onParameterChanged(paramDef.key, intValue);
+                  return;
                 }
+
+                onParameterChanged(paramDef.key, trimmed);
               },
+            ),
+            ..._buildVariableSuggestionsForParam(
+              paramKey: paramDef.key,
+              value: currentValue,
+              isNumericField: true,
             ),
           ],
         );
@@ -1320,6 +1468,10 @@ class ActionCard extends StatelessWidget {
               onChanged:
                   (newValue) => onParameterChanged(paramDef.key, newValue),
             ),
+            ..._buildVariableSuggestionsForParam(
+              paramKey: paramDef.key,
+              value: currentValue,
+            ),
           ],
         );
 
@@ -1333,6 +1485,7 @@ class ActionCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             TextFormField(
+              key: _parameterInputKey(paramDef.key),
               initialValue: (currentValue ?? paramDef.defaultValue).toString(),
               decoration: InputDecoration(
                 hintText: paramDef.hint ?? 'e.g., 5m, 1h, 30s',
@@ -1342,6 +1495,10 @@ class ActionCard extends StatelessWidget {
               ),
               onChanged:
                   (newValue) => onParameterChanged(paramDef.key, newValue),
+            ),
+            ..._buildVariableSuggestionsForParam(
+              paramKey: paramDef.key,
+              value: currentValue,
             ),
           ],
         );
@@ -1356,6 +1513,7 @@ class ActionCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             TextFormField(
+              key: _parameterInputKey(paramDef.key),
               initialValue: (currentValue ?? paramDef.defaultValue).toString(),
               keyboardType: TextInputType.url,
               decoration: InputDecoration(
@@ -1366,6 +1524,10 @@ class ActionCard extends StatelessWidget {
               ),
               onChanged:
                   (newValue) => onParameterChanged(paramDef.key, newValue),
+            ),
+            ..._buildVariableSuggestionsForParam(
+              paramKey: paramDef.key,
+              value: currentValue,
             ),
           ],
         );
@@ -1383,6 +1545,7 @@ class ActionCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             TextFormField(
+              key: _parameterInputKey(paramDef.key),
               initialValue: (currentValue ?? paramDef.defaultValue).toString(),
               decoration: InputDecoration(
                 hintText: paramDef.hint ?? 'Enter ${paramDef.type.name}',
@@ -1409,6 +1572,7 @@ class ActionCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextFormField(
+                    key: _parameterInputKey(paramDef.key),
                     initialValue:
                         (currentValue ?? paramDef.defaultValue).toString(),
                     decoration: InputDecoration(
@@ -1436,6 +1600,10 @@ class ActionCard extends StatelessWidget {
                 ),
               ],
             ),
+            ..._buildVariableSuggestionsForParam(
+              paramKey: paramDef.key,
+              value: currentValue,
+            ),
           ],
         );
 
@@ -1452,6 +1620,7 @@ class ActionCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextFormField(
+                    key: _parameterInputKey(paramDef.key),
                     initialValue:
                         (currentValue ?? paramDef.defaultValue).toString(),
                     decoration: InputDecoration(
@@ -1480,6 +1649,10 @@ class ActionCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            ..._buildVariableSuggestionsForParam(
+              paramKey: paramDef.key,
+              value: currentValue,
             ),
           ],
         );
@@ -1538,6 +1711,7 @@ class ActionCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             TextFormField(
+              key: _parameterInputKey(paramDef.key),
               initialValue: (currentValue ?? paramDef.defaultValue).toString(),
               maxLines: paramDef.key.toLowerCase().contains('content') ? 3 : 1,
               decoration: InputDecoration(
@@ -1548,9 +1722,117 @@ class ActionCard extends StatelessWidget {
               onChanged:
                   (newValue) => onParameterChanged(paramDef.key, newValue),
             ),
+            ..._buildVariableSuggestionsForParam(
+              paramKey: paramDef.key,
+              value: currentValue,
+            ),
           ],
         );
     }
+  }
+
+  List<Widget> _buildVariableSuggestionsForParam({
+    required String paramKey,
+    required dynamic value,
+    bool isNumericField = false,
+  }) {
+    final rawValue = value?.toString() ?? '';
+    final query = _extractPlaceholderQuery(rawValue);
+    if (query == null) {
+      return const [];
+    }
+
+    final normalizedQuery = query.trim().toLowerCase();
+    final filteredByKind =
+        isNumericField
+            ? variableSuggestions.where(
+              (item) => item.isNumeric || item.isUnknown,
+            )
+            : variableSuggestions;
+
+    final suggestions =
+        filteredByKind
+            .where(
+              (item) =>
+                  normalizedQuery.isEmpty ||
+                  item.name.toLowerCase().contains(normalizedQuery),
+            )
+            .take(8)
+            .toList();
+
+    if (suggestions.isEmpty) {
+      return const [];
+    }
+
+    return [
+      const SizedBox(height: 8),
+      Text(
+        isNumericField
+            ? 'Dynamic numeric suggestions'
+            : 'Dynamic variable suggestions',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+      ),
+      const SizedBox(height: 6),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children:
+            suggestions
+                .map(
+                  (item) => ActionChip(
+                    label: Text('((${item.name}))'),
+                    onPressed: () {
+                      final nextValue = _insertVariableInOpenPlaceholder(
+                        rawValue,
+                        item.name,
+                      );
+                      onSuggestionSelected(paramKey, nextValue);
+                    },
+                  ),
+                )
+                .toList(),
+      ),
+    ];
+  }
+
+  String? _extractPlaceholderQuery(String input) {
+    final start = input.lastIndexOf('((');
+    if (start == -1) {
+      return null;
+    }
+
+    final afterStart = input.substring(start + 2);
+    if (afterStart.contains('))')) {
+      return null;
+    }
+
+    final parts = afterStart.split('|');
+    return parts.last.trimLeft();
+  }
+
+  String _insertVariableInOpenPlaceholder(String input, String variableName) {
+    final start = input.lastIndexOf('((');
+    if (start == -1) {
+      return '(($variableName))';
+    }
+
+    final beforeStart = input.substring(0, start);
+    final afterStart = input.substring(start + 2);
+
+    if (afterStart.contains('))')) {
+      return input;
+    }
+
+    final parts = afterStart.split('|');
+    final prefixParts =
+        parts.length > 1 ? parts.sublist(0, parts.length - 1) : <String>[];
+    final previous = prefixParts
+        .map((entry) => entry.trim())
+        .where((e) => e.isNotEmpty);
+    final merged = [...previous, variableName];
+    final inner = merged.join(' | ');
+
+    return '$beforeStart(($inner))';
   }
 
   // Méthodes utilitaires
