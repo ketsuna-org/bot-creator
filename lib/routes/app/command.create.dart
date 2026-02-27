@@ -24,7 +24,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   List<CommandOptionBuilder> _options = [];
   String _response = "";
   final TextEditingController _responseController = TextEditingController();
+  String _responseType = 'normal';
   List<Map<String, dynamic>> _responseEmbeds = [];
+  Map<String, dynamic> _responseComponents = {};
+  Map<String, dynamic> _responseModal = {};
   List<Map<String, dynamic>> _actions = [];
   Map<String, dynamic> _responseWorkflow = _defaultWorkflow();
   bool _isLoading = true;
@@ -226,9 +229,17 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         }
 
         setState(() {
+          _responseType = (response['type'] ?? 'normal').toString();
           _response = (response["text"] ?? "").toString();
           _responseController.text = _response;
           _responseEmbeds = embeds.take(10).toList();
+          _responseComponents = Map<String, dynamic>.from(
+            (response['components'] as Map?)?.cast<String, dynamic>() ??
+                const {},
+          );
+          _responseModal = Map<String, dynamic>.from(
+            (response['modal'] as Map?)?.cast<String, dynamic>() ?? const {},
+          );
           _responseWorkflow = _normalizeWorkflow(
             Map<String, dynamic>.from(
               (response['workflow'] as Map?)?.cast<String, dynamic>() ??
@@ -325,12 +336,15 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       "version": 1,
       "response": {
         "mode": _responseEmbeds.isNotEmpty ? "embed" : "text",
+        "type": _responseType,
         "text": _responseController.text,
         "embed":
             _responseEmbeds.isNotEmpty
                 ? _responseEmbeds.first
                 : {"title": "", "description": "", "url": ""},
         "embeds": _responseEmbeds.take(10).toList(),
+        "components": _responseComponents,
+        "modal": _responseModal,
         "workflow": _normalizeWorkflow(_responseWorkflow),
       },
       "actions": _actions,
@@ -984,6 +998,12 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                             ),
                             const SizedBox(height: 12),
                             ReplyCard(
+                              responseType: _responseType,
+                              onResponseTypeChanged: (type) {
+                                setState(() {
+                                  _responseType = type;
+                                });
+                              },
                               responseController: _responseController,
                               variableSuggestionBar:
                                   _buildVariableSuggestionBar(
@@ -993,6 +1013,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               onEmbedsChanged: (embeds) {
                                 setState(() {
                                   _responseEmbeds = embeds;
+                                });
+                              },
+                              responseComponents: _responseComponents,
+                              onComponentsChanged: (components) {
+                                setState(() {
+                                  _responseComponents = components;
+                                });
+                              },
+                              responseModal: _responseModal,
+                              onModalChanged: (modal) {
+                                setState(() {
+                                  _responseModal = modal;
                                 });
                               },
                               responseWorkflow: _responseWorkflow,

@@ -72,6 +72,16 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return 'List Global Variables';
       case BotCreatorActionType.runWorkflow:
         return 'Run Workflow';
+      case BotCreatorActionType.respondWithComponentV2:
+        return 'Respond with ComponentV2';
+      case BotCreatorActionType.respondWithModal:
+        return 'Respond with Modal';
+      case BotCreatorActionType.editInteractionMessage:
+        return 'Edit Interaction Message';
+      case BotCreatorActionType.listenForButtonClick:
+        return 'Listen for Button Click';
+      case BotCreatorActionType.listenForModalSubmit:
+        return 'Listen for Modal Submit';
     }
   }
 
@@ -143,6 +153,16 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.inventory_2;
       case BotCreatorActionType.runWorkflow:
         return Icons.account_tree;
+      case BotCreatorActionType.respondWithComponentV2:
+        return Icons.dashboard_customize;
+      case BotCreatorActionType.respondWithModal:
+        return Icons.input;
+      case BotCreatorActionType.editInteractionMessage:
+        return Icons.edit_notifications;
+      case BotCreatorActionType.listenForButtonClick:
+        return Icons.touch_app;
+      case BotCreatorActionType.listenForModalSubmit:
+        return Icons.dynamic_form;
     }
   }
 
@@ -202,6 +222,16 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.boolean,
             defaultValue: false,
             hint: 'Only delete user messages',
+          ),
+        ];
+      case BotCreatorActionType.removeChannel:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Channel to remove',
+            required: true,
           ),
         ];
       case BotCreatorActionType.createChannel:
@@ -325,6 +355,12 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             defaultValue: false,
             hint: 'Only visible to user',
           ),
+          ParameterDefinition(
+            key: 'componentV2',
+            type: ParameterType.componentV2,
+            defaultValue: null,
+            hint: 'Attach Component V2 interactive elements (optional)',
+          ),
         ];
       case BotCreatorActionType.editMessage:
         return [
@@ -354,6 +390,12 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             defaultValue: false,
             hint: 'Update embeds',
           ),
+          ParameterDefinition(
+            key: 'componentV2',
+            type: ParameterType.componentV2,
+            defaultValue: null,
+            hint: 'Edit Component V2 interactive elements (optional)',
+          ),
         ];
       case BotCreatorActionType.banUser:
         return [
@@ -377,6 +419,82 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             hint: 'Days of messages to delete',
             minValue: 0,
             maxValue: 7,
+          ),
+        ];
+      case BotCreatorActionType.unbanUser:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'User to unban',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Unban reason',
+          ),
+        ];
+      case BotCreatorActionType.kickUser:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'User to kick',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Kick reason',
+          ),
+        ];
+      case BotCreatorActionType.muteUser:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'User/Member to mute',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'duration',
+            type: ParameterType.duration,
+            defaultValue: '10m',
+            hint: 'Mute duration (e.g. 10m, 1h)',
+          ),
+          ParameterDefinition(
+            key: 'until',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Or specify explicit until datetime ISO8601',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Mute reason',
+          ),
+        ];
+      case BotCreatorActionType.unmuteUser:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'User/Member to unmute',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Unmute reason',
           ),
         ];
       case BotCreatorActionType.makeList:
@@ -405,6 +523,375 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: ', ',
             hint: 'Item separator',
+          ),
+        ];
+      case BotCreatorActionType.addReaction:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint:
+                'Optional: Channel containing message (uses current channel if empty)',
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint: 'Message to react to',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'emoji',
+            type: ParameterType.emoji,
+            defaultValue: '',
+            hint: 'Emoji to add (e.g. 🐶 or <:name:id>)',
+            required: true,
+          ),
+        ];
+      case BotCreatorActionType.removeReaction:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint:
+                'Optional: Channel containing message (uses current channel if empty)',
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint: 'Message to remove reaction from',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'emoji',
+            type: ParameterType.emoji,
+            defaultValue: '',
+            hint: 'Emoji to remove (e.g. 🐶 or <:name:id>)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'Optional: Specific user whose reaction to remove',
+          ),
+          ParameterDefinition(
+            key: 'removeOwn',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Remove bot\'s own reaction',
+          ),
+        ];
+      case BotCreatorActionType.clearAllReactions:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint:
+                'Optional: Channel containing message (uses current channel if empty)',
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint: 'Message to clear reactions from',
+            required: true,
+          ),
+        ];
+      case BotCreatorActionType.pinMessage:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint:
+                'Optional: Channel containing message (uses current channel if empty)',
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint: 'Message to pin',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Pin reason',
+          ),
+        ];
+      case BotCreatorActionType.updateGuild:
+        return [
+          ParameterDefinition(
+            key: 'name',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'New guild name',
+          ),
+          ParameterDefinition(
+            key: 'description',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'New guild description',
+          ),
+          ParameterDefinition(
+            key: 'preferredLocale',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Preferred locale (e.g. en-US)',
+          ),
+          ParameterDefinition(
+            key: 'afkChannelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'AFK voice channel',
+          ),
+          ParameterDefinition(
+            key: 'afkTimeoutSeconds',
+            type: ParameterType.number,
+            defaultValue: 300,
+            hint: 'AFK timeout in seconds',
+          ),
+          ParameterDefinition(
+            key: 'systemChannelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'System messages channel',
+          ),
+          ParameterDefinition(
+            key: 'rulesChannelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Rules channel',
+          ),
+          ParameterDefinition(
+            key: 'publicUpdatesChannelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Public updates channel',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Update reason',
+          ),
+        ];
+      case BotCreatorActionType.listMembers:
+        return [
+          ParameterDefinition(
+            key: 'limit',
+            type: ParameterType.number,
+            defaultValue: 100,
+            hint: 'Max members to return (1-1000)',
+            minValue: 1,
+            maxValue: 1000,
+          ),
+          ParameterDefinition(
+            key: 'after',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'Fetch members after this ID',
+          ),
+          ParameterDefinition(
+            key: 'query',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Search members by username/nickname',
+          ),
+        ];
+      case BotCreatorActionType.getMember:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'User/Member to fetch',
+            required: true,
+          ),
+        ];
+      case BotCreatorActionType.sendComponentV2:
+        return [
+          ParameterDefinition(
+            key: 'components',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Component definitions (Not implemented yet)',
+          ),
+        ];
+      case BotCreatorActionType.editComponentV2:
+        return [
+          ParameterDefinition(
+            key: 'components',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Component definitions (Not implemented yet)',
+          ),
+        ];
+      case BotCreatorActionType.sendWebhook:
+        return [
+          ParameterDefinition(
+            key: 'webhookUrl',
+            type: ParameterType.url,
+            defaultValue: '',
+            hint: 'Full webhook URL (or provide ID + token separately)',
+          ),
+          ParameterDefinition(
+            key: 'webhookId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Webhook ID',
+          ),
+          ParameterDefinition(
+            key: 'token',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Webhook Token',
+          ),
+          ParameterDefinition(
+            key: 'content',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Message content',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'username',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Override webhook username',
+          ),
+          ParameterDefinition(
+            key: 'avatarUrl',
+            type: ParameterType.url,
+            defaultValue: '',
+            hint: 'Override webhook avatar URL',
+          ),
+          ParameterDefinition(
+            key: 'threadId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Send in specific thread',
+          ),
+          ParameterDefinition(
+            key: 'wait',
+            type: ParameterType.boolean,
+            defaultValue: true,
+            hint: 'Wait for message creation to complete',
+          ),
+          ParameterDefinition(
+            key: 'componentV2',
+            type: ParameterType.componentV2,
+            defaultValue: null,
+            hint: 'Attach Component V2 interactive elements (optional)',
+          ),
+        ];
+      case BotCreatorActionType.editWebhook:
+        return [
+          ParameterDefinition(
+            key: 'webhookUrl',
+            type: ParameterType.url,
+            defaultValue: '',
+            hint: 'Full webhook URL (or provide ID + token separately)',
+          ),
+          ParameterDefinition(
+            key: 'webhookId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Webhook ID',
+          ),
+          ParameterDefinition(
+            key: 'token',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Webhook Token',
+          ),
+          ParameterDefinition(
+            key: 'name',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'New webhook name',
+          ),
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Move to new channel',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Edit reason',
+          ),
+        ];
+      case BotCreatorActionType.deleteWebhook:
+        return [
+          ParameterDefinition(
+            key: 'webhookUrl',
+            type: ParameterType.url,
+            defaultValue: '',
+            hint: 'Full webhook URL (or provide ID + token separately)',
+          ),
+          ParameterDefinition(
+            key: 'webhookId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Webhook ID',
+          ),
+          ParameterDefinition(
+            key: 'token',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Webhook Token',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Delete reason',
+          ),
+        ];
+      case BotCreatorActionType.listWebhooks:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Fetch webhooks in channel (fallback to current channel)',
+          ),
+          ParameterDefinition(
+            key: 'guildId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Or fetch all webhooks in guild',
+          ),
+        ];
+      case BotCreatorActionType.getWebhook:
+        return [
+          ParameterDefinition(
+            key: 'webhookUrl',
+            type: ParameterType.url,
+            defaultValue: '',
+            hint: 'Full webhook URL (or provide ID + token separately)',
+          ),
+          ParameterDefinition(
+            key: 'webhookId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Webhook ID',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'token',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Webhook Token (required to get webhook without auth)',
           ),
         ];
       case BotCreatorActionType.updateAutoMod:
@@ -562,37 +1049,123 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             required: true,
           ),
         ];
-      default:
-        // Fallback pour les autres actions - convertir les anciens paramètres
-        return _convertLegacyParameters();
+      case BotCreatorActionType.respondWithComponentV2:
+        return [
+          ParameterDefinition(
+            key: 'content',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional text above the components',
+          ),
+          ParameterDefinition(
+            key: 'components',
+            type: ParameterType.componentV2,
+            defaultValue: <String, dynamic>{},
+            hint: 'Component V2 layout builder',
+          ),
+          ParameterDefinition(
+            key: 'ephemeral',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Only visible to command author',
+          ),
+        ];
+      case BotCreatorActionType.respondWithModal:
+        return [
+          ParameterDefinition(
+            key: 'modal',
+            type: ParameterType.modalDefinition,
+            defaultValue: <String, dynamic>{},
+            hint: 'Modal dialog definition',
+            required: true,
+          ),
+        ];
+      case BotCreatorActionType.editInteractionMessage:
+        return [
+          ParameterDefinition(
+            key: 'content',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'New text content (leave empty to keep current)',
+          ),
+          ParameterDefinition(
+            key: 'components',
+            type: ParameterType.componentV2,
+            defaultValue: <String, dynamic>{},
+            hint: 'New component layout (leave empty to keep current)',
+          ),
+          ParameterDefinition(
+            key: 'clearComponents',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Remove all components from the message',
+          ),
+        ];
+      case BotCreatorActionType.listenForButtonClick:
+        return [
+          ParameterDefinition(
+            key: 'customId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Button customId to listen for (supports ((variables)))',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'workflowName',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Workflow to run when button is clicked',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'ttlMinutes',
+            type: ParameterType.number,
+            defaultValue: 60,
+            hint: 'Listener TTL in minutes (max 60)',
+            minValue: 1,
+            maxValue: 60,
+          ),
+          ParameterDefinition(
+            key: 'oneShot',
+            type: ParameterType.boolean,
+            defaultValue: true,
+            hint: 'Remove listener after first click',
+          ),
+        ];
+      case BotCreatorActionType.listenForModalSubmit:
+        return [
+          ParameterDefinition(
+            key: 'customId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Modal customId to listen for',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'workflowName',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Workflow to run when modal is submitted',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'ttlMinutes',
+            type: ParameterType.number,
+            defaultValue: 60,
+            hint: 'Listener TTL in minutes (max 60)',
+            minValue: 1,
+            maxValue: 60,
+          ),
+        ];
     }
   }
 
-  List<ParameterDefinition> _convertLegacyParameters() {
-    final params = defaultParameters;
-    return params.entries.map((entry) {
-      ParameterType type = ParameterType.string;
-      if (entry.value is bool) {
-        type = ParameterType.boolean;
-      } else if (entry.value is int || entry.value is double) {
-        type = ParameterType.number;
-      } else if (entry.value is List) {
-        type = ParameterType.list;
-      } else if (entry.key.toLowerCase().contains('id')) {
-        type = ParameterType.string;
-      } else if (entry.key.toLowerCase().contains('url')) {
-        type = ParameterType.url;
-      }
-      return ParameterDefinition(
-        key: entry.key,
-        type: type,
-        defaultValue: entry.value,
-        hint: 'Enter ${entry.key}',
-      );
-    }).toList();
-  }
-
   Map<String, dynamic> get defaultParameters {
+    if (parameterDefinitions.isEmpty) {
+      // Fallback behavior if no explicit parameter defs defined for this type yet
+      return {};
+    }
+
     // Générer les paramètres par défaut à partir des définitions
     final Map<String, dynamic> params = {};
     for (final def in parameterDefinitions) {

@@ -1,4 +1,6 @@
 import 'package:nyxx/nyxx.dart';
+import '../types/component.dart';
+import 'send_component_v2.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -13,6 +15,7 @@ Future<Map<String, String>> editMessageAction(
   required Map<String, dynamic> payload,
   required Snowflake? fallbackChannelId,
   required String content,
+  String Function(String)? resolve,
 }) async {
   try {
     final channelId = _toSnowflake(payload['channelId']) ?? fallbackChannelId;
@@ -27,7 +30,25 @@ Future<Map<String, String>> editMessageAction(
     }
 
     final message = await channel.messages.fetch(messageId);
-    await message.edit(MessageUpdateBuilder(content: content));
+    List<ComponentBuilder>? components;
+    if (payload.containsKey('componentV2') && payload['componentV2'] is Map) {
+      try {
+        final def = ComponentV2Definition.fromJson(
+          Map<String, dynamic>.from(payload['componentV2']),
+        );
+        components = buildComponentNodes(
+          definition: def,
+          resolve: resolve ?? (s) => s,
+        );
+      } catch (_) {}
+    }
+
+    await message.edit(
+      MessageUpdateBuilder(
+        content: content.isNotEmpty ? content : null,
+        components: components,
+      ),
+    );
     return {'messageId': message.id.toString()};
   } catch (error) {
     return {'error': 'Failed to edit message: $error', 'messageId': ''};

@@ -16,6 +16,8 @@ enum ParameterType {
   roleId,
   emoji,
   multiSelect,
+  componentV2,
+  modalDefinition,
 }
 
 enum VariableSuggestionKind { numeric, nonNumeric, unknown }

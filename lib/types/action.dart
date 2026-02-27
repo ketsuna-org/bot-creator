@@ -32,6 +32,12 @@ enum BotCreatorActionType {
   removeGlobalVariable,
   listGlobalVariables,
   runWorkflow,
+  // Interaction / Component actions
+  respondWithComponentV2,
+  respondWithModal,
+  editInteractionMessage,
+  listenForButtonClick,
+  listenForModalSubmit,
 }
 
 enum ActionOnErrorMode { stop, continueMode }

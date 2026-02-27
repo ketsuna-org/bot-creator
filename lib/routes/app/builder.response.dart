@@ -263,6 +263,14 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'HTTP & Variables';
       case BotCreatorActionType.runWorkflow:
         return 'Workflows';
+      // ── Interactions ──
+      case BotCreatorActionType.respondWithComponentV2:
+      case BotCreatorActionType.editInteractionMessage:
+        return 'Interactions';
+      case BotCreatorActionType.respondWithModal:
+      case BotCreatorActionType.listenForButtonClick:
+      case BotCreatorActionType.listenForModalSubmit:
+        return 'Interactions';
     }
   }
 
@@ -336,6 +344,8 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return Colors.cyan;
       case 'Workflows':
         return Colors.deepPurple;
+      case 'Interactions':
+        return Colors.amber.shade700;
       default:
         return Colors.grey;
     }
@@ -409,6 +419,16 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'List all global variables as JSON';
       case BotCreatorActionType.runWorkflow:
         return 'Execute a saved workflow by name';
+      case BotCreatorActionType.respondWithComponentV2:
+        return 'Reply to command with buttons/select menus';
+      case BotCreatorActionType.respondWithModal:
+        return 'Show a modal dialog to the user';
+      case BotCreatorActionType.editInteractionMessage:
+        return 'Edit the deferred or original interaction response';
+      case BotCreatorActionType.listenForButtonClick:
+        return 'Register a workflow to run when a button is clicked';
+      case BotCreatorActionType.listenForModalSubmit:
+        return 'Register a workflow to run when a modal is submitted';
     }
   }
 

@@ -4,6 +4,9 @@ import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/darcula.dart';
 import 'package:flutter/material.dart';
 import '../../../types/action.dart' show BotCreatorActionType;
+import '../../../types/component.dart';
+import '../../../widgets/component_v2_builder/component_v2_editor.dart';
+import '../../../widgets/component_v2_builder/modal_builder.dart';
 import 'action_types.dart';
 import 'action_type_extension.dart';
 import 'package:http/http.dart' as http;
@@ -814,6 +817,62 @@ class ActionCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: _buildMapPreview(paramDef.key, currentValue),
+            ),
+          ],
+        );
+
+      case ParameterType.componentV2:
+        final compDef =
+            currentValue is Map<String, dynamic>
+                ? ComponentV2Definition.fromJson(currentValue)
+                : currentValue is Map
+                ? ComponentV2Definition.fromJson(
+                  Map<String, dynamic>.from(
+                    currentValue.map((k, v) => MapEntry(k.toString(), v)),
+                  ),
+                )
+                : ComponentV2Definition();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _formatParameterName(paramDef.key),
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            ComponentV2EditorWidget(
+              definition: compDef,
+              onChanged: (updated) {
+                onParameterChanged(paramDef.key, updated.toJson());
+              },
+            ),
+          ],
+        );
+
+      case ParameterType.modalDefinition:
+        final modalDef =
+            currentValue is Map<String, dynamic>
+                ? ModalDefinition.fromJson(currentValue)
+                : currentValue is Map
+                ? ModalDefinition.fromJson(
+                  Map<String, dynamic>.from(
+                    currentValue.map((k, v) => MapEntry(k.toString(), v)),
+                  ),
+                )
+                : ModalDefinition();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _formatParameterName(paramDef.key),
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            ModalBuilderWidget(
+              modal: modalDef,
+              onChanged: (updated) {
+                onParameterChanged(paramDef.key, updated.toJson());
+              },
             ),
           ],
         );

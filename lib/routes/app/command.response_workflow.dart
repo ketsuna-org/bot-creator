@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:bot_creator/widgets/response_embeds_editor.dart';
+import 'package:bot_creator/widgets/component_v2_builder/component_v2_editor.dart';
+import 'package:bot_creator/widgets/component_v2_builder/modal_builder.dart';
+import 'package:bot_creator/types/component.dart';
 
 class CommandResponseWorkflowPage extends StatefulWidget {
   const CommandResponseWorkflowPage({
@@ -23,10 +26,16 @@ class _CommandResponseWorkflowPageState
   late String _onError;
   late bool _conditionEnabled;
   late TextEditingController _variableController;
+  late String _whenTrueType;
+  late String _whenFalseType;
   late TextEditingController _whenTrueController;
   late TextEditingController _whenFalseController;
   late List<Map<String, dynamic>> _whenTrueEmbeds;
   late List<Map<String, dynamic>> _whenFalseEmbeds;
+  late Map<String, dynamic> _whenTrueComponents;
+  late Map<String, dynamic> _whenFalseComponents;
+  late Map<String, dynamic> _whenTrueModal;
+  late Map<String, dynamic> _whenFalseModal;
 
   List<Map<String, dynamic>> _normalizeEmbedsPayload(dynamic rawEmbeds) {
     if (rawEmbeds is! List) {
@@ -64,6 +73,8 @@ class _CommandResponseWorkflowPageState
     _variableController = TextEditingController(
       text: (conditional['variable'] ?? '').toString(),
     );
+    _whenTrueType = (conditional['whenTrueType'] ?? 'normal').toString();
+    _whenFalseType = (conditional['whenFalseType'] ?? 'normal').toString();
     _whenTrueController = TextEditingController(
       text: (conditional['whenTrueText'] ?? '').toString(),
     );
@@ -72,6 +83,22 @@ class _CommandResponseWorkflowPageState
     );
     _whenTrueEmbeds = _normalizeEmbedsPayload(conditional['whenTrueEmbeds']);
     _whenFalseEmbeds = _normalizeEmbedsPayload(conditional['whenFalseEmbeds']);
+    _whenTrueComponents = Map<String, dynamic>.from(
+      (conditional['whenTrueComponents'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+    );
+    _whenFalseComponents = Map<String, dynamic>.from(
+      (conditional['whenFalseComponents'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+    );
+    _whenTrueModal = Map<String, dynamic>.from(
+      (conditional['whenTrueModal'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+    );
+    _whenFalseModal = Map<String, dynamic>.from(
+      (conditional['whenFalseModal'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+    );
   }
 
   @override
@@ -90,10 +117,16 @@ class _CommandResponseWorkflowPageState
       'conditional': {
         'enabled': _conditionEnabled,
         'variable': _variableController.text.trim(),
+        'whenTrueType': _whenTrueType,
+        'whenFalseType': _whenFalseType,
         'whenTrueText': _whenTrueController.text,
         'whenFalseText': _whenFalseController.text,
         'whenTrueEmbeds': _whenTrueEmbeds,
         'whenFalseEmbeds': _whenFalseEmbeds,
+        'whenTrueComponents': _whenTrueComponents,
+        'whenFalseComponents': _whenFalseComponents,
+        'whenTrueModal': _whenTrueModal,
+        'whenFalseModal': _whenFalseModal,
       },
     };
   }
@@ -219,44 +252,152 @@ class _CommandResponseWorkflowPageState
                             );
                           }).toList(),
                     ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'THEN Response',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'normal',
+                        icon: Icon(Icons.message),
+                        label: Text('Normal'),
+                      ),
+                      ButtonSegment(
+                        value: 'componentV2',
+                        icon: Icon(Icons.dashboard_customize),
+                        label: Text('Component'),
+                      ),
+                      ButtonSegment(
+                        value: 'modal',
+                        icon: Icon(Icons.web_asset),
+                        label: Text('Modal'),
+                      ),
+                    ],
+                    selected: {_whenTrueType},
+                    onSelectionChanged: (set) {
+                      setState(() {
+                        _whenTrueType = set.first;
+                      });
+                    },
+                  ),
                   const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _whenTrueController,
-                    maxLines: 3,
-                    minLines: 1,
-                    decoration: const InputDecoration(
-                      labelText: 'THEN response text (optional)',
-                      border: OutlineInputBorder(),
+                  if (_whenTrueType == 'normal') ...[
+                    TextFormField(
+                      controller: _whenTrueController,
+                      maxLines: 3,
+                      minLines: 1,
+                      decoration: const InputDecoration(
+                        labelText: 'THEN response text (optional)',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
+                    const SizedBox(height: 8),
+                    ResponseEmbedsEditor(
+                      embeds: _whenTrueEmbeds,
+                      onChanged: (embeds) {
+                        setState(() {
+                          _whenTrueEmbeds = embeds;
+                        });
+                      },
+                    ),
+                  ] else if (_whenTrueType == 'componentV2') ...[
+                    ComponentV2EditorWidget(
+                      definition: ComponentV2Definition.fromJson(
+                        _whenTrueComponents,
+                      ),
+                      onChanged: (def) {
+                        setState(() {
+                          _whenTrueComponents = def.toJson();
+                        });
+                      },
+                    ),
+                  ] else if (_whenTrueType == 'modal') ...[
+                    ModalBuilderWidget(
+                      modal: ModalDefinition.fromJson(_whenTrueModal),
+                      onChanged: (def) {
+                        setState(() {
+                          _whenTrueModal = def.toJson();
+                        });
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'ELSE Response',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  ResponseEmbedsEditor(
-                    embeds: _whenTrueEmbeds,
-                    onChanged: (embeds) {
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'normal',
+                        icon: Icon(Icons.message),
+                        label: Text('Normal'),
+                      ),
+                      ButtonSegment(
+                        value: 'componentV2',
+                        icon: Icon(Icons.dashboard_customize),
+                        label: Text('Component'),
+                      ),
+                      ButtonSegment(
+                        value: 'modal',
+                        icon: Icon(Icons.web_asset),
+                        label: Text('Modal'),
+                      ),
+                    ],
+                    selected: {_whenFalseType},
+                    onSelectionChanged: (set) {
                       setState(() {
-                        _whenTrueEmbeds = embeds;
+                        _whenFalseType = set.first;
                       });
                     },
                   ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _whenFalseController,
-                    maxLines: 3,
-                    minLines: 1,
-                    decoration: const InputDecoration(
-                      labelText: 'ELSE response text (optional)',
-                      border: OutlineInputBorder(),
+                  const SizedBox(height: 12),
+                  if (_whenFalseType == 'normal') ...[
+                    TextFormField(
+                      controller: _whenFalseController,
+                      maxLines: 3,
+                      minLines: 1,
+                      decoration: const InputDecoration(
+                        labelText: 'ELSE response text (optional)',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  ResponseEmbedsEditor(
-                    embeds: _whenFalseEmbeds,
-                    onChanged: (embeds) {
-                      setState(() {
-                        _whenFalseEmbeds = embeds;
-                      });
-                    },
-                  ),
+                    const SizedBox(height: 8),
+                    ResponseEmbedsEditor(
+                      embeds: _whenFalseEmbeds,
+                      onChanged: (embeds) {
+                        setState(() {
+                          _whenFalseEmbeds = embeds;
+                        });
+                      },
+                    ),
+                  ] else if (_whenFalseType == 'componentV2') ...[
+                    ComponentV2EditorWidget(
+                      definition: ComponentV2Definition.fromJson(
+                        _whenFalseComponents,
+                      ),
+                      onChanged: (def) {
+                        setState(() {
+                          _whenFalseComponents = def.toJson();
+                        });
+                      },
+                    ),
+                  ] else if (_whenFalseType == 'modal') ...[
+                    ModalBuilderWidget(
+                      modal: ModalDefinition.fromJson(_whenFalseModal),
+                      onChanged: (def) {
+                        setState(() {
+                          _whenFalseModal = def.toJson();
+                        });
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),

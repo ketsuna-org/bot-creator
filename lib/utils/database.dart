@@ -382,6 +382,16 @@ class AppManager {
         'variable': (rawConditional['variable'] ?? '').toString(),
         'whenTrueText': (rawConditional['whenTrueText'] ?? '').toString(),
         'whenFalseText': (rawConditional['whenFalseText'] ?? '').toString(),
+        'whenTrueEmbeds':
+            (rawConditional['whenTrueEmbeds'] as List? ?? [])
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList(),
+        'whenFalseEmbeds':
+            (rawConditional['whenFalseEmbeds'] as List? ?? [])
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList(),
       },
     };
 
@@ -392,11 +402,18 @@ class AppManager {
             (embeds.isNotEmpty ? 'embed' : (response['mode'] ?? 'text'))
                 .toString(),
         'text': (response['text'] ?? '').toString(),
+        'type': (response['type'] ?? 'normal').toString(),
         'embed':
             embeds.isNotEmpty
                 ? embeds.first
                 : {'title': '', 'description': '', 'url': ''},
         'embeds': embeds.take(10).toList(),
+        'components': Map<String, dynamic>.from(
+          (response['components'] as Map?)?.cast<String, dynamic>() ?? const {},
+        ),
+        'modal': Map<String, dynamic>.from(
+          (response['modal'] as Map?)?.cast<String, dynamic>() ?? const {},
+        ),
         'workflow': normalizedWorkflow,
       },
       'actions': actions,

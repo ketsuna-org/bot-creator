@@ -1,4 +1,6 @@
 import 'package:nyxx/nyxx.dart';
+import '../types/component.dart';
+import 'send_component_v2.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -42,6 +44,7 @@ Snowflake? _toSnowflake(dynamic value) {
 Future<Map<String, String>> sendWebhookAction(
   NyxxGateway client, {
   required Map<String, dynamic> payload,
+  String Function(String)? resolve,
 }) async {
   try {
     final ref = _extractWebhookRef(payload);
@@ -62,9 +65,25 @@ Future<Map<String, String>> sendWebhookAction(
             : (waitRaw?.toString().toLowerCase() == 'true');
     final threadId = _toSnowflake(payload['threadId']);
 
+    List<ComponentBuilder>? components;
+    if (payload.containsKey('componentV2') && payload['componentV2'] is Map) {
+      try {
+        final def = ComponentV2Definition.fromJson(
+          Map<String, dynamic>.from(payload['componentV2']),
+        );
+        components = buildComponentNodes(
+          definition: def,
+          resolve: resolve ?? (s) => s,
+        );
+      } catch (_) {}
+    }
+
     final message = await client.webhooks.execute(
       ref.id!,
-      MessageBuilder(content: content),
+      MessageBuilder(
+        content: content.isNotEmpty ? content : null,
+        components: components,
+      ),
       token: ref.token!,
       wait: wait,
       threadId: threadId,
