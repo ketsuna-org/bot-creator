@@ -4,7 +4,7 @@ import 'package:bot_creator/types/component.dart' as bc;
 /// Respond to an interaction with a Modal dialog.
 /// NOTE: Modals can only be sent as the FIRST response (not after defer).
 Future<Map<String, dynamic>> respondWithModalAction(
-  ApplicationCommandInteraction interaction, {
+  Interaction interaction, {
   required Map<String, dynamic> payload,
   required String Function(String) resolve,
 }) async {
@@ -30,9 +30,10 @@ Future<Map<String, dynamic>> respondWithModalAction(
       return {'error': 'Modal must have at least one text input'};
     }
 
+    final resolvedCustomId = resolve(definition.customId);
     final modalBuilder = ModalBuilder(
       title: resolve(definition.title),
-      customId: resolve(definition.customId),
+      customId: resolvedCustomId,
       components:
           definition.inputs.map((input) {
             return ActionRowBuilder(
@@ -62,8 +63,18 @@ Future<Map<String, dynamic>> respondWithModalAction(
           }).toList(),
     );
 
-    await interaction.respondModal(modalBuilder);
-    return {'status': 'modal_sent', 'customId': definition.customId};
+    if (interaction is ApplicationCommandInteraction) {
+      await interaction.respondModal(modalBuilder);
+    } else if (interaction is MessageComponentInteraction) {
+      await interaction.respondModal(modalBuilder);
+    } else {
+      return {'error': 'This interaction type does not support modals'};
+    }
+    return {
+      'status': 'modal_sent',
+      'customId': resolvedCustomId,
+      'onSubmitWorkflow': definition.onSubmitWorkflow,
+    };
   } catch (e) {
     return {'error': e.toString()};
   }

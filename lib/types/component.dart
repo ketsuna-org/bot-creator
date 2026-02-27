@@ -32,6 +32,13 @@ abstract class ComponentNode {
   ComponentV2Type get type;
   Map<String, dynamic> toJson();
 
+  static String generateId([String prefix = 'id']) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final randomSuffix =
+        (1000 + (DateTime.now().microsecondsSinceEpoch % 9000)).toString();
+    return '${prefix}_$timestamp$randomSuffix';
+  }
+
   static ComponentNode fromJson(Map<String, dynamic> json) {
     final typeStr = json['type'] as String?;
     final type = ComponentV2Type.values.firstWhere(
@@ -117,11 +124,11 @@ class ButtonNode extends ComponentNode {
   ButtonNode({
     this.label = 'Button',
     this.style = BcButtonStyle.primary,
-    this.customId = '',
+    String? customId,
     this.url = '',
     this.emoji = '',
     this.disabled = false,
-  });
+  }) : customId = customId ?? ComponentNode.generateId('btn');
 
   factory ButtonNode.fromJson(Map<String, dynamic> json) {
     return ButtonNode(
@@ -192,13 +199,13 @@ class SelectMenuNode extends ComponentNode {
 
   SelectMenuNode({
     this.type = ComponentV2Type.stringSelect,
-    this.customId = '',
+    String? customId,
     this.placeholder = 'Select an option...',
     this.options = const [],
     this.minValues = 1,
     this.maxValues = 1,
     this.disabled = false,
-  });
+  }) : customId = customId ?? ComponentNode.generateId('select');
 
   factory SelectMenuNode.fromJson(Map<String, dynamic> json) {
     final typeStr = json['type'] as String?;
@@ -246,8 +253,9 @@ class SectionNode extends ComponentNode {
 
   factory SectionNode.fromJson(Map<String, dynamic> json) {
     ComponentNode? parseAccessory(dynamic accJson) {
-      if (accJson is Map)
+      if (accJson is Map) {
         return ComponentNode.fromJson(Map<String, dynamic>.from(accJson));
+      }
       return null;
     }
 
@@ -524,11 +532,11 @@ class FileUploadNode extends ComponentNode {
   bool isRequired;
 
   FileUploadNode({
-    this.customId = '',
+    String? customId,
     this.minValues = 1,
     this.maxValues = 1,
     this.isRequired = false,
-  });
+  }) : customId = customId ?? ComponentNode.generateId('upload');
 
   factory FileUploadNode.fromJson(Map<String, dynamic> json) {
     return FileUploadNode(
@@ -588,10 +596,10 @@ class RadioGroupNode extends ComponentNode {
   bool isRequired;
 
   RadioGroupNode({
-    this.customId = '',
+    String? customId,
     this.options = const [],
     this.isRequired = false,
-  });
+  }) : customId = customId ?? ComponentNode.generateId('radio');
 
   factory RadioGroupNode.fromJson(Map<String, dynamic> json) {
     return RadioGroupNode(
@@ -658,12 +666,12 @@ class CheckboxGroupNode extends ComponentNode {
   bool isRequired;
 
   CheckboxGroupNode({
-    this.customId = '',
+    String? customId,
     this.options = const [],
     this.minValues = 1,
     this.maxValues = 1,
     this.isRequired = false,
-  });
+  }) : customId = customId ?? ComponentNode.generateId('check_group');
 
   factory CheckboxGroupNode.fromJson(Map<String, dynamic> json) {
     return CheckboxGroupNode(
@@ -701,7 +709,8 @@ class CheckboxNode extends ComponentNode {
   String customId;
   bool isDefault;
 
-  CheckboxNode({this.customId = '', this.isDefault = false});
+  CheckboxNode({String? customId, this.isDefault = false})
+    : customId = customId ?? ComponentNode.generateId('check');
 
   factory CheckboxNode.fromJson(Map<String, dynamic> json) {
     return CheckboxNode(
@@ -729,6 +738,18 @@ class ComponentV2Definition {
     this.ephemeral = false,
   });
 
+  /// Returns true if this definition contains components that REQUIRE the IS_COMPONENTS_V2 flag.
+  /// Standard ActionRows with Buttons/Selects are considered V1 (legacy).
+  bool get isRichV2 {
+    for (final node in components) {
+      if (node is! ActionRowNode) return true;
+      for (final child in node.components) {
+        if (child is! ButtonNode && child is! SelectMenuNode) return true;
+      }
+    }
+    return false;
+  }
+
   factory ComponentV2Definition.fromJson(Map<String, dynamic> json) {
     List<ComponentNode> extractedComponents = [];
 
@@ -751,10 +772,11 @@ class ComponentV2Definition {
                 .toList();
         final selectMenuStr = r['selectMenu'] as Map?;
         SelectMenuNode? selectMenu;
-        if (selectMenuStr != null)
+        if (selectMenuStr != null) {
           selectMenu = SelectMenuNode.fromJson(
             Map<String, dynamic>.from(selectMenuStr),
           );
+        }
 
         final actionRow = ActionRowNode(components: [...buttons]);
         if (selectMenu != null) actionRow.components.add(selectMenu);
@@ -790,7 +812,7 @@ class ModalTextInputDefinition {
   int? maxLength;
 
   ModalTextInputDefinition({
-    this.customId = '',
+    String? customId,
     this.label = '',
     this.style = BcTextInputStyle.short,
     this.placeholder = '',
@@ -798,7 +820,7 @@ class ModalTextInputDefinition {
     this.required = false,
     this.minLength,
     this.maxLength,
-  });
+  }) : customId = customId ?? ComponentNode.generateId('input');
 
   factory ModalTextInputDefinition.fromJson(Map<String, dynamic> json) {
     return ModalTextInputDefinition(
@@ -832,17 +854,20 @@ class ModalDefinition {
   String title;
   String customId;
   List<ModalTextInputDefinition> inputs;
+  String? onSubmitWorkflow;
 
   ModalDefinition({
     this.title = '',
-    this.customId = '',
+    String? customId,
     this.inputs = const [],
-  });
+    this.onSubmitWorkflow,
+  }) : customId = customId ?? ComponentNode.generateId('modal');
 
   factory ModalDefinition.fromJson(Map<String, dynamic> json) {
     return ModalDefinition(
       title: (json['title'] ?? '').toString(),
       customId: (json['customId'] ?? '').toString(),
+      onSubmitWorkflow: json['onSubmitWorkflow']?.toString(),
       inputs:
           (json['inputs'] as List? ?? [])
               .whereType<Map>()
@@ -859,5 +884,6 @@ class ModalDefinition {
     'title': title,
     'customId': customId,
     'inputs': inputs.map((i) => i.toJson()).toList(),
+    if (onSubmitWorkflow != null) 'onSubmitWorkflow': onSubmitWorkflow,
   };
 }

@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:bot_creator/main.dart';
 import 'package:bot_creator/types/component.dart';
+import 'package:bot_creator/types/variable_suggestion.dart';
+import 'package:bot_creator/routes/app/workflows.page.dart';
+import 'package:bot_creator/widgets/variable_text_field.dart';
 
 /// Widget for editing a full Modal definition (title, customId, text inputs).
 class ModalBuilderWidget extends StatefulWidget {
   final ModalDefinition modal;
   final ValueChanged<ModalDefinition> onChanged;
+  final List<VariableSuggestion> variableSuggestions;
+  final String? botIdForConfig;
 
   const ModalBuilderWidget({
     super.key,
     required this.modal,
     required this.onChanged,
+    required this.variableSuggestions,
+    this.botIdForConfig,
   });
 
   @override
@@ -19,12 +27,16 @@ class ModalBuilderWidget extends StatefulWidget {
 class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
   late TextEditingController _titleCtrl;
   late TextEditingController _customIdCtrl;
+  late TextEditingController _onWorkflowCtrl;
   late List<ModalTextInputDefinition> _inputs;
+  List<String> _availableWorkflowNames = const [];
+  bool _loadingWorkflows = false;
 
   @override
   void initState() {
     super.initState();
     _initFromWidget();
+    _loadAvailableWorkflows();
   }
 
   @override
@@ -37,13 +49,22 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
       if (_customIdCtrl.text != widget.modal.customId) {
         _customIdCtrl.text = widget.modal.customId;
       }
+      if (_onWorkflowCtrl.text != (widget.modal.onSubmitWorkflow ?? '')) {
+        _onWorkflowCtrl.text = widget.modal.onSubmitWorkflow ?? '';
+      }
       _inputs = List.from(widget.modal.inputs);
+    }
+    if (widget.botIdForConfig != oldWidget.botIdForConfig) {
+      _loadAvailableWorkflows();
     }
   }
 
   void _initFromWidget() {
     _titleCtrl = TextEditingController(text: widget.modal.title);
     _customIdCtrl = TextEditingController(text: widget.modal.customId);
+    _onWorkflowCtrl = TextEditingController(
+      text: widget.modal.onSubmitWorkflow ?? '',
+    );
     _inputs = List.from(widget.modal.inputs);
   }
 
@@ -51,6 +72,7 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
   void dispose() {
     _titleCtrl.dispose();
     _customIdCtrl.dispose();
+    _onWorkflowCtrl.dispose();
     super.dispose();
   }
 
@@ -60,6 +82,10 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
         title: _titleCtrl.text,
         customId: _customIdCtrl.text,
         inputs: List.from(_inputs),
+        onSubmitWorkflow:
+            _onWorkflowCtrl.text.trim().isEmpty
+                ? null
+                : _onWorkflowCtrl.text.trim(),
       ),
     );
   }
@@ -68,10 +94,7 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
     if (_inputs.length >= 5) return;
     setState(() {
       _inputs.add(
-        ModalTextInputDefinition(
-          customId: 'field_${_inputs.length + 1}',
-          label: 'Field ${_inputs.length + 1}',
-        ),
+        ModalTextInputDefinition(label: 'Field ${_inputs.length + 1}'),
       );
     });
     _emit();
@@ -85,6 +108,42 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
   void _updateInput(int index, ModalTextInputDefinition updated) {
     setState(() => _inputs[index] = updated);
     _emit();
+  }
+
+  Future<void> _loadAvailableWorkflows() async {
+    final botId = widget.botIdForConfig;
+    if (botId == null || botId.trim().isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _availableWorkflowNames = const [];
+        _loadingWorkflows = false;
+      });
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _loadingWorkflows = true;
+      });
+    }
+
+    final workflows = await appManager.getWorkflows(botId);
+    if (!mounted) {
+      return;
+    }
+
+    final names = workflows
+        .map((workflow) => (workflow['name'] ?? '').toString().trim())
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false)
+      ..sort();
+
+    setState(() {
+      _availableWorkflowNames = names;
+      _loadingWorkflows = false;
+    });
   }
 
   @override
@@ -135,16 +194,14 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
                 children: [
                   Expanded(
                     flex: 3,
-                    child: TextFormField(
-                      controller: _titleCtrl,
-                      maxLength: 45,
-                      decoration: const InputDecoration(
-                        labelText: 'Modal Title',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        counterText: '',
-                      ),
-                      onChanged: (_) => _emit(),
+                    child: VariableTextField(
+                      label: 'Modal Title',
+                      initialValue: widget.modal.title,
+                      suggestions: widget.variableSuggestions,
+                      onChanged: (v) {
+                        _titleCtrl.text = v;
+                        _emit();
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -164,11 +221,158 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
                 ],
               ),
               const SizedBox(height: 12),
+              if (widget.botIdForConfig != null) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue:
+                            _onWorkflowCtrl.text.trim().isEmpty
+                                ? null
+                                : (_availableWorkflowNames.contains(
+                                  _onWorkflowCtrl.text.trim(),
+                                )
+                                ? _onWorkflowCtrl.text.trim()
+                                : null),
+                        isExpanded: true,
+                        items:
+                            _availableWorkflowNames
+                                .map(
+                                  (name) => DropdownMenuItem<String>(
+                                    value: name,
+                                    child: Text(name),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged:
+                            _loadingWorkflows
+                                ? null
+                                : (value) {
+                                  setState(() {
+                                    _onWorkflowCtrl.text = (value ?? '').trim();
+                                  });
+                                  _emit();
+                                },
+                        decoration: InputDecoration(
+                          labelText: 'Workflow to run on submit (optional)',
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                          helperText:
+                              _loadingWorkflows
+                                  ? 'Loading workflows...'
+                                  : (_availableWorkflowNames.isEmpty
+                                      ? 'No saved workflows found'
+                                      : 'Select a saved workflow'),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Refresh workflows',
+                      onPressed: _loadingWorkflows ? null : _loadAvailableWorkflows,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                VariableTextField(
+                  label: 'Workflow to run on submit (optional)',
+                  initialValue: widget.modal.onSubmitWorkflow ?? '',
+                  hint: 'e.g. handle_form_submit',
+                  suggestions: widget.variableSuggestions,
+                  onChanged: (v) {
+                    _onWorkflowCtrl.text = v;
+                    _emit();
+                  },
+                ),
+              ],
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed:
+                        widget.botIdForConfig == null
+                            ? null
+                            : () async {
+                              final botId = widget.botIdForConfig;
+                              if (botId == null) {
+                                return;
+                              }
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) => WorkflowsPage(botId: botId),
+                                ),
+                              );
+                              await _loadAvailableWorkflows();
+                            },
+                    icon: const Icon(Icons.account_tree),
+                    label: const Text('Manage Workflows'),
+                  ),
+                ],
+              ),
+              if (_onWorkflowCtrl.text.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline,
+                        color: Colors.green.shade700,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'On submit, the workflow "${_onWorkflowCtrl.text.trim()}" will be executed.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green.shade800,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    'Note: If no workflow is selected, submitting this modal will do nothing.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
               // Inputs list
               ..._inputs.asMap().entries.map((entry) {
                 final index = entry.key;
                 final input = entry.value;
-                return _buildInputTile(index, input);
+                return _ModalTextInputTile(
+                  key: ValueKey(
+                    input.customId,
+                  ), // Critical for preserving state
+                  index: index,
+                  input: input,
+                  onChanged: (updated) => _updateInput(index, updated),
+                  onRemove: () => _removeInput(index),
+                  variableSuggestions: widget.variableSuggestions,
+                );
               }),
               // Add input button
               if (_inputs.length < 5)
@@ -183,13 +387,90 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
       ],
     );
   }
+}
 
-  Widget _buildInputTile(int index, ModalTextInputDefinition input) {
-    final customIdCtrl = TextEditingController(text: input.customId);
-    final labelCtrl = TextEditingController(text: input.label);
-    final placeholderCtrl = TextEditingController(text: input.placeholder);
-    final defaultValCtrl = TextEditingController(text: input.defaultValue);
+class _ModalTextInputTile extends StatefulWidget {
+  final int index;
+  final ModalTextInputDefinition input;
+  final ValueChanged<ModalTextInputDefinition> onChanged;
+  final VoidCallback onRemove;
+  final List<VariableSuggestion> variableSuggestions;
 
+  const _ModalTextInputTile({
+    super.key,
+    required this.index,
+    required this.input,
+    required this.onChanged,
+    required this.onRemove,
+    required this.variableSuggestions,
+  });
+
+  @override
+  State<_ModalTextInputTile> createState() => _ModalTextInputTileState();
+}
+
+class _ModalTextInputTileState extends State<_ModalTextInputTile> {
+  late TextEditingController _customIdCtrl;
+  late TextEditingController _labelCtrl;
+  late TextEditingController _placeholderCtrl;
+  late TextEditingController _defaultValCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _customIdCtrl = TextEditingController(text: widget.input.customId);
+    _labelCtrl = TextEditingController(text: widget.input.label);
+    _placeholderCtrl = TextEditingController(text: widget.input.placeholder);
+    _defaultValCtrl = TextEditingController(text: widget.input.defaultValue);
+  }
+
+  @override
+  void didUpdateWidget(_ModalTextInputTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.input.customId != oldWidget.input.customId &&
+        _customIdCtrl.text != widget.input.customId) {
+      _customIdCtrl.text = widget.input.customId;
+    }
+    if (widget.input.label != oldWidget.input.label &&
+        _labelCtrl.text != widget.input.label) {
+      _labelCtrl.text = widget.input.label;
+    }
+    if (widget.input.placeholder != oldWidget.input.placeholder &&
+        _placeholderCtrl.text != widget.input.placeholder) {
+      _placeholderCtrl.text = widget.input.placeholder;
+    }
+    if (widget.input.defaultValue != oldWidget.input.defaultValue &&
+        _defaultValCtrl.text != widget.input.defaultValue) {
+      _defaultValCtrl.text = widget.input.defaultValue;
+    }
+  }
+
+  @override
+  void dispose() {
+    _customIdCtrl.dispose();
+    _labelCtrl.dispose();
+    _placeholderCtrl.dispose();
+    _defaultValCtrl.dispose();
+    super.dispose();
+  }
+
+  void _emit() {
+    widget.onChanged(
+      ModalTextInputDefinition(
+        customId: _customIdCtrl.text,
+        label: _labelCtrl.text,
+        style: widget.input.style,
+        placeholder: _placeholderCtrl.text,
+        defaultValue: _defaultValCtrl.text,
+        required: widget.input.required,
+        minLength: widget.input.minLength,
+        maxLength: widget.input.maxLength,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
@@ -205,7 +486,9 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  input.label.isEmpty ? 'Input ${index + 1}' : input.label,
+                  widget.input.label.isEmpty
+                      ? 'Input ${widget.index + 1}'
+                      : widget.input.label,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
@@ -216,7 +499,7 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
                   children: [
                     Chip(
                       label: Text(
-                        input.style.name,
+                        widget.input.style.name,
                         style: const TextStyle(fontSize: 11),
                       ),
                       visualDensity: VisualDensity.compact,
@@ -227,7 +510,7 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
                         size: 16,
                         color: Colors.red,
                       ),
-                      onPressed: () => _removeInput(index),
+                      onPressed: widget.onRemove,
                     ),
                   ],
                 ),
@@ -239,103 +522,47 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
               children: [
                 Expanded(
                   child: TextFormField(
-                    controller: labelCtrl,
+                    controller: _labelCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Label',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    onChanged: (v) {
-                      _updateInput(
-                        index,
-                        ModalTextInputDefinition(
-                          customId: input.customId,
-                          label: v,
-                          style: input.style,
-                          placeholder: input.placeholder,
-                          defaultValue: input.defaultValue,
-                          required: input.required,
-                          minLength: input.minLength,
-                          maxLength: input.maxLength,
-                        ),
-                      );
-                    },
+                    onChanged: (v) => _emit(),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextFormField(
-                    controller: customIdCtrl,
+                    controller: _customIdCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Custom ID',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    onChanged: (v) {
-                      _updateInput(
-                        index,
-                        ModalTextInputDefinition(
-                          customId: v,
-                          label: input.label,
-                          style: input.style,
-                          placeholder: input.placeholder,
-                          defaultValue: input.defaultValue,
-                          required: input.required,
-                          minLength: input.minLength,
-                          maxLength: input.maxLength,
-                        ),
-                      );
-                    },
+                    onChanged: (v) => _emit(),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             TextFormField(
-              controller: placeholderCtrl,
+              controller: _placeholderCtrl,
               decoration: const InputDecoration(
                 labelText: 'Placeholder',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
-              onChanged: (v) {
-                _updateInput(
-                  index,
-                  ModalTextInputDefinition(
-                    customId: input.customId,
-                    label: input.label,
-                    style: input.style,
-                    placeholder: v,
-                    defaultValue: input.defaultValue,
-                    required: input.required,
-                    minLength: input.minLength,
-                    maxLength: input.maxLength,
-                  ),
-                );
-              },
+              onChanged: (v) => _emit(),
             ),
             const SizedBox(height: 8),
-            TextFormField(
-              controller: defaultValCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Default value',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
+            VariableTextField(
+              label: 'Default value',
+              initialValue: widget.input.defaultValue,
+              suggestions: widget.variableSuggestions,
               onChanged: (v) {
-                _updateInput(
-                  index,
-                  ModalTextInputDefinition(
-                    customId: input.customId,
-                    label: input.label,
-                    style: input.style,
-                    placeholder: input.placeholder,
-                    defaultValue: v,
-                    required: input.required,
-                    minLength: input.minLength,
-                    maxLength: input.maxLength,
-                  ),
-                );
+                _defaultValCtrl.text = v;
+                _emit();
               },
             ),
             const SizedBox(height: 4),
@@ -357,19 +584,18 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
                                     style.name,
                                     style: const TextStyle(fontSize: 11),
                                   ),
-                                  selected: input.style == style,
+                                  selected: widget.input.style == style,
                                   onSelected: (_) {
-                                    _updateInput(
-                                      index,
+                                    widget.onChanged(
                                       ModalTextInputDefinition(
-                                        customId: input.customId,
-                                        label: input.label,
+                                        customId: _customIdCtrl.text,
+                                        label: _labelCtrl.text,
                                         style: style,
-                                        placeholder: input.placeholder,
-                                        defaultValue: input.defaultValue,
-                                        required: input.required,
-                                        minLength: input.minLength,
-                                        maxLength: input.maxLength,
+                                        placeholder: _placeholderCtrl.text,
+                                        defaultValue: _defaultValCtrl.text,
+                                        required: widget.input.required,
+                                        minLength: widget.input.minLength,
+                                        maxLength: widget.input.maxLength,
                                       ),
                                     );
                                   },
@@ -386,19 +612,18 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
                   children: [
                     const Text('Required', style: TextStyle(fontSize: 12)),
                     Switch(
-                      value: input.required,
+                      value: widget.input.required,
                       onChanged: (v) {
-                        _updateInput(
-                          index,
+                        widget.onChanged(
                           ModalTextInputDefinition(
-                            customId: input.customId,
-                            label: input.label,
-                            style: input.style,
-                            placeholder: input.placeholder,
-                            defaultValue: input.defaultValue,
+                            customId: _customIdCtrl.text,
+                            label: _labelCtrl.text,
+                            style: widget.input.style,
+                            placeholder: _placeholderCtrl.text,
+                            defaultValue: _defaultValCtrl.text,
                             required: v,
-                            minLength: input.minLength,
-                            maxLength: input.maxLength,
+                            minLength: widget.input.minLength,
+                            maxLength: widget.input.maxLength,
                           ),
                         );
                       },

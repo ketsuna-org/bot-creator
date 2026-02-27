@@ -33,6 +33,7 @@ enum BotCreatorActionType {
   listGlobalVariables,
   runWorkflow,
   // Interaction / Component actions
+  respondWithMessage,
   respondWithComponentV2,
   respondWithModal,
   editInteractionMessage,

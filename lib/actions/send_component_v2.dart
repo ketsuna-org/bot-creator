@@ -273,13 +273,10 @@ List<ComponentBuilder> buildComponentNodes({
         ActionRowBuilder(components: [buildComponentNode(node, resolve)]),
       );
     } else {
-      // For Layout Components (Container, TextDisplay, Section, MediaGallery, etc.)
-      // Discord STRICTLY requires root components to be ActionRows (type 1).
-      // We will automatically wrap them.
+      // Layout components (Container, TextDisplay, Section, MediaGallery, etc.)
+      // can be directly added to the root level in V2.
       flushActionRow();
-      result.add(
-        ActionRowBuilder(components: [buildComponentNode(node, resolve)]),
-      );
+      result.add(buildComponentNode(node, resolve));
     }
   }
   flushActionRow();
@@ -292,11 +289,15 @@ MessageBuilder buildComponentMessage({
   required ComponentV2Definition definition,
   required String Function(String) resolve,
 }) {
-  final content = resolve(definition.content);
   final nodes = buildComponentNodes(definition: definition, resolve: resolve);
+
+  // 1 << 15 (32768) is the IS_COMPONENTS_V2 flag
+  final flagsOpt = (definition.ephemeral ? 64 : 0) | 32768;
+
   return MessageBuilder(
-    content: content.isNotEmpty ? content : null,
+    content: null, // content is banned for V2
     components: nodes,
+    flags: MessageFlags(flagsOpt),
   );
 }
 
@@ -325,12 +326,14 @@ Future<Map<String, dynamic>> sendComponentV2Action(
     }
     channelId ??= fallbackChannelId;
 
-    if (channelId == null)
+    if (channelId == null) {
       return {'error': 'No channelId available for sendComponentV2'};
+    }
 
     final channel = await client.channels.fetch(channelId);
-    if (channel is! TextChannel)
+    if (channel is! TextChannel) {
       return {'error': 'Channel is not a text channel'};
+    }
 
     final builder = buildComponentMessage(
       definition: definition,
@@ -339,6 +342,67 @@ Future<Map<String, dynamic>> sendComponentV2Action(
     final message = await channel.sendMessage(builder);
 
     return {'messageId': message.id.toString()};
+  } catch (e) {
+    return {'error': e.toString()};
+  }
+}
+
+/// Respond to an interaction with a ComponentV2 message.
+/// If already acknowledged (deferred), updates the response.
+Future<Map<String, dynamic>> respondWithComponentV2Action(
+  Interaction interaction, {
+  required Map<String, dynamic> payload,
+  String Function(String)? resolve,
+}) async {
+  resolve ??= (s) => s;
+  try {
+    final componentsDef = payload['components'];
+    final definition =
+        componentsDef is Map
+            ? ComponentV2Definition.fromJson(
+              Map<String, dynamic>.from(componentsDef),
+            )
+            : ComponentV2Definition();
+
+    // build the component nodes
+    final nodes = buildComponentNodes(definition: definition, resolve: resolve);
+
+    // 1 << 15 (32768) is the IS_COMPONENTS_V2 flag
+    final flagsOpt = (definition.ephemeral ? 64 : 0) | 32768;
+
+    if (interaction is MessageResponse ||
+        interaction is ModalSubmitInteraction) {
+      final dynInt = interaction as dynamic;
+      bool isAcknowledged = false;
+      try {
+        isAcknowledged = dynInt.isAcknowledged == true;
+      } catch (_) {
+        isAcknowledged = false;
+      }
+
+      try {
+        if (isAcknowledged) {
+          final builder = MessageUpdateBuilder(
+            content: null,
+            components: nodes,
+          );
+          final message = await dynInt.updateOriginalResponse(builder);
+          return {'messageId': message.id.toString()};
+        } else {
+          final builder = MessageBuilder(
+            content: null,
+            components: nodes,
+            flags: MessageFlags(flagsOpt),
+          );
+          await dynInt.respond(builder);
+          return {'status': 'responded'};
+        }
+      } catch (e) {
+        return {'error': 'Failed to send interaction response: $e'};
+      }
+    }
+
+    return {'error': 'Interaction does not support message responses'};
   } catch (e) {
     return {'error': e.toString()};
   }

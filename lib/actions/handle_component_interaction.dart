@@ -1,8 +1,10 @@
 import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator/utils/interaction_listener_registry.dart';
 import 'package:bot_creator/utils/database.dart';
+import 'package:bot_creator/utils/template_resolver.dart';
 import 'package:bot_creator/types/action.dart';
 import 'package:bot_creator/actions/handler.dart';
+import 'package:bot_creator/actions/interaction_response.dart';
 
 /// Called by the main bot event loop when a MessageComponentInteraction arrives.
 /// Looks up the listener registry and if a matching workflow is found, runs it.
@@ -19,23 +21,22 @@ Future<void> handleComponentInteraction(
     return;
   }
 
-  // Defer acknowledgement immediately to avoid 3-second timeout
-  await interaction.acknowledge();
-
   // Remove listener if one-shot
   if (entry.oneShot) {
     InteractionListenerRegistry.instance.remove(customId);
   }
 
   // Build variables for the workflow
+  final fallbackChannelId = (interaction as dynamic)?.channel?.id as Snowflake?;
+  final guildId = (interaction as dynamic)?.guildId as Snowflake?;
   final variables = <String, String>{
     'interaction.customId': customId,
     'interaction.userId':
         interaction.user?.id.toString() ??
         interaction.member?.user?.id.toString() ??
         '',
-    'interaction.guildId': interaction.guildId?.toString() ?? '',
-    'interaction.channelId': interaction.channelId?.toString() ?? '',
+    'interaction.guildId': guildId?.toString() ?? '',
+    'interaction.channelId': fallbackChannelId?.toString() ?? '',
     // For select menus, provide selected values as comma-separated list
     'interaction.values': interaction.data.values?.join(',') ?? '',
   };
@@ -46,6 +47,7 @@ Future<void> handleComponentInteraction(
     botId: entry.botId,
     workflowName: entry.workflowName,
     variables: variables,
+    interaction: interaction,
   );
 }
 
@@ -58,10 +60,10 @@ Future<void> handleModalSubmitInteraction(
   final customId = interaction.data.customId;
   final entry = InteractionListenerRegistry.instance.get(customId);
 
-  if (entry == null) return;
+  if (entry == null) {
+    return;
+  }
 
-  // Always defer modal before doing anything else
-  await interaction.acknowledge();
   InteractionListenerRegistry.instance.remove(customId);
 
   // Build variables: one per modal input field
@@ -95,6 +97,7 @@ Future<void> handleModalSubmitInteraction(
     botId: entry.botId,
     workflowName: entry.workflowName,
     variables: variables,
+    interaction: interaction,
   );
 }
 
@@ -105,10 +108,15 @@ Future<void> _runListenerWorkflow({
   required String botId,
   required String workflowName,
   required Map<String, String> variables,
+  Interaction? interaction,
 }) async {
   try {
     final workflow = await manager.getWorkflowByName(botId, workflowName);
     if (workflow == null) return;
+
+    // Merge variables with global ones if needed?
+    // For now we assume they are passed or loaded by handleActions
+    // But handleActions expects variables.
 
     final actions = List<Action>.from(
       ((workflow['actions'] as List?) ?? const <dynamic>[])
@@ -116,13 +124,8 @@ Future<void> _runListenerWorkflow({
           .map((json) => Action.fromJson(Map<String, dynamic>.from(json))),
     );
 
-    String resolveTemplate(String input) {
-      String result = input;
-      for (final e in variables.entries) {
-        result = result.replaceAll('((${e.key}))', e.value);
-      }
-      return result;
-    }
+    String resolveTemplate(String input) =>
+        resolveTemplatePlaceholders(input, variables);
 
     await handleListenerWorkflowActions(
       client,
@@ -131,8 +134,30 @@ Future<void> _runListenerWorkflow({
       botId: botId,
       variables: variables,
       resolveTemplate: resolveTemplate,
+      interaction: interaction,
     );
-  } catch (_) {
+
+    // 3. Send final response (text, embeds, components, modal)
+    // Configure response details from workflow JSON
+    final response = Map<String, dynamic>.from(
+      (workflow['response'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+
+    if (interaction != null) {
+      final isEphemeral =
+          workflow['visibility']?.toString().toLowerCase() == 'ephemeral';
+
+      await sendWorkflowResponse(
+        interaction: interaction,
+        response: response,
+        runtimeVariables: variables,
+        botId: botId,
+        isEphemeral: isEphemeral,
+        // didDefer is false here because we removed the blind acknowledge()
+        didDefer: false,
+      );
+    }
+  } catch (e) {
     // Swallow errors in background handlers
   }
 }

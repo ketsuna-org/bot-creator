@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:bot_creator/types/component.dart';
+import 'package:bot_creator/types/variable_suggestion.dart';
+import 'package:bot_creator/widgets/variable_text_field.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 class ComponentNodeEditor extends StatelessWidget {
   final ComponentNode node;
   final ValueChanged<ComponentNode> onChanged;
   final VoidCallback onRemove;
+  final List<VariableSuggestion> variableSuggestions;
 
   const ComponentNodeEditor({
     super.key,
     required this.node,
     required this.onChanged,
     required this.onRemove,
+    required this.variableSuggestions,
   });
 
   @override
@@ -91,31 +95,41 @@ class ComponentNodeEditor extends StatelessWidget {
   }
 
   Widget _buildEditorBody(BuildContext context) {
-    if (node is ActionRowNode)
+    if (node is ActionRowNode) {
       return _buildActionRowEditor(node as ActionRowNode);
+    }
     if (node is ButtonNode) return _buildButtonEditor(node as ButtonNode);
-    if (node is SelectMenuNode)
+    if (node is SelectMenuNode) {
       return _buildSelectMenuEditor(node as SelectMenuNode);
-    if (node is TextDisplayNode)
+    }
+    if (node is TextDisplayNode) {
       return _buildTextDisplayEditor(node as TextDisplayNode);
-    if (node is SeparatorNode)
+    }
+    if (node is SeparatorNode) {
       return _buildSeparatorEditor(node as SeparatorNode);
+    }
     if (node is SectionNode) return _buildSectionEditor(node as SectionNode);
-    if (node is ContainerNode)
+    if (node is ContainerNode) {
       return _buildContainerEditor(node as ContainerNode, context);
+    }
     if (node is LabelNode) return _buildLabelEditor(node as LabelNode);
     if (node is CheckboxNode) return _buildCheckboxEditor(node as CheckboxNode);
-    if (node is RadioGroupNode)
+    if (node is RadioGroupNode) {
       return _buildRadioGroupEditor(node as RadioGroupNode);
-    if (node is CheckboxGroupNode)
+    }
+    if (node is CheckboxGroupNode) {
       return _buildCheckboxGroupEditor(node as CheckboxGroupNode);
-    if (node is FileUploadNode)
+    }
+    if (node is FileUploadNode) {
       return _buildFileUploadEditor(node as FileUploadNode);
+    }
     if (node is FileNode) return _buildFileEditor(node as FileNode);
-    if (node is ThumbnailNode)
+    if (node is ThumbnailNode) {
       return _buildThumbnailEditor(node as ThumbnailNode);
-    if (node is MediaGalleryNode)
+    }
+    if (node is MediaGalleryNode) {
       return _buildMediaGalleryEditor(node as MediaGalleryNode);
+    }
     return const Text('Editor not implemented yet');
   }
 
@@ -142,27 +156,44 @@ class ComponentNodeEditor extends StatelessWidget {
               row.components = newChildren;
               onChanged(row);
             },
+            variableSuggestions: variableSuggestions,
           );
         }),
         const SizedBox(height: 8),
-        _buildAddComponentDropdown(
-          (newNode) {
-            row.components = [...row.components, newNode];
-            onChanged(row);
+        Builder(
+          builder: (context) {
+            final components = row.components;
+            final buttonCount = components.whereType<ButtonNode>().length;
+            final hasSelect = components.any((c) => c is SelectMenuNode);
+
+            List<ComponentV2Type>? allowedTypes;
+            if (hasSelect) {
+              allowedTypes = []; // No more components allowed
+            } else if (buttonCount > 0) {
+              if (buttonCount < 5) {
+                allowedTypes = [ComponentV2Type.button];
+              } else {
+                allowedTypes = []; // Max buttons reached
+              }
+            } else {
+              // Empty or other? (Discord V1 Action Row should only have these)
+              allowedTypes = [
+                ComponentV2Type.button,
+                ComponentV2Type.stringSelect,
+                ComponentV2Type.userSelect,
+                ComponentV2Type.roleSelect,
+                ComponentV2Type.mentionableSelect,
+                ComponentV2Type.channelSelect,
+              ];
+            }
+
+            if (allowedTypes.isEmpty) return const SizedBox.shrink();
+
+            return _buildAddComponentDropdown((newNode) {
+              row.components = [...row.components, newNode];
+              onChanged(row);
+            }, allowedTypes: allowedTypes);
           },
-          allowedTypes: [
-            ComponentV2Type.button,
-            ComponentV2Type.stringSelect,
-            ComponentV2Type.userSelect,
-            ComponentV2Type.roleSelect,
-            ComponentV2Type.mentionableSelect,
-            ComponentV2Type.channelSelect,
-            ComponentV2Type.container,
-            ComponentV2Type.textDisplay,
-            ComponentV2Type.file,
-            ComponentV2Type.mediaGallery,
-            ComponentV2Type.separator,
-          ],
         ),
       ],
     );
@@ -174,13 +205,10 @@ class ComponentNodeEditor extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: TextFormField(
+              child: VariableTextField(
+                label: 'Label',
                 initialValue: btn.label,
-                decoration: const InputDecoration(
-                  labelText: 'Label',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
+                suggestions: variableSuggestions,
                 onChanged: (v) {
                   btn.label = v;
                   onChanged(btn);
@@ -190,7 +218,7 @@ class ComponentNodeEditor extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: DropdownButtonFormField<BcButtonStyle>(
-                value: btn.style,
+                initialValue: btn.style,
                 decoration: const InputDecoration(
                   labelText: 'Style',
                   border: OutlineInputBorder(),
@@ -353,14 +381,11 @@ class ComponentNodeEditor extends StatelessWidget {
   }
 
   Widget _buildTextDisplayEditor(TextDisplayNode node) {
-    return TextFormField(
+    return VariableTextField(
+      label: 'Markdown Content',
       initialValue: node.content,
       maxLines: 3,
-      decoration: const InputDecoration(
-        labelText: 'Markdown Content',
-        border: OutlineInputBorder(),
-        isDense: true,
-      ),
+      suggestions: variableSuggestions,
       onChanged: (v) {
         node.content = v;
         onChanged(node);
@@ -422,6 +447,7 @@ class ComponentNodeEditor extends StatelessWidget {
               node.components = newChildren;
               onChanged(node);
             },
+            variableSuggestions: variableSuggestions,
           );
         }),
         const SizedBox(height: 8),
@@ -449,6 +475,7 @@ class ComponentNodeEditor extends StatelessWidget {
               node.accessory = null;
               onChanged(node);
             },
+            variableSuggestions: variableSuggestions,
           )
         else
           _buildAddComponentDropdown((newNode) {
@@ -519,9 +546,12 @@ class ComponentNodeEditor extends StatelessWidget {
                             child: const Text('OK'),
                             onPressed: () {
                               node.accentColor =
-                                  currentColor.value
+                                  currentColor
+                                      .toARGB32()
                                       .toRadixString(16)
-                                      .substring(2)
+                                      .substring(
+                                        2,
+                                      ) // remove trailing alpha usually if length 8
                                       .toUpperCase();
                               onChanged(node);
                               Navigator.of(ctx).pop();
@@ -552,6 +582,7 @@ class ComponentNodeEditor extends StatelessWidget {
               node.components = newChildren;
               onChanged(node);
             },
+            variableSuggestions: variableSuggestions,
           );
         }),
         const SizedBox(height: 8),
@@ -577,26 +608,20 @@ class ComponentNodeEditor extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextFormField(
+        VariableTextField(
+          label: 'Label Title',
           initialValue: node.label,
-          decoration: const InputDecoration(
-            labelText: 'Label Title',
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
+          suggestions: variableSuggestions,
           onChanged: (v) {
             node.label = v;
             onChanged(node);
           },
         ),
         const SizedBox(height: 8),
-        TextFormField(
+        VariableTextField(
+          label: 'Description',
           initialValue: node.description,
-          decoration: const InputDecoration(
-            labelText: 'Description',
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
+          suggestions: variableSuggestions,
           onChanged: (v) {
             node.description = v;
             onChanged(node);
@@ -618,6 +643,7 @@ class ComponentNodeEditor extends StatelessWidget {
               node.component = null;
               onChanged(node);
             },
+            variableSuggestions: variableSuggestions,
           )
         else
           _buildAddComponentDropdown(

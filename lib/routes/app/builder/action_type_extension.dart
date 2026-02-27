@@ -72,6 +72,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return 'List Global Variables';
       case BotCreatorActionType.runWorkflow:
         return 'Run Workflow';
+      case BotCreatorActionType.respondWithMessage:
+        return 'Respond with Message';
       case BotCreatorActionType.respondWithComponentV2:
         return 'Respond with ComponentV2';
       case BotCreatorActionType.respondWithModal:
@@ -153,6 +155,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.inventory_2;
       case BotCreatorActionType.runWorkflow:
         return Icons.account_tree;
+      case BotCreatorActionType.respondWithMessage:
+        return Icons.chat;
       case BotCreatorActionType.respondWithComponentV2:
         return Icons.dashboard_customize;
       case BotCreatorActionType.respondWithModal:
@@ -1047,6 +1051,22 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             defaultValue: '',
             hint: 'Saved workflow name to execute',
             required: true,
+          ),
+        ];
+      case BotCreatorActionType.respondWithMessage:
+        return [
+          ParameterDefinition(
+            key: 'content',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Response text (supports placeholders ((...)))',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'ephemeral',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Only visible to command author',
           ),
         ];
       case BotCreatorActionType.respondWithComponentV2:

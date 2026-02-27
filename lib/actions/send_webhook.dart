@@ -66,11 +66,13 @@ Future<Map<String, String>> sendWebhookAction(
     final threadId = _toSnowflake(payload['threadId']);
 
     List<ComponentBuilder>? components;
+    bool isRichV2 = false;
     if (payload.containsKey('componentV2') && payload['componentV2'] is Map) {
       try {
         final def = ComponentV2Definition.fromJson(
           Map<String, dynamic>.from(payload['componentV2']),
         );
+        isRichV2 = def.isRichV2;
         components = buildComponentNodes(
           definition: def,
           resolve: resolve ?? (s) => s,
@@ -83,6 +85,7 @@ Future<Map<String, String>> sendWebhookAction(
       MessageBuilder(
         content: content.isNotEmpty ? content : null,
         components: components,
+        flags: isRichV2 ? MessageFlags(32768) : null,
       ),
       token: ref.token!,
       wait: wait,

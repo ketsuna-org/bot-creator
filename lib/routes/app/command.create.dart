@@ -6,6 +6,7 @@ import 'package:bot_creator/widgets/option_widget.dart';
 import 'package:bot_creator/widgets/command_create_cards/basic_info_card.dart';
 import 'package:bot_creator/widgets/command_create_cards/reply_card.dart';
 import 'package:bot_creator/widgets/command_create_cards/actions_card.dart';
+import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -1029,7 +1030,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               },
                               responseWorkflow: _responseWorkflow,
                               normalizeWorkflow: _normalizeWorkflow,
-                              variableNames: _variableNames,
+                              variableSuggestions: _actionVariableSuggestions,
+                              botIdForConfig: _botIdForConfig,
                               onWorkflowChanged: (workflow) {
                                 setState(() {
                                   _responseWorkflow = workflow;

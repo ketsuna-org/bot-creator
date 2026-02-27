@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:bot_creator/widgets/response_embeds_editor.dart';
 import 'package:bot_creator/widgets/component_v2_builder/component_v2_editor.dart';
+import 'package:bot_creator/widgets/component_v2_builder/normal_component_editor.dart';
 import 'package:bot_creator/widgets/component_v2_builder/modal_builder.dart';
 import 'package:bot_creator/types/component.dart';
+import 'package:bot_creator/types/variable_suggestion.dart';
 
 class CommandResponseWorkflowPage extends StatefulWidget {
   const CommandResponseWorkflowPage({
     super.key,
     required this.initialWorkflow,
     required this.variableSuggestions,
+    this.botIdForConfig,
   });
 
   final Map<String, dynamic> initialWorkflow;
-  final List<String> variableSuggestions;
+  final List<VariableSuggestion> variableSuggestions;
+  final String? botIdForConfig;
 
   @override
   State<CommandResponseWorkflowPage> createState() =>
@@ -32,6 +36,8 @@ class _CommandResponseWorkflowPageState
   late TextEditingController _whenFalseController;
   late List<Map<String, dynamic>> _whenTrueEmbeds;
   late List<Map<String, dynamic>> _whenFalseEmbeds;
+  late Map<String, dynamic> _whenTrueNormalComponents;
+  late Map<String, dynamic> _whenFalseNormalComponents;
   late Map<String, dynamic> _whenTrueComponents;
   late Map<String, dynamic> _whenFalseComponents;
   late Map<String, dynamic> _whenTrueModal;
@@ -83,6 +89,16 @@ class _CommandResponseWorkflowPageState
     );
     _whenTrueEmbeds = _normalizeEmbedsPayload(conditional['whenTrueEmbeds']);
     _whenFalseEmbeds = _normalizeEmbedsPayload(conditional['whenFalseEmbeds']);
+    _whenTrueNormalComponents = Map<String, dynamic>.from(
+      (conditional['whenTrueNormalComponents'] as Map?)
+              ?.cast<String, dynamic>() ??
+          const {},
+    );
+    _whenFalseNormalComponents = Map<String, dynamic>.from(
+      (conditional['whenFalseNormalComponents'] as Map?)
+              ?.cast<String, dynamic>() ??
+          const {},
+    );
     _whenTrueComponents = Map<String, dynamic>.from(
       (conditional['whenTrueComponents'] as Map?)?.cast<String, dynamic>() ??
           const {},
@@ -123,6 +139,8 @@ class _CommandResponseWorkflowPageState
         'whenFalseText': _whenFalseController.text,
         'whenTrueEmbeds': _whenTrueEmbeds,
         'whenFalseEmbeds': _whenFalseEmbeds,
+        'whenTrueNormalComponents': _whenTrueNormalComponents,
+        'whenFalseNormalComponents': _whenFalseNormalComponents,
         'whenTrueComponents': _whenTrueComponents,
         'whenFalseComponents': _whenFalseComponents,
         'whenTrueModal': _whenTrueModal,
@@ -243,11 +261,11 @@ class _CommandResponseWorkflowPageState
                       spacing: 8,
                       runSpacing: 8,
                       children:
-                          widget.variableSuggestions.take(10).map((name) {
+                          widget.variableSuggestions.take(10).map((suggestion) {
                             return ActionChip(
-                              label: Text(name),
+                              label: Text(suggestion.name),
                               onPressed: () {
-                                _variableController.text = name;
+                                _variableController.text = suggestion.name;
                               },
                             );
                           }).toList(),
@@ -303,6 +321,18 @@ class _CommandResponseWorkflowPageState
                         });
                       },
                     ),
+                    const SizedBox(height: 8),
+                    NormalComponentEditorWidget(
+                      definition: ComponentV2Definition.fromJson(
+                        _whenTrueNormalComponents,
+                      ),
+                      onChanged: (def) {
+                        setState(() {
+                          _whenTrueNormalComponents = def.toJson();
+                        });
+                      },
+                      variableSuggestions: widget.variableSuggestions,
+                    ),
                   ] else if (_whenTrueType == 'componentV2') ...[
                     ComponentV2EditorWidget(
                       definition: ComponentV2Definition.fromJson(
@@ -313,6 +343,7 @@ class _CommandResponseWorkflowPageState
                           _whenTrueComponents = def.toJson();
                         });
                       },
+                      variableSuggestions: widget.variableSuggestions,
                     ),
                   ] else if (_whenTrueType == 'modal') ...[
                     ModalBuilderWidget(
@@ -322,6 +353,8 @@ class _CommandResponseWorkflowPageState
                           _whenTrueModal = def.toJson();
                         });
                       },
+                      variableSuggestions: widget.variableSuggestions,
+                      botIdForConfig: widget.botIdForConfig,
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -377,6 +410,18 @@ class _CommandResponseWorkflowPageState
                         });
                       },
                     ),
+                    const SizedBox(height: 8),
+                    NormalComponentEditorWidget(
+                      definition: ComponentV2Definition.fromJson(
+                        _whenFalseNormalComponents,
+                      ),
+                      onChanged: (def) {
+                        setState(() {
+                          _whenFalseNormalComponents = def.toJson();
+                        });
+                      },
+                      variableSuggestions: widget.variableSuggestions,
+                    ),
                   ] else if (_whenFalseType == 'componentV2') ...[
                     ComponentV2EditorWidget(
                       definition: ComponentV2Definition.fromJson(
@@ -387,6 +432,7 @@ class _CommandResponseWorkflowPageState
                           _whenFalseComponents = def.toJson();
                         });
                       },
+                      variableSuggestions: widget.variableSuggestions,
                     ),
                   ] else if (_whenFalseType == 'modal') ...[
                     ModalBuilderWidget(
@@ -396,6 +442,8 @@ class _CommandResponseWorkflowPageState
                           _whenFalseModal = def.toJson();
                         });
                       },
+                      variableSuggestions: widget.variableSuggestions,
+                      botIdForConfig: widget.botIdForConfig,
                     ),
                   ],
                 ],

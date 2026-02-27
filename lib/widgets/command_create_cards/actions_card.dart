@@ -1,6 +1,7 @@
 import 'package:bot_creator/routes/app/builder.response.dart';
 import 'package:bot_creator/routes/app/global.variables.dart';
 import 'package:bot_creator/routes/app/workflows.page.dart';
+import 'package:bot_creator/main.dart';
 import 'package:flutter/material.dart';
 
 class ActionsCard extends StatelessWidget {
@@ -66,6 +67,75 @@ class ActionsCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
+                OutlinedButton.icon(
+                  onPressed:
+                      botIdForConfig == null || actions.isEmpty
+                          ? null
+                          : () async {
+                            final controller = TextEditingController();
+                            final workflowName = await showDialog<String>(
+                              context: context,
+                              builder:
+                                  (dialogContext) => AlertDialog(
+                                    title: const Text('Save as Workflow'),
+                                    content: TextField(
+                                      controller: controller,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Workflow name',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      autofocus: true,
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed:
+                                            () => Navigator.pop(dialogContext),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () {
+                                          final name =
+                                              controller.text.trim();
+                                          if (name.isEmpty) {
+                                            return;
+                                          }
+                                          Navigator.pop(dialogContext, name);
+                                        },
+                                        child: const Text('Save'),
+                                      ),
+                                    ],
+                                  ),
+                            );
+
+                            if (workflowName == null ||
+                                workflowName.trim().isEmpty) {
+                              return;
+                            }
+
+                            await appManager.saveWorkflow(
+                              botIdForConfig!,
+                              name: workflowName.trim(),
+                              actions:
+                                  actions
+                                      .map((item) => Map<String, dynamic>.from(item))
+                                      .toList(),
+                            );
+
+                            if (!context.mounted) {
+                              return;
+                            }
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Workflow "$workflowName" saved (${actions.length} action(s)).',
+                                ),
+                              ),
+                            );
+                          },
+                  icon: const Icon(Icons.save_as),
+                  label: const Text('Save as Workflow'),
+                ),
                 OutlinedButton.icon(
                   onPressed:
                       botIdForConfig == null

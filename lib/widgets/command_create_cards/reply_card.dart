@@ -1,7 +1,10 @@
+import 'package:flutter/material.dart';
+import 'package:bot_creator/types/variable_suggestion.dart';
+import 'package:bot_creator/widgets/variable_text_field.dart';
 import 'package:bot_creator/routes/app/command.response_workflow.dart';
 import 'package:bot_creator/widgets/response_embeds_editor.dart';
-import 'package:flutter/material.dart';
 import 'package:bot_creator/widgets/component_v2_builder/component_v2_editor.dart';
+import 'package:bot_creator/widgets/component_v2_builder/normal_component_editor.dart';
 import 'package:bot_creator/widgets/component_v2_builder/modal_builder.dart';
 import 'package:bot_creator/types/component.dart';
 
@@ -18,7 +21,8 @@ class ReplyCard extends StatelessWidget {
   final ValueChanged<Map<String, dynamic>> onModalChanged;
   final Map<String, dynamic> responseWorkflow;
   final Map<String, dynamic> Function(Map<String, dynamic>) normalizeWorkflow;
-  final List<String> variableNames;
+  final List<VariableSuggestion> variableSuggestions;
+  final String? botIdForConfig;
   final ValueChanged<Map<String, dynamic>> onWorkflowChanged;
   final String workflowSummary;
 
@@ -36,7 +40,8 @@ class ReplyCard extends StatelessWidget {
     required this.onModalChanged,
     required this.responseWorkflow,
     required this.normalizeWorkflow,
-    required this.variableNames,
+    required this.variableSuggestions,
+    this.botIdForConfig,
     required this.onWorkflowChanged,
     required this.workflowSummary,
   });
@@ -82,19 +87,18 @@ class ReplyCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             if (responseType == 'normal') ...[
-              TextFormField(
-                autocorrect: false,
+              VariableTextField(
+                label: "Response Text",
+                initialValue: responseController.text,
                 maxLines: 4,
-                minLines: 2,
-                keyboardType: TextInputType.multiline,
-                controller: responseController,
-                decoration: const InputDecoration(
-                  labelText: "Response Text",
-                  border: OutlineInputBorder(),
-                  helperText:
-                      "Used as slash-command reply text. Supports placeholders like ((userName)).",
-                ),
+                suggestions: variableSuggestions,
+                onChanged: (v) {
+                  responseController.text = v;
+                },
+                helperText:
+                    "Used as slash-command reply text. Supports ((variable)) syntax.",
               ),
+              // external suggestion bar provided by parent (e.g. command creation page)
               variableSuggestionBar,
               const SizedBox(height: 12),
               ResponseEmbedsEditor(
@@ -104,22 +108,23 @@ class ReplyCard extends StatelessWidget {
               const SizedBox(height: 12),
               ExpansionTile(
                 title: const Text('Message Components (Buttons/Selects)'),
-                collapsedBackgroundColor: Colors.grey.withOpacity(0.05),
+                collapsedBackgroundColor: Colors.grey.withValues(alpha: 0.05),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+                  side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
                 ),
                 collapsedShape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+                  side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
                 ),
                 childrenPadding: const EdgeInsets.all(8.0),
                 children: [
-                  ComponentV2EditorWidget(
+                  NormalComponentEditorWidget(
                     definition: ComponentV2Definition.fromJson(
                       responseComponents,
                     ),
                     onChanged: (def) => onComponentsChanged(def.toJson()),
+                    variableSuggestions: variableSuggestions,
                   ),
                 ],
               ),
@@ -127,11 +132,14 @@ class ReplyCard extends StatelessWidget {
               ComponentV2EditorWidget(
                 definition: ComponentV2Definition.fromJson(responseComponents),
                 onChanged: (def) => onComponentsChanged(def.toJson()),
+                variableSuggestions: variableSuggestions,
               ),
             ] else if (responseType == 'modal') ...[
               ModalBuilderWidget(
                 modal: ModalDefinition.fromJson(responseModal),
                 onChanged: (def) => onModalChanged(def.toJson()),
+                variableSuggestions: variableSuggestions,
+                botIdForConfig: botIdForConfig,
               ),
             ],
             const SizedBox(height: 12),
@@ -143,7 +151,8 @@ class ReplyCard extends StatelessWidget {
                     builder:
                         (context) => CommandResponseWorkflowPage(
                           initialWorkflow: normalizeWorkflow(responseWorkflow),
-                          variableSuggestions: variableNames,
+                          variableSuggestions: variableSuggestions,
+                          botIdForConfig: botIdForConfig,
                         ),
                   ),
                 );

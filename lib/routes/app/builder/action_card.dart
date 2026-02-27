@@ -842,6 +842,7 @@ class ActionCard extends StatelessWidget {
             const SizedBox(height: 8),
             ComponentV2EditorWidget(
               definition: compDef,
+              variableSuggestions: variableSuggestions,
               onChanged: (updated) {
                 onParameterChanged(paramDef.key, updated.toJson());
               },
@@ -870,6 +871,7 @@ class ActionCard extends StatelessWidget {
             const SizedBox(height: 8),
             ModalBuilderWidget(
               modal: modalDef,
+              variableSuggestions: variableSuggestions,
               onChanged: (updated) {
                 onParameterChanged(paramDef.key, updated.toJson());
               },

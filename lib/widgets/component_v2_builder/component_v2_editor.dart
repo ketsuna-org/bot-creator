@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:bot_creator/types/component.dart';
+import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:bot_creator/widgets/component_v2_builder/component_node_editor.dart';
 
 /// Full visual editor for a ComponentV2 message (text + recursive component nodes).
@@ -7,11 +8,13 @@ import 'package:bot_creator/widgets/component_v2_builder/component_node_editor.d
 class ComponentV2EditorWidget extends StatefulWidget {
   final ComponentV2Definition definition;
   final ValueChanged<ComponentV2Definition> onChanged;
+  final List<VariableSuggestion> variableSuggestions;
 
   const ComponentV2EditorWidget({
     super.key,
     required this.definition,
     required this.onChanged,
+    required this.variableSuggestions,
   });
 
   @override
@@ -20,7 +23,6 @@ class ComponentV2EditorWidget extends StatefulWidget {
 }
 
 class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
-  late TextEditingController _contentCtrl;
   late List<ComponentNode> _components;
   late bool _ephemeral;
 
@@ -41,7 +43,6 @@ class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
   }
 
   void _initFromWidget() {
-    _contentCtrl = TextEditingController(text: widget.definition.content);
     // Deep copy components via json serialization round-trip
     _components =
         widget.definition.components
@@ -52,14 +53,13 @@ class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
 
   @override
   void dispose() {
-    _contentCtrl.dispose();
     super.dispose();
   }
 
   void _emit() {
     widget.onChanged(
       ComponentV2Definition(
-        content: _contentCtrl.text,
+        content: '',
         components:
             _components.map((c) => ComponentNode.fromJson(c.toJson())).toList(),
         ephemeral: _ephemeral,
@@ -205,18 +205,6 @@ class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Content text
-              TextFormField(
-                controller: _contentCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Message text (optional, supports ((variables)))',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                onChanged: (_) => _emit(),
-              ),
-              const SizedBox(height: 4),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
@@ -239,6 +227,7 @@ class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
                   node: node,
                   onChanged: (updated) => _updateNode(index, updated),
                   onRemove: () => _removeNode(index),
+                  variableSuggestions: widget.variableSuggestions,
                 );
               }),
               const SizedBox(height: 8),

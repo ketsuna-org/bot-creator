@@ -16,6 +16,7 @@ Future<Map<String, String>> sendMessageToChannel(
     }
 
     List<ComponentBuilder>? components;
+    bool isRichV2 = false;
     if (payload != null &&
         payload.containsKey('componentV2') &&
         payload['componentV2'] is Map) {
@@ -23,6 +24,7 @@ Future<Map<String, String>> sendMessageToChannel(
         final def = ComponentV2Definition.fromJson(
           Map<String, dynamic>.from(payload['componentV2']),
         );
+        isRichV2 = def.isRichV2;
         components = buildComponentNodes(
           definition: def,
           resolve: resolve ?? (s) => s,
@@ -32,8 +34,9 @@ Future<Map<String, String>> sendMessageToChannel(
 
     final message = await channel.sendMessage(
       MessageBuilder(
-        content: content.isNotEmpty ? content : null,
+        content: isRichV2 ? null : (content.isNotEmpty ? content : null),
         components: components,
+        flags: isRichV2 ? MessageFlags(32768) : null,
       ),
     );
     return {'messageId': message.id.toString()};

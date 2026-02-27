@@ -264,6 +264,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.runWorkflow:
         return 'Workflows';
       // ── Interactions ──
+      case BotCreatorActionType.respondWithMessage:
       case BotCreatorActionType.respondWithComponentV2:
       case BotCreatorActionType.editInteractionMessage:
         return 'Interactions';
@@ -419,6 +420,8 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'List all global variables as JSON';
       case BotCreatorActionType.runWorkflow:
         return 'Execute a saved workflow by name';
+      case BotCreatorActionType.respondWithMessage:
+        return 'Reply to command with a normal message';
       case BotCreatorActionType.respondWithComponentV2:
         return 'Reply to command with buttons/select menus';
       case BotCreatorActionType.respondWithModal:
@@ -438,12 +441,11 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       appBar: AppBar(
         title: const Text('Actions Builder'),
         actions: [
-          if (_actions.isNotEmpty)
-            IconButton(
-              onPressed: _saveActions,
-              icon: const Icon(Icons.save),
-              tooltip: 'Save Actions',
-            ),
+          IconButton(
+            onPressed: _saveActions,
+            icon: const Icon(Icons.save),
+            tooltip: 'Save Actions',
+          ),
         ],
       ),
       body:

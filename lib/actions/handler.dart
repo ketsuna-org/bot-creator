@@ -22,6 +22,7 @@ import 'package:bot_creator/actions/send_component_v2.dart';
 import 'package:bot_creator/actions/edit_component_v2.dart';
 import 'package:bot_creator/actions/respond_modal.dart';
 import 'package:bot_creator/actions/edit_interaction_response.dart';
+import 'package:bot_creator/actions/respond_with_message.dart';
 import 'package:bot_creator/actions/send_webhook.dart';
 import 'package:bot_creator/actions/edit_webhook.dart';
 import 'package:bot_creator/actions/delete_webhook.dart';
@@ -142,7 +143,7 @@ Future<Map<String, String>> _executeUserAction(
 
 Future<Map<String, String>> handleActions(
   NyxxGateway client,
-  ApplicationCommandInteraction? interaction, {
+  Interaction? interaction, {
   required List<Action> actions,
   required AppManager manager,
   required String botId,
@@ -152,8 +153,8 @@ Future<Map<String, String>> handleActions(
   void Function(String message)? onLog,
 }) async {
   final results = <String, String>{};
-  final fallbackChannelId = interaction?.channel?.id;
-  final guildId = interaction?.guildId;
+  final fallbackChannelId = (interaction as dynamic)?.channel?.id as Snowflake?;
+  final guildId = (interaction as dynamic)?.guildId as Snowflake?;
   final activeWorkflowStack = workflowStack ?? <String>{};
 
   String resolveValue(String value) => resolveTemplate(value);
@@ -191,11 +192,10 @@ Future<Map<String, String>> handleActions(
 
   for (var i = 0; i < actions.length; i++) {
     final action = actions[i];
+    final resultKey = action.key ?? 'action_$i';
     if (!action.enabled) {
       continue;
     }
-
-    final resultKey = action.key ?? 'action_$i';
 
     try {
       switch (action.type) {
@@ -253,8 +253,10 @@ Future<Map<String, String>> handleActions(
 
           Snowflake? commandMessageId;
           try {
-            final resp = await interaction?.fetchOriginalResponse();
-            commandMessageId = resp?.id;
+            if (interaction is ApplicationCommandInteraction) {
+              final resp = await interaction.fetchOriginalResponse();
+              commandMessageId = resp.id;
+            }
           } catch (_) {}
 
           final result = await deleteMessage(
@@ -520,17 +522,36 @@ Future<Map<String, String>> handleActions(
           results[resultKey] = result['messageId'] ?? '';
           break;
         case BotCreatorActionType.respondWithComponentV2:
-          // Send a ComponentV2 message as the interaction response
-          final respResult = await sendComponentV2Action(
-            client,
+          if (interaction == null) {
+            results[resultKey] =
+                'Error: respondWithComponentV2 requires an interaction context';
+            break;
+          }
+          final respResult = await respondWithComponentV2Action(
+            interaction,
             payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
             resolve: resolveValue,
           );
           if (respResult['error'] != null) {
             throw Exception(respResult['error']);
           }
-          results[resultKey] = respResult['messageId'] ?? '';
+          results[resultKey] = respResult['messageId'] ?? 'responded';
+          break;
+        case BotCreatorActionType.respondWithMessage:
+          if (interaction == null) {
+            results[resultKey] =
+                'Error: respondWithMessage requires an interaction context';
+            break;
+          }
+          final messageResult = await respondWithMessageAction(
+            interaction,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (messageResult['error'] != null) {
+            throw Exception(messageResult['error']);
+          }
+          results[resultKey] = messageResult['messageId'] ?? 'responded';
           break;
         case BotCreatorActionType.respondWithModal:
           if (interaction == null) {
@@ -546,7 +567,25 @@ Future<Map<String, String>> handleActions(
           if (modalResult['error'] != null) {
             throw Exception(modalResult['error']);
           }
-          results[resultKey] = modalResult['customId'] ?? 'modal_sent';
+          final customId = modalResult['customId'] ?? 'modal_sent';
+          results[resultKey] = customId;
+
+          // Auto-register listener if onSubmitWorkflow is provided
+          final onSubmitWorkflow = modalResult['onSubmitWorkflow']?.toString();
+          if (onSubmitWorkflow != null && onSubmitWorkflow.isNotEmpty) {
+            InteractionListenerRegistry.instance.register(
+              customId,
+              ListenerEntry(
+                botId: botId,
+                workflowName: onSubmitWorkflow,
+                expiresAt: DateTime.now().add(const Duration(hours: 1)),
+                type: 'modal',
+                oneShot: true,
+                guildId: guildId?.toString(),
+                channelId: fallbackChannelId?.toString(),
+              ),
+            );
+          }
           break;
         case BotCreatorActionType.editInteractionMessage:
           if (interaction == null) {
@@ -901,17 +940,18 @@ Future<Map<String, String>> handleActions(
 /// Simplified action handler for workflows triggered by component/modal interactions.
 /// These workflows don't have a slash command interaction context, so some action
 /// types (e.g. respondWithModal) will not work and are simply skipped.
-Future<void> handleListenerWorkflowActions(
+Future<Map<String, String>> handleListenerWorkflowActions(
   NyxxGateway client, {
   required List<Action> actions,
   required AppManager manager,
   required String botId,
   required Map<String, String> variables,
-  required String Function(String) resolveTemplate,
+  required String Function(String input) resolveTemplate,
+  Interaction? interaction,
 }) async {
-  await handleActions(
+  return handleActions(
     client,
-    null, // No slash command interaction in listener context
+    interaction,
     actions: actions,
     manager: manager,
     botId: botId,

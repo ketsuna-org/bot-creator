@@ -1,7 +1,6 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -10,10 +9,10 @@ import 'package:bot_creator/actions/handler.dart';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/types/action.dart';
 import 'package:bot_creator/actions/handle_component_interaction.dart';
-import 'package:bot_creator/actions/send_component_v2.dart';
-import 'package:bot_creator/types/component.dart';
+import 'package:bot_creator/actions/interaction_response.dart';
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/global.dart';
+import 'package:bot_creator/utils/template_resolver.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:path_provider/path_provider.dart';
