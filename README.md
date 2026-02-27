@@ -1,167 +1,120 @@
-# Cardia Kexa
+# Bot Creator
 
-Cardia Kexa is a Flutter Application with a focus on everything. We create what we want, when we want.
+`Bot Creator` is a Flutter app to create, configure, run, and monitor Discord bots locally.
 
-This App doesn't rely on a particular backend or API. It is a collection of various features and functionalities that we find interesting and useful.
-It is a playground for us to experiment with different technologies and frameworks, and to showcase our skills as developers.
-We are constantly adding new features and improving existing ones, so stay tuned for updates!
+It provides a visual builder for slash commands, interaction responses, reusable workflows, and action pipelines, plus local persistence and Google Drive backup/restore.
 
-## Table of Contents
+## What this app actually does
 
-- [Features](#features)
-- [Installation](#installation)
-- [Google Drive Setup](#google-drive-setup)
-- [Confidentiality](#confidentiality)
+- Manages multiple Discord bot apps (store token + metadata per bot)
+- Connects to Discord REST and Gateway using `nyxx`
+- Creates and edits slash commands
+- Builds rich command responses:
+  - text responses
+  - embeds
+  - component-based responses (buttons/selects)
+  - modal responses
+  - conditional response logic
+- Executes action chains on interactions (message/channel/moderation/webhook/etc.)
+- Supports global variables and reusable workflows
+- Runs bots:
+  - on Android/iOS via foreground service
+  - on desktop (Windows/Linux/macOS) in-process
+- Shows runtime logs and basic bot resource stats (RAM/CPU/storage)
+- Exports/imports local app data to Google Drive AppData folder
 
-## Features
+## Tech stack
 
-- **Flutter**: The app is built using Flutter, a popular open-source UI software development toolkit created by Google. It allows for fast development and beautiful UIs.
+- Flutter + Dart
+- `nyxx` (Discord API)
+- Local JSON-based persistence in app documents directory
+- Google Drive API (`googleapis`, `google_sign_in`, OAuth flow)
+- Firebase (Core, Analytics, Crashlytics, Performance where supported)
 
-- **Dart**: The programming language used for building the app. Dart is easy to learn and provides a modern programming experience.
+## Project name and old references
 
-- **SQLite**: The app uses SQLite for local data storage. SQLite is a lightweight, serverless database engine that is perfect for mobile applications.
+This repository/project is named `bot_creator` and the product name in the UI is **Bot Creator**.
 
-## Installation
+You may still see legacy identifiers like `cardia_kexa` in package IDs or internal strings (Android package namespace, desktop app id, logger names). They are historical leftovers, not the app name.
 
-To install the app, follow these steps:
+## Supported platforms
 
-- Clone the repository:
-```bash
-git clone git@github.com:ketsuna-org/cardia_kexa.git
-```
+- Android
+- iOS
+- Windows
+- Linux
+- macOS (code paths exist; verify local build config before release)
 
-- Navigate to the project directory:
-```bash
-cd cardia_kexa
-```
+## Getting started
 
-- Install the dependencies:
+### Prerequisites
+
+- Flutter SDK (matching the repo’s Flutter/Dart constraints)
+- A Discord bot token (from Discord Developer Portal)
+- Optional: Firebase setup files for analytics/crash reporting
+- Optional: Google OAuth credentials for Drive backup/restore
+
+### Run locally
+
 ```bash
 flutter pub get
-```
-
-- Run the app:
-```bash
 flutter run
 ```
 
-## Google Drive Setup
+## Typical usage flow
 
-Google Drive sync now supports Android, iOS, Windows and Linux, but each platform needs OAuth setup.
+1. Add a bot token in **Create a new App**
+2. Open the bot workspace
+3. Configure command(s) and response/workflow behavior
+4. Start the bot runtime (mobile service or desktop runtime)
+5. Test interactions in Discord
+6. Monitor logs/stats inside the app
+7. Export data to Google Drive if needed
 
-### 1) Google Cloud Console
+## Data storage model
 
-- Enable **Google Drive API**.
-- Configure **OAuth consent screen**.
-- Add test users if your app is still in Testing mode.
+Bot Creator stores data locally under the app documents directory, including:
 
-Create OAuth clients:
+- bot/app metadata
+- command configs
+- workflows
+- global variables
+- logs and runtime-related app data
 
-- **Android client** (package name + SHA fingerprints).
-- **iOS client** (bundle id must match `PRODUCT_BUNDLE_IDENTIFIER`).
-- **Desktop client** (for Windows/Linux/Mac).
+Backup/restore syncs this app data structure to Google Drive `appDataFolder`.
 
-### 2) iOS mandatory config
+## Google Drive backup/restore
 
-You must add `ios/Runner/GoogleService-Info.plist` (from Firebase/Google setup) to the Runner target.
+The app supports two auth modes:
 
-Then add URL scheme in `ios/Runner/Info.plist`:
+- **Mobile (Android/iOS):** native Google Sign-In flow
+- **Desktop:** browser-based OAuth with localhost callback
 
-```xml
-<key>CFBundleURLTypes</key>
-<array>
-	<dict>
-		<key>CFBundleTypeRole</key>
-		<string>Editor</string>
-		<key>CFBundleURLSchemes</key>
-		<array>
-			<string>REVERSED_CLIENT_ID</string>
-		</array>
-	</dict>
-</array>
-```
+Desktop supports `--dart-define` overrides for OAuth values (for example client id/secret) when needed by your environment.
 
-Replace `REVERSED_CLIENT_ID` with the value from your `GoogleService-Info.plist`.
+## Security notes
 
-### 3) Desktop mandatory config (Windows/Linux/Mac)
+- Bot tokens are sensitive secrets; treat exported data carefully.
+- Avoid committing local credentials or generated auth files.
+- Review platform-specific OAuth/Firebase config before distribution.
 
-Run Flutter with your desktop OAuth client ID:
+## Current limitations
 
-```bash
-flutter run -d windows --dart-define=GOOGLE_DESKTOP_CLIENT_ID=YOUR_DESKTOP_CLIENT_ID.apps.googleusercontent.com
-```
+- No dedicated backend service; logic is local-first
+- Local persistence is JSON-file based (not relational DB)
+- Some UI/log messages are currently French/English mixed
+- Legacy internal naming may still appear in non-user-facing code paths
 
-Linux example:
+## Development notes
 
-```bash
-flutter run -d linux --dart-define=GOOGLE_DESKTOP_CLIENT_ID=YOUR_DESKTOP_CLIENT_ID.apps.googleusercontent.com
-```
-
-Optional (mobile explicit client IDs):
-
-```bash
---dart-define=GOOGLE_IOS_CLIENT_ID=YOUR_IOS_CLIENT_ID.apps.googleusercontent.com
---dart-define=GOOGLE_SERVER_CLIENT_ID=YOUR_SERVER_CLIENT_ID.apps.googleusercontent.com
-```
-
-### 4) Behavior by platform
-
-- Android/iOS: uses Google Sign-In native flow.
-- Windows/Linux/Mac: opens browser OAuth flow and returns to app using localhost callback.
-
-### 5) Android troubleshooting (Google Sign-In fails)
-
-If Android login fails with `ApiException: 10`, `DEVELOPER_ERROR`, or `sign_in_failed`:
-
-1. Verify Android package name in Firebase app exactly matches:
-	- `android/app/build.gradle.kts` -> `applicationId`
-	- `android/app/google-services.json` -> `client[].client_info.android_client_info.package_name`
-2. Add both SHA fingerprints to Firebase Android app settings:
-	- Debug SHA-1/SHA-256 (for `flutter run`)
-	- Release SHA-1/SHA-256 (for release APK/AAB)
-3. Download a fresh `google-services.json` and replace `android/app/google-services.json`.
-4. Rebuild from clean state:
-
-```bash
-flutter clean
-flutter pub get
-flutter run -d android
-```
-
-Useful command for debug keystore SHA values:
-
-```bash
-keytool -list -v -alias androiddebugkey -keystore %USERPROFILE%\.android\debug.keystore -storepass android -keypass android
-```
-
-## Confidentiality
-
-This project does not collect or store any personal data. All data is stored locally on the device using SQLite, and no data is sent to any external servers or APIs.
-The app does not require any special permissions.
-
-We need to connect to Google Drive API to store User data, but this is not implemented yet. The app is designed to be used online and offline, but the online features are not fully implemented yet.
-The app use Nyxx to connect to Discord API.
-
-We rely on Google drive to store Bot Tokens, Commands data and other sensitive informations, what's actually used is only your Google Drive account, and the app will ask you to connect to your Google Drive account when you first run the "backup" feature.
-
-## Contributing
-
-This project is not open for contributions, as it is a personal project. However, if you have any suggestions or feedback, feel free to reach out to me.
+- Main entrypoint: `lib/main.dart`
+- App/workspace navigation: `lib/routes/`
+- Discord runtime + command handling: `lib/utils/bot.dart`
+- Action system: `lib/actions/` and `lib/types/action.dart`
+- Persistence: `lib/utils/database.dart`
+- Drive sync: `lib/utils/drive.dart`
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-## Contact
+No license file is currently included in this repository.
 
-No contact information is provided, as this is a personal project. However, if you have any questions or feedback, feel free to reach out to me through the GitHub repository.
-
-## Acknowledgements
-
-- Thanks to the Flutter and Dart communities for their amazing work and support.
-- Thanks to the SQLite community for providing a lightweight and powerful database engine.
-- Thanks to the open-source community for their contributions and inspiration.
-
-## Disclaimer
-
-This project is not affiliated with or endorsed by any of the technologies or frameworks mentioned in this README. All trademarks and copyrights are the property of their respective owners.
-This project is for educational and personal use only. Use it at your own risk.
