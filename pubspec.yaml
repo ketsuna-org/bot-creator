@@ -119,6 +119,7 @@ msix_config:
   publisher: CN=E73E73D2-3C26-49C2-B03F-7BEE917D84D7
   identity_name: Ketsuna.BotCreatorForDiscord
   store_id: 9P6T5WMBMZLR
+  store: true
   install_certificate: false
   msix_version: 1.0.0.0
   logo_path: assets/icon/icon.png
