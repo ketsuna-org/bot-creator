@@ -69,6 +69,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   rename: ^3.1.0
+  msix: ^3.16.13
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -111,3 +112,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+msix_config:
+  display_name: Bot Creator
+  publisher_display_name: Ketsuna
+  publisher: CN=E73E73D2-3C26-49C2-B03F-7BEE917D84D7
+  identity_name: Ketsuna.BotCreatorForDiscord
+  store_id: 9P6T5WMBMZLR
+  msix_version: 1.0.0.0
+  logo_path: assets/icon/icon.png

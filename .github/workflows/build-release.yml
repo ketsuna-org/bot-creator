@@ -72,6 +72,15 @@ jobs:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
+      - name: Build release AAB
+        run: flutter build appbundle --release
+
+      - name: Archive AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+
   build_linux_release:
     runs-on: ubuntu-latest
 
@@ -114,6 +123,15 @@ jobs:
           name: linux-release
           path: build/linux/x64/release/bundle/
 
+      - name: Build Linux AppImage
+        run: packaging/linux/appimage/build_appimage.sh
+
+      - name: Archive AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: build/appimage/*.AppImage
+
   build_windows_release:
     runs-on: windows-latest
 
@@ -150,3 +168,41 @@ jobs:
         with:
           name: windows-release
           path: build/windows/x64/runner/Release/
+
+      - name: Archive Windows EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: build/windows/x64/runner/Release/*.exe
+
+      - name: Create MSIX package
+        run: dart run msix:create
+
+      - name: Archive Windows MSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msix
+          path: build/windows/x64/runner/Release/*.msix
+
+  create_release:
+    needs: [build_android_release, build_linux_release, build_windows_release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Alpha Release - ${{ github.sha }}
+          tag_name: alpha-${{ github.run_number }}
+          prerelease: true
+          files: |
+            release-apk/app-release.apk
+            release-aab/app-release.aab
+            linux-release/**/*
+            linux-appimage/*.AppImage
+            windows-exe/*.exe
+            windows-msix/*.msix
