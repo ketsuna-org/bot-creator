@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:bot_creator/utils/database.dart';
+import 'package:archive/archive_io.dart';
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart';
@@ -21,6 +22,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 const List<String> _mobileDriveScopes = <String>[DriveApi.driveAppdataScope];
 const List<String> _desktopDriveScopes = <String>[DriveApi.driveAppdataScope];
+const String _backupRootFolderName = 'backups_v2';
+const String _backupMetaFileName = '__meta__.json';
+const String _snapshotArchiveFileName = 'apps_snapshot.zip';
 const String _desktopClientId = String.fromEnvironment(
   'GOOGLE_DESKTOP_CLIENT_ID',
   defaultValue:
@@ -563,7 +567,8 @@ Future<List<File>> listFiles(DriveApi drive) async {
   final fileList = await drive.files.list(
     q: 'trashed=false',
     spaces: 'appDataFolder',
-    $fields: 'files(id, name, parents, mimeType)',
+    $fields:
+        'files(id, name, parents, mimeType, createdTime, modifiedTime, size)',
   );
 
   return fileList.files ?? [];
@@ -575,55 +580,13 @@ Future<List<File>> listFiles(DriveApi drive) async {
 
 Future<String> uploadAppData(DriveApi drive, AppManager appm) async {
   try {
-    const rootParent = '';
-    // clean
-    final existing = await listFiles(drive);
-    existing.sort((a, b) {
-      final aFolder = a.mimeType == 'application/vnd.google-apps.folder';
-      final bFolder = b.mimeType == 'application/vnd.google-apps.folder';
-      if (aFolder == bFolder) return 0;
-      return aFolder ? 1 : -1;
-    });
-    for (var f in existing) {
-      await deleteFile(drive, fileId: f.id);
-    }
-
-    List<String> filesAlreadyUploaded = [];
-
-    Future<void> push(
-      manager.FileSystemEntity entity, {
-      String parent = '',
-    }) async {
-      final stat = await entity.stat();
-      final name = path.basename(entity.path);
-      if (filesAlreadyUploaded.contains(entity.path)) {
-        return;
-      } else {
-        filesAlreadyUploaded.add(entity.path);
-      }
-      if (stat.type == manager.FileSystemEntityType.directory) {
-        final remoteDir = await createFolder(
-          drive,
-          name: name,
-          parentId: parent,
-        );
-        for (var e in await manager.Directory(entity.path).list().toList()) {
-          await push(e, parent: remoteDir.id!);
-        }
-      } else if (entity.path.endsWith('.json')) {
-        await uploadFile(
-          drive,
-          filePath: entity.path,
-          fileName: name,
-          parentId: parent,
-        );
-      }
-    }
-
-    for (var e in await appm.getAllAppDirectory()) {
-      await push(e, parent: rootParent);
-    }
-    return 'Sauvegarde terminee';
+    final snapshot = await createBackupSnapshot(
+      drive,
+      appm,
+      label: 'Manual backup',
+    );
+    await _pruneSnapshots(drive, keepLatest: 20);
+    return 'Sauvegarde terminee (${snapshot.snapshotId})';
   } catch (e) {
     return 'Echec de la sauvegarde : $e';
   }
@@ -631,52 +594,530 @@ Future<String> uploadAppData(DriveApi drive, AppManager appm) async {
 
 Future<String> downloadAppData(DriveApi drive, AppManager appm) async {
   try {
-    final files = await listFiles(drive);
-    final path = await appm.path;
+    final latest = await getLatestBackupSnapshot(drive);
+    if (latest != null) {
+      await restoreBackupSnapshot(drive, appm, snapshotId: latest.snapshotId);
+      return 'Recuperation terminee (${latest.snapshotId})';
+    }
 
-    final localAppsDir = manager.Directory('$path/apps');
+    // Legacy fallback for old flat backups stored at appDataFolder root.
+    return await _downloadLegacyFlatBackup(drive, appm);
+  } catch (e) {
+    return 'Echec de la recuperation : $e';
+  }
+}
+
+Future<BackupSnapshotSummary> createBackupSnapshot(
+  DriveApi drive,
+  AppManager appm, {
+  String label = 'Manual backup',
+}) async {
+  final backupsRoot = await _ensureBackupsRootFolder(drive);
+  final now = DateTime.now().toUtc();
+  final snapshotId = now
+      .toIso8601String()
+      .replaceAll(':', '-')
+      .replaceAll('.', '-');
+  final snapshotFolder = await createFolder(
+    drive,
+    name: snapshotId,
+    parentId: backupsRoot.id!,
+  );
+
+  final localRootPath = await appm.path;
+  final localAppsDir = manager.Directory('$localRootPath/apps');
+  if (!await localAppsDir.exists()) {
+    await localAppsDir.create(recursive: true);
+  }
+
+  var fileCount = 0;
+  var totalBytes = 0;
+  final tempDir = await getTemporaryDirectory();
+  final tempArchive = manager.File(
+    path.join(
+      tempDir.path,
+      'bot_creator_snapshot_${DateTime.now().microsecondsSinceEpoch}.zip',
+    ),
+  );
+
+  final zipEncoder = ZipFileEncoder();
+  zipEncoder.create(tempArchive.path);
+  try {
+    await for (final entity in localAppsDir.list(recursive: true)) {
+      if (entity is! manager.File || !entity.path.endsWith('.json')) {
+        continue;
+      }
+
+      final relativePath = path.relative(entity.path, from: localAppsDir.path);
+      final archivePath = _normalizeZipEntryPath(relativePath);
+      zipEncoder.addFile(entity, archivePath);
+
+      final size = await entity.length();
+      fileCount += 1;
+      totalBytes += size;
+    }
+  } finally {
+    zipEncoder.close();
+  }
+
+  try {
+    await uploadFile(
+      drive,
+      filePath: tempArchive.path,
+      fileName: _snapshotArchiveFileName,
+      mimeType: 'application/zip',
+      parentId: snapshotFolder.id!,
+    );
+  } finally {
+    if (await tempArchive.exists()) {
+      await tempArchive.delete();
+    }
+  }
+
+  final apps = await appm.getAllApps();
+  final appsPreview = apps
+      .whereType<Map>()
+      .map((raw) => Map<String, dynamic>.from(raw))
+      .map(
+        (app) => <String, String>{
+          'id': (app['id'] ?? '').toString(),
+          'name': (app['name'] ?? '').toString(),
+        },
+      )
+      .where((app) => app['id']!.isNotEmpty)
+      .toList(growable: false);
+
+  final metadata = <String, dynamic>{
+    'version': 2,
+    'snapshotId': snapshotId,
+    'label': label,
+    'createdAt': now.toIso8601String(),
+    'fileCount': fileCount,
+    'totalBytes': totalBytes,
+    'appCount': appsPreview.length,
+    'apps': appsPreview,
+    'format': 'zip-v1',
+    'archiveFile': _snapshotArchiveFileName,
+  };
+  await _uploadJsonToParent(
+    drive,
+    parentId: snapshotFolder.id!,
+    fileName: _backupMetaFileName,
+    content: metadata,
+  );
+
+  return BackupSnapshotSummary.fromJson(metadata);
+}
+
+Future<List<BackupSnapshotSummary>> listBackupSnapshots(DriveApi drive) async {
+  final root = await _findBackupsRootFolder(drive);
+  if (root == null || root.id == null) {
+    return const [];
+  }
+
+  final children = await _listChildren(drive, parentId: root.id!);
+  final folders = children
+      .where((f) => f.mimeType == 'application/vnd.google-apps.folder')
+      .toList(growable: false);
+
+  final snapshots = <BackupSnapshotSummary>[];
+  for (final folder in folders) {
+    if (folder.id == null || folder.name == null) {
+      continue;
+    }
+    final meta = await _readSnapshotMetadata(
+      drive,
+      parentId: folder.id!,
+      fallbackSnapshotId: folder.name!,
+    );
+    snapshots.add(meta);
+  }
+
+  snapshots.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return snapshots;
+}
+
+Future<BackupSnapshotSummary?> getLatestBackupSnapshot(DriveApi drive) async {
+  final snapshots = await listBackupSnapshots(drive);
+  if (snapshots.isEmpty) {
+    return null;
+  }
+  return snapshots.first;
+}
+
+Future<String> restoreBackupSnapshot(
+  DriveApi drive,
+  AppManager appm, {
+  required String snapshotId,
+}) async {
+  final root = await _findBackupsRootFolder(drive);
+  if (root == null || root.id == null) {
+    throw Exception('No backups folder found.');
+  }
+
+  final snapshotFolder = await _findNamedChild(
+    drive,
+    parentId: root.id!,
+    name: snapshotId,
+    folderOnly: true,
+  );
+  if (snapshotFolder?.id == null) {
+    throw Exception('Snapshot not found: $snapshotId');
+  }
+  final snapshotFolderId = snapshotFolder!.id!;
+
+  final archiveFile = await _findNamedChild(
+    drive,
+    parentId: snapshotFolderId,
+    name: _snapshotArchiveFileName,
+  );
+  if (archiveFile?.id != null) {
+    final tempDir = await getTemporaryDirectory();
+    final archivePath = path.join(
+      tempDir.path,
+      'bot_creator_restore_${DateTime.now().microsecondsSinceEpoch}.zip',
+    );
+    await downloadFile(drive, fileId: archiveFile!.id!, filePath: archivePath);
+
+    final localRootPath = await appm.path;
+    final localAppsDir = manager.Directory('$localRootPath/apps');
     if (await localAppsDir.exists()) {
       await localAppsDir.delete(recursive: true);
     }
     await localAppsDir.create(recursive: true);
 
-    Map<String, String> folders = {};
-    for (var f in files) {
-      if (f.mimeType == 'application/vnd.google-apps.folder') {
-        folders[f.id!] = f.name!;
+    try {
+      extractFileToDisk(archivePath, localAppsDir.path);
+    } finally {
+      final archiveLocal = manager.File(archivePath);
+      if (await archiveLocal.exists()) {
+        await archiveLocal.delete();
       }
     }
-    for (var f in folders.entries) {
-      final dir = manager.Directory('$path/apps/${f.value}');
+
+    await appm.refreshApps();
+    return 'Recuperation terminee';
+  }
+
+  // Legacy snapshot format fallback: folder tree of files.
+  final allFiles = await listFiles(drive);
+  final childrenByParent = <String, List<File>>{};
+  for (final file in allFiles) {
+    final parents = file.parents ?? const <String>[];
+    for (final parent in parents) {
+      childrenByParent.putIfAbsent(parent, () => <File>[]).add(file);
+    }
+  }
+
+  final localRootPath = await appm.path;
+  final localAppsDir = manager.Directory('$localRootPath/apps');
+  if (await localAppsDir.exists()) {
+    await localAppsDir.delete(recursive: true);
+  }
+  await localAppsDir.create(recursive: true);
+
+  Future<void> restoreFolder(String folderId, String relPath) async {
+    final children = childrenByParent[folderId] ?? const <File>[];
+    for (final child in children) {
+      final childId = child.id;
+      final childName = child.name;
+      if (childId == null || childName == null) {
+        continue;
+      }
+
+      final nextRel =
+          relPath.isEmpty ? childName : path.join(relPath, childName);
+      if (child.mimeType == 'application/vnd.google-apps.folder') {
+        await restoreFolder(childId, nextRel);
+        continue;
+      }
+
+      if (childName == _backupMetaFileName || !childName.endsWith('.json')) {
+        continue;
+      }
+
+      final targetPath = path.join(localAppsDir.path, nextRel);
+      await downloadFile(drive, fileId: childId, filePath: targetPath);
+    }
+  }
+
+  await restoreFolder(snapshotFolderId, '');
+  await appm.refreshApps();
+  return 'Recuperation terminee';
+}
+
+Future<void> deleteBackupSnapshot(
+  DriveApi drive, {
+  required String snapshotId,
+}) async {
+  final root = await _findBackupsRootFolder(drive);
+  if (root == null || root.id == null) {
+    return;
+  }
+  final snapshotFolder = await _findNamedChild(
+    drive,
+    parentId: root.id!,
+    name: snapshotId,
+    folderOnly: true,
+  );
+  if (snapshotFolder?.id == null) {
+    return;
+  }
+  await deleteFile(drive, fileId: snapshotFolder!.id!);
+}
+
+Future<void> _pruneSnapshots(DriveApi drive, {int keepLatest = 20}) async {
+  final snapshots = await listBackupSnapshots(drive);
+  if (snapshots.length <= keepLatest) {
+    return;
+  }
+  for (final snapshot in snapshots.skip(keepLatest)) {
+    await deleteBackupSnapshot(drive, snapshotId: snapshot.snapshotId);
+  }
+}
+
+Future<String> _downloadLegacyFlatBackup(
+  DriveApi drive,
+  AppManager appm,
+) async {
+  final files = await listFiles(drive);
+  final localRootPath = await appm.path;
+
+  final localAppsDir = manager.Directory('$localRootPath/apps');
+  if (await localAppsDir.exists()) {
+    await localAppsDir.delete(recursive: true);
+  }
+  await localAppsDir.create(recursive: true);
+
+  final folders = <String, String>{};
+  for (final file in files) {
+    if (file.id != null &&
+        file.name != null &&
+        file.mimeType == 'application/vnd.google-apps.folder') {
+      folders[file.id!] = file.name!;
+      final dir = manager.Directory(path.join(localAppsDir.path, file.name!));
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
     }
-
-    for (var f in files) {
-      if (f.mimeType != 'application/vnd.google-apps.folder') {
-        final parent = f.parents?.isNotEmpty == true ? f.parents!.first : '';
-        final folderName = folders[parent] ?? 'appDataFolder';
-        if (folderName == 'appDataFolder') {
-          await downloadFile(
-            drive,
-            fileId: f.id!,
-            filePath: '$path/apps/${f.name}',
-          );
-        } else {
-          await downloadFile(
-            drive,
-            fileId: f.id!,
-            filePath: '$path/apps/$folderName/${f.name}',
-          );
-        }
-      }
-    }
-
-    return 'Recuperation terminee';
-  } catch (e) {
-    return 'Echec de la recuperation : $e';
   }
+
+  for (final file in files) {
+    if (file.id == null ||
+        file.name == null ||
+        file.mimeType == 'application/vnd.google-apps.folder') {
+      continue;
+    }
+    final parent = file.parents?.isNotEmpty == true ? file.parents!.first : '';
+    final folderName = folders[parent];
+    final targetPath =
+        folderName == null
+            ? path.join(localAppsDir.path, file.name!)
+            : path.join(localAppsDir.path, folderName, file.name!);
+    await downloadFile(drive, fileId: file.id!, filePath: targetPath);
+  }
+
+  await appm.refreshApps();
+  return 'Recuperation terminee (legacy backup)';
+}
+
+Future<File?> _findBackupsRootFolder(DriveApi drive) {
+  return _findNamedChild(
+    drive,
+    parentId: '',
+    name: _backupRootFolderName,
+    folderOnly: true,
+  );
+}
+
+Future<File> _ensureBackupsRootFolder(DriveApi drive) async {
+  final existing = await _findBackupsRootFolder(drive);
+  if (existing?.id != null) {
+    return existing!;
+  }
+  return createFolder(drive, name: _backupRootFolderName);
+}
+
+Future<List<File>> _listChildren(
+  DriveApi drive, {
+  required String parentId,
+}) async {
+  final q = "trashed=false and '$parentId' in parents";
+  final result = await drive.files.list(
+    q: q,
+    spaces: 'appDataFolder',
+    $fields:
+        'files(id, name, parents, mimeType, createdTime, modifiedTime, size)',
+  );
+  return result.files ?? const <File>[];
+}
+
+Future<File?> _findNamedChild(
+  DriveApi drive, {
+  required String parentId,
+  required String name,
+  bool folderOnly = false,
+}) async {
+  final escapedName = name.replaceAll("'", r"\'");
+  final parentClause =
+      parentId.isEmpty
+          ? "'appDataFolder' in parents"
+          : "'$parentId' in parents";
+  final mimeClause =
+      folderOnly ? " and mimeType='application/vnd.google-apps.folder'" : '';
+  final query =
+      "trashed=false and $parentClause and name='$escapedName'$mimeClause";
+  final result = await drive.files.list(
+    q: query,
+    spaces: 'appDataFolder',
+    pageSize: 1,
+    $fields:
+        'files(id, name, parents, mimeType, createdTime, modifiedTime, size)',
+  );
+  final files = result.files ?? const <File>[];
+  if (files.isEmpty) {
+    return null;
+  }
+  return files.first;
+}
+
+Future<void> _uploadJsonToParent(
+  DriveApi drive, {
+  required String parentId,
+  required String fileName,
+  required Map<String, dynamic> content,
+}) async {
+  final tempDir = await getTemporaryDirectory();
+  final tempFile = manager.File(
+    path.join(
+      tempDir.path,
+      'bot_creator_${DateTime.now().microsecondsSinceEpoch}_$fileName',
+    ),
+  );
+  await tempFile.writeAsString(jsonEncode(content), flush: true);
+  try {
+    await uploadFile(
+      drive,
+      filePath: tempFile.path,
+      fileName: fileName,
+      parentId: parentId,
+    );
+  } finally {
+    if (await tempFile.exists()) {
+      await tempFile.delete();
+    }
+  }
+}
+
+String _normalizeZipEntryPath(String input) {
+  var value = input.replaceAll('\\', '/').trim();
+  if (value.startsWith('./')) {
+    value = value.substring(2);
+  }
+  while (value.startsWith('/')) {
+    value = value.substring(1);
+  }
+  return value;
+}
+
+Future<Map<String, dynamic>?> _readJsonFile(
+  DriveApi drive, {
+  required String fileId,
+}) async {
+  final media = await drive.files.get(
+    fileId,
+    downloadOptions: DownloadOptions.fullMedia,
+  );
+  if (media is! Media) {
+    return null;
+  }
+
+  final chunks = await media.stream.toList();
+  final bytes = chunks.expand((chunk) => chunk).toList(growable: false);
+  final raw = utf8.decode(bytes);
+  final decoded = jsonDecode(raw);
+  if (decoded is! Map) {
+    return null;
+  }
+  return Map<String, dynamic>.from(
+    decoded.map((key, value) => MapEntry(key.toString(), value)),
+  );
+}
+
+Future<BackupSnapshotSummary> _readSnapshotMetadata(
+  DriveApi drive, {
+  required String parentId,
+  required String fallbackSnapshotId,
+}) async {
+  final metaFile = await _findNamedChild(
+    drive,
+    parentId: parentId,
+    name: _backupMetaFileName,
+  );
+
+  if (metaFile?.id != null) {
+    final json = await _readJsonFile(drive, fileId: metaFile!.id!);
+    if (json != null) {
+      return BackupSnapshotSummary.fromJson(json);
+    }
+  }
+
+  return BackupSnapshotSummary(
+    snapshotId: fallbackSnapshotId,
+    label: 'Legacy snapshot',
+    createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    fileCount: 0,
+    totalBytes: 0,
+    appCount: 0,
+    apps: const [],
+  );
+}
+
+class BackupSnapshotSummary {
+  const BackupSnapshotSummary({
+    required this.snapshotId,
+    required this.label,
+    required this.createdAt,
+    required this.fileCount,
+    required this.totalBytes,
+    required this.appCount,
+    required this.apps,
+  });
+
+  factory BackupSnapshotSummary.fromJson(Map<String, dynamic> json) {
+    final appsRaw = (json['apps'] as List?)?.whereType<Map>() ?? const <Map>[];
+    final apps = appsRaw
+        .map(
+          (entry) => Map<String, String>.from(
+            entry.map((key, value) {
+              return MapEntry(key.toString(), value?.toString() ?? '');
+            }),
+          ),
+        )
+        .toList(growable: false);
+
+    final createdAt =
+        DateTime.tryParse((json['createdAt'] ?? '').toString())?.toUtc() ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+
+    return BackupSnapshotSummary(
+      snapshotId: (json['snapshotId'] ?? '').toString(),
+      label: (json['label'] ?? 'Backup').toString(),
+      createdAt: createdAt,
+      fileCount: (json['fileCount'] as num?)?.toInt() ?? 0,
+      totalBytes: (json['totalBytes'] as num?)?.toInt() ?? 0,
+      appCount: (json['appCount'] as num?)?.toInt() ?? apps.length,
+      apps: apps,
+    );
+  }
+
+  final String snapshotId;
+  final String label;
+  final DateTime createdAt;
+  final int fileCount;
+  final int totalBytes;
+  final int appCount;
+  final List<Map<String, String>> apps;
 }
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/app_diagnostics.dart';
 import 'package:bot_creator/utils/drive.dart';
+import 'package:bot_creator/utils/recovery_manager.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:googleapis/drive/v3.dart';
@@ -18,6 +19,10 @@ class _SettingPageState extends State<SettingPage> {
   DriveApi? driveApi;
   bool _isBusy = false;
   String _busyMessage = '';
+  RecoverySettings _recoverySettings = RecoverySettings.defaults();
+  bool _loadingRecoverySettings = true;
+  bool _loadingSnapshots = false;
+  List<BackupSnapshotSummary> _snapshots = const [];
 
   Future<void> _runWithLoading(
     String message,
@@ -57,6 +62,7 @@ class _SettingPageState extends State<SettingPage> {
   @override
   void initState() {
     super.initState();
+    _loadRecoverySettings();
     _initializeDriveApi();
   }
 
@@ -80,10 +86,232 @@ class _SettingPageState extends State<SettingPage> {
 
     try {
       await _ensureDriveApiConnected(interactive: false);
+      if (driveApi != null) {
+        await _refreshSnapshots();
+        await _runAutoBackupCheck(force: false, showSnack: false);
+      }
     } catch (e, st) {
       debugPrint('Drive API init failed: $e');
       debugPrintStack(stackTrace: st);
     }
+  }
+
+  Future<void> _loadRecoverySettings() async {
+    final settings = await RecoveryManager.loadSettings();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _recoverySettings = settings;
+      _loadingRecoverySettings = false;
+    });
+  }
+
+  Future<void> _saveRecoverySettings(RecoverySettings settings) async {
+    await RecoveryManager.saveSettings(settings);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _recoverySettings = settings;
+    });
+  }
+
+  Future<void> _refreshSnapshots() async {
+    if (driveApi == null) {
+      return;
+    }
+    setState(() {
+      _loadingSnapshots = true;
+    });
+    try {
+      final snapshots = await listBackupSnapshots(driveApi!);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _snapshots = snapshots;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingSnapshots = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _runAutoBackupCheck({
+    required bool force,
+    required bool showSnack,
+  }) async {
+    if (driveApi == null) {
+      return;
+    }
+    final result = await RecoveryManager.runAutoBackupIfDue(
+      drive: driveApi!,
+      appManager: appManager,
+      force: force,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    if (result.executed) {
+      final updated = _recoverySettings.copyWith(
+        lastAutoBackupAt: DateTime.now().toUtc(),
+      );
+      await _saveRecoverySettings(updated);
+      await _refreshSnapshots();
+    }
+
+    if (showSnack) {
+      final suffix =
+          result.snapshot == null
+              ? ''
+              : ' (${result.snapshot!.snapshotId.substring(0, 19)})';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${result.message}$suffix')));
+    }
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      return;
+    }
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _showSnapshotPreview(BackupSnapshotSummary snapshot) async {
+    if (!mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Snapshot Preview'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('ID: ${snapshot.snapshotId}'),
+                  Text('Label: ${snapshot.label}'),
+                  Text('Created: ${snapshot.createdAt.toLocal()}'),
+                  Text(
+                    'Files: ${snapshot.fileCount} • Size: ${_formatBytes(snapshot.totalBytes)}',
+                  ),
+                  Text('Apps: ${snapshot.appCount}'),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Apps in this snapshot',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 6),
+                  if (snapshot.apps.isEmpty)
+                    const Text('No app metadata available.')
+                  else
+                    ...snapshot.apps.map((entry) {
+                      final appName = (entry['name'] ?? '').trim();
+                      final appId = (entry['id'] ?? '').trim();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          appName.isEmpty ? appId : '$appName ($appId)',
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                await _runWithLoading('Suppression snapshot…', () async {
+                  try {
+                    await _ensureDriveApiConnected();
+                    await deleteBackupSnapshot(
+                      driveApi!,
+                      snapshotId: snapshot.snapshotId,
+                    );
+                    await _refreshSnapshots();
+                    if (!mounted) {
+                      return;
+                    }
+                    _showSnack('Snapshot deleted');
+                  } catch (e, st) {
+                    debugPrint('Delete snapshot failed: $e');
+                    debugPrintStack(stackTrace: st);
+                    if (!mounted) {
+                      return;
+                    }
+                    _showSnack('Error: $e');
+                  }
+                });
+              },
+              child: const Text('Delete'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                await _runWithLoading('Restore snapshot en cours…', () async {
+                  try {
+                    await _ensureDriveApiConnected();
+                    final message = await restoreBackupSnapshot(
+                      driveApi!,
+                      appManager,
+                      snapshotId: snapshot.snapshotId,
+                    );
+                    await appManager.refreshApps();
+                    await _refreshSnapshots();
+                    if (!mounted) {
+                      return;
+                    }
+                    _showSnack(message);
+                  } catch (e, st) {
+                    debugPrint('Restore snapshot failed: $e');
+                    debugPrintStack(stackTrace: st);
+                    if (!mounted) {
+                      return;
+                    }
+                    _showSnack('Error: $e');
+                  }
+                });
+              },
+              icon: const Icon(Icons.restore),
+              label: const Text('Restore This Snapshot'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _showDiagnosticsDialog() async {
@@ -228,6 +456,11 @@ class _SettingPageState extends State<SettingPage> {
                                         () async {
                                           try {
                                             await _ensureDriveApiConnected();
+                                            await _refreshSnapshots();
+                                            await _runAutoBackupCheck(
+                                              force: false,
+                                              showSnack: false,
+                                            );
                                             ScaffoldMessenger.of(
                                               context,
                                             ).showSnackBar(
@@ -296,6 +529,7 @@ class _SettingPageState extends State<SettingPage> {
                                           }
                                           setState(() {
                                             driveApi = null;
+                                            _snapshots = const [];
                                           });
                                           ScaffoldMessenger.of(
                                             context,
@@ -356,6 +590,7 @@ class _SettingPageState extends State<SettingPage> {
                                             driveApi!,
                                             appManager,
                                           );
+                                          await _refreshSnapshots();
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
@@ -399,6 +634,7 @@ class _SettingPageState extends State<SettingPage> {
                                             appManager,
                                           );
                                           await appManager.refreshApps();
+                                          await _refreshSnapshots();
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
@@ -444,6 +680,7 @@ class _SettingPageState extends State<SettingPage> {
                                           driveApi!,
                                           appManager,
                                         );
+                                        await _refreshSnapshots();
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
@@ -483,6 +720,7 @@ class _SettingPageState extends State<SettingPage> {
                                           appManager,
                                         );
                                         await appManager.refreshApps();
+                                        await _refreshSnapshots();
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
@@ -505,6 +743,234 @@ class _SettingPageState extends State<SettingPage> {
                       ),
                     ],
                   ),
+                const SizedBox(height: 32),
+                Text(
+                  "Recovery Pro",
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Enable auto-backup'),
+                          subtitle: const Text(
+                            'Create versioned snapshots automatically when due.',
+                          ),
+                          value:
+                              !_loadingRecoverySettings &&
+                              _recoverySettings.autoBackupEnabled,
+                          onChanged:
+                              _loadingRecoverySettings
+                                  ? null
+                                  : (enabled) async {
+                                    final next = _recoverySettings.copyWith(
+                                      autoBackupEnabled: enabled,
+                                    );
+                                    await _saveRecoverySettings(next);
+                                  },
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<int>(
+                          key: ValueKey(
+                            'auto_backup_interval_${_recoverySettings.autoBackupIntervalHours}',
+                          ),
+                          initialValue:
+                              _recoverySettings.autoBackupIntervalHours,
+                          decoration: const InputDecoration(
+                            labelText: 'Auto-backup interval',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 6, child: Text('Every 6h')),
+                            DropdownMenuItem(
+                              value: 12,
+                              child: Text('Every 12h'),
+                            ),
+                            DropdownMenuItem(
+                              value: 24,
+                              child: Text('Every 24h'),
+                            ),
+                            DropdownMenuItem(
+                              value: 72,
+                              child: Text('Every 72h'),
+                            ),
+                          ],
+                          onChanged:
+                              (!_recoverySettings.autoBackupEnabled ||
+                                      _loadingRecoverySettings)
+                                  ? null
+                                  : (value) async {
+                                    if (value == null) {
+                                      return;
+                                    }
+                                    final next = _recoverySettings.copyWith(
+                                      autoBackupIntervalHours: value,
+                                    );
+                                    await _saveRecoverySettings(next);
+                                  },
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _recoverySettings.lastAutoBackupAt == null
+                              ? 'Last auto-backup: never'
+                              : 'Last auto-backup: ${_recoverySettings.lastAutoBackupAt!.toLocal()}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed:
+                                  _isBusy
+                                      ? null
+                                      : () async {
+                                        await _runWithLoading(
+                                          'Création du snapshot…',
+                                          () async {
+                                            try {
+                                              await _ensureDriveApiConnected();
+                                              final snapshot =
+                                                  await createBackupSnapshot(
+                                                    driveApi!,
+                                                    appManager,
+                                                    label: 'Manual snapshot',
+                                                  );
+                                              await _refreshSnapshots();
+                                              if (!mounted) {
+                                                return;
+                                              }
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Snapshot created: ${snapshot.snapshotId}',
+                                                  ),
+                                                ),
+                                              );
+                                            } catch (e, st) {
+                                              debugPrint(
+                                                'Manual snapshot failed: $e',
+                                              );
+                                              debugPrintStack(stackTrace: st);
+                                              if (!mounted) {
+                                                return;
+                                              }
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Error: $e'),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                        );
+                                      },
+                              icon: const Icon(Icons.backup),
+                              label: const Text('Backup now'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed:
+                                  _isBusy ||
+                                          !_recoverySettings.autoBackupEnabled
+                                      ? null
+                                      : () async {
+                                        await _runWithLoading(
+                                          'Auto-backup check…',
+                                          () async {
+                                            await _ensureDriveApiConnected();
+                                            await _runAutoBackupCheck(
+                                              force: true,
+                                              showSnack: true,
+                                            );
+                                          },
+                                        );
+                                      },
+                              icon: const Icon(Icons.schedule_send),
+                              label: const Text('Run auto-backup now'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Snapshots',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Refresh snapshots',
+                              onPressed:
+                                  _isBusy || _loadingSnapshots
+                                      ? null
+                                      : () async {
+                                        await _runWithLoading(
+                                          'Actualisation des snapshots…',
+                                          () async {
+                                            await _ensureDriveApiConnected();
+                                            await _refreshSnapshots();
+                                          },
+                                        );
+                                      },
+                              icon: const Icon(Icons.refresh),
+                            ),
+                          ],
+                        ),
+                        if (_loadingSnapshots)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if (_snapshots.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              'No snapshots found yet.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          )
+                        else
+                          ..._snapshots.take(8).map((snapshot) {
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(snapshot.label),
+                              subtitle: Text(
+                                '${snapshot.createdAt.toLocal()} • ${snapshot.fileCount} files • ${_formatBytes(snapshot.totalBytes)}',
+                              ),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => _showSnapshotPreview(snapshot),
+                            );
+                          }),
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 32),
                 Text(
                   "Diagnostics",
