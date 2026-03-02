@@ -120,6 +120,9 @@ class ButtonNode extends ComponentNode {
   String url;
   String emoji;
   bool disabled;
+  String workflowName;
+  String workflowEntryPoint;
+  Map<String, dynamic> workflowArguments;
 
   ButtonNode({
     this.label = 'Button',
@@ -128,6 +131,9 @@ class ButtonNode extends ComponentNode {
     this.url = '',
     this.emoji = '',
     this.disabled = false,
+    this.workflowName = '',
+    this.workflowEntryPoint = '',
+    this.workflowArguments = const {},
   }) : customId = customId ?? ComponentNode.generateId('btn');
 
   factory ButtonNode.fromJson(Map<String, dynamic> json) {
@@ -141,6 +147,15 @@ class ButtonNode extends ComponentNode {
       url: (json['url'] ?? '').toString(),
       emoji: (json['emoji'] ?? '').toString(),
       disabled: json['disabled'] == true,
+      workflowName:
+          (json['workflowName'] ?? json['onClickWorkflow'] ?? '').toString(),
+      workflowEntryPoint:
+          (json['workflowEntryPoint'] ?? json['onClickEntryPoint'] ?? '')
+              .toString(),
+      workflowArguments: Map<String, dynamic>.from(
+        (json['workflowArguments'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      ),
     );
   }
 
@@ -153,6 +168,10 @@ class ButtonNode extends ComponentNode {
     'url': url,
     'emoji': emoji,
     'disabled': disabled,
+    'workflowName': workflowName,
+    if (workflowEntryPoint.trim().isNotEmpty)
+      'workflowEntryPoint': workflowEntryPoint,
+    if (workflowArguments.isNotEmpty) 'workflowArguments': workflowArguments,
   };
 }
 
@@ -196,6 +215,9 @@ class SelectMenuNode extends ComponentNode {
   int minValues;
   int maxValues;
   bool disabled;
+  String workflowName;
+  String workflowEntryPoint;
+  Map<String, dynamic> workflowArguments;
 
   SelectMenuNode({
     this.type = ComponentV2Type.stringSelect,
@@ -205,6 +227,9 @@ class SelectMenuNode extends ComponentNode {
     this.minValues = 1,
     this.maxValues = 1,
     this.disabled = false,
+    this.workflowName = '',
+    this.workflowEntryPoint = '',
+    this.workflowArguments = const {},
   }) : customId = customId ?? ComponentNode.generateId('select');
 
   factory SelectMenuNode.fromJson(Map<String, dynamic> json) {
@@ -227,6 +252,15 @@ class SelectMenuNode extends ComponentNode {
       minValues: json['minValues'] as int? ?? 1,
       maxValues: json['maxValues'] as int? ?? 1,
       disabled: json['disabled'] == true,
+      workflowName:
+          (json['workflowName'] ?? json['onSelectWorkflow'] ?? '').toString(),
+      workflowEntryPoint:
+          (json['workflowEntryPoint'] ?? json['onSelectEntryPoint'] ?? '')
+              .toString(),
+      workflowArguments: Map<String, dynamic>.from(
+        (json['workflowArguments'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      ),
     );
   }
 
@@ -239,6 +273,10 @@ class SelectMenuNode extends ComponentNode {
     'minValues': minValues,
     'maxValues': maxValues,
     'disabled': disabled,
+    'workflowName': workflowName,
+    if (workflowEntryPoint.trim().isNotEmpty)
+      'workflowEntryPoint': workflowEntryPoint,
+    if (workflowArguments.isNotEmpty) 'workflowArguments': workflowArguments,
   };
 }
 
@@ -855,12 +893,16 @@ class ModalDefinition {
   String customId;
   List<ModalTextInputDefinition> inputs;
   String? onSubmitWorkflow;
+  String onSubmitEntryPoint;
+  Map<String, dynamic> onSubmitArguments;
 
   ModalDefinition({
     this.title = '',
     String? customId,
     this.inputs = const [],
     this.onSubmitWorkflow,
+    this.onSubmitEntryPoint = '',
+    this.onSubmitArguments = const {},
   }) : customId = customId ?? ComponentNode.generateId('modal');
 
   factory ModalDefinition.fromJson(Map<String, dynamic> json) {
@@ -868,6 +910,11 @@ class ModalDefinition {
       title: (json['title'] ?? '').toString(),
       customId: (json['customId'] ?? '').toString(),
       onSubmitWorkflow: json['onSubmitWorkflow']?.toString(),
+      onSubmitEntryPoint: (json['onSubmitEntryPoint'] ?? '').toString(),
+      onSubmitArguments: Map<String, dynamic>.from(
+        (json['onSubmitArguments'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      ),
       inputs:
           (json['inputs'] as List? ?? [])
               .whereType<Map>()
@@ -885,5 +932,8 @@ class ModalDefinition {
     'customId': customId,
     'inputs': inputs.map((i) => i.toJson()).toList(),
     if (onSubmitWorkflow != null) 'onSubmitWorkflow': onSubmitWorkflow,
+    if (onSubmitEntryPoint.trim().isNotEmpty)
+      'onSubmitEntryPoint': onSubmitEntryPoint,
+    if (onSubmitArguments.isNotEmpty) 'onSubmitArguments': onSubmitArguments,
   };
 }

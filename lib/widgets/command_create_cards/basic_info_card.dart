@@ -11,6 +11,8 @@ class BasicInfoCard extends StatelessWidget {
   final ValueChanged<List<ApplicationIntegrationType>>
   onIntegrationTypesChanged;
   final ValueChanged<List<InteractionContextType>> onContextsChanged;
+  final String defaultMemberPermissions;
+  final ValueChanged<String> onDefaultMemberPermissionsChanged;
   final String? Function(String?) nameValidator;
 
   const BasicInfoCard({
@@ -23,6 +25,8 @@ class BasicInfoCard extends StatelessWidget {
     required this.onDescriptionChanged,
     required this.onIntegrationTypesChanged,
     required this.onContextsChanged,
+    required this.defaultMemberPermissions,
+    required this.onDefaultMemberPermissionsChanged,
     required this.nameValidator,
   });
 
@@ -255,6 +259,27 @@ class BasicInfoCard extends StatelessWidget {
                           ],
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      "Default Member Permissions (optional)",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      initialValue: defaultMemberPermissions,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: "Permission Bitfield",
+                        hintText: "Leave empty for everyone",
+                        border: OutlineInputBorder(),
+                        helperText:
+                            "Discord default_member_permissions as integer (e.g. 8 for Administrator).",
+                      ),
+                      onChanged: onDefaultMemberPermissionsChanged,
                     ),
                   ],
                 );

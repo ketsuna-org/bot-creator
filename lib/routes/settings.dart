@@ -1,5 +1,6 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/analytics.dart';
+import 'package:bot_creator/utils/app_diagnostics.dart';
 import 'package:bot_creator/utils/drive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -83,6 +84,53 @@ class _SettingPageState extends State<SettingPage> {
       debugPrint('Drive API init failed: $e');
       debugPrintStack(stackTrace: st);
     }
+  }
+
+  Future<void> _showDiagnosticsDialog() async {
+    final text = await AppDiagnostics.readLog(maxLines: 250);
+    if (!mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Startup Diagnostics'),
+          content: SizedBox(
+            width: 700,
+            child: SingleChildScrollView(
+              child: SelectableText(
+                text,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await AppDiagnostics.copyLogToClipboard(maxLines: 300);
+                if (!context.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Diagnostics copied to clipboard'),
+                  ),
+                );
+              },
+              child: const Text('Copy'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -452,6 +500,92 @@ class _SettingPageState extends State<SettingPage> {
                                         );
                                       }
                                     },
+                                  );
+                                },
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 32),
+                Text(
+                  "Diagnostics",
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (isWideScreen)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDataButton(
+                          context,
+                          icon: Icons.bug_report_outlined,
+                          label: "View startup logs",
+                          onPressed:
+                              _isBusy
+                                  ? null
+                                  : () async {
+                                    await _showDiagnosticsDialog();
+                                  },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildDataButton(
+                          context,
+                          icon: Icons.delete_outline,
+                          label: "Clear logs",
+                          onPressed:
+                              _isBusy
+                                  ? null
+                                  : () async {
+                                    await AppDiagnostics.clearLog();
+                                    if (!mounted) {
+                                      return;
+                                    }
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Diagnostics log cleared',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Column(
+                    children: [
+                      _buildDataButton(
+                        context,
+                        icon: Icons.bug_report_outlined,
+                        label: "View startup logs",
+                        onPressed:
+                            _isBusy
+                                ? null
+                                : () async {
+                                  await _showDiagnosticsDialog();
+                                },
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDataButton(
+                        context,
+                        icon: Icons.delete_outline,
+                        label: "Clear logs",
+                        onPressed:
+                            _isBusy
+                                ? null
+                                : () async {
+                                  await AppDiagnostics.clearLog();
+                                  if (!mounted) {
+                                    return;
+                                  }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Diagnostics log cleared'),
+                                    ),
                                   );
                                 },
                       ),

@@ -1,4 +1,5 @@
 import 'package:bot_creator/main.dart';
+import 'package:bot_creator/routes/app/workflow_docs.page.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:flutter/material.dart';
@@ -92,6 +93,27 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     const SizedBox(height: 20),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.menu_book_outlined),
+                        title: const Text('Workflow Documentation'),
+                        subtitle: const Text(
+                          'Detailed guide for entry points, call arguments, and runtime behavior.',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) =>
+                                      const WorkflowDocumentationPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     // Application Flags Section
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),

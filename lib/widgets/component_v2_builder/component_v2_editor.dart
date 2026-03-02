@@ -9,12 +9,14 @@ class ComponentV2EditorWidget extends StatefulWidget {
   final ComponentV2Definition definition;
   final ValueChanged<ComponentV2Definition> onChanged;
   final List<VariableSuggestion> variableSuggestions;
+  final String? botIdForConfig;
 
   const ComponentV2EditorWidget({
     super.key,
     required this.definition,
     required this.onChanged,
     required this.variableSuggestions,
+    this.botIdForConfig,
   });
 
   @override
@@ -228,6 +230,7 @@ class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
                   onChanged: (updated) => _updateNode(index, updated),
                   onRemove: () => _removeNode(index),
                   variableSuggestions: widget.variableSuggestions,
+                  botIdForConfig: widget.botIdForConfig,
                 );
               }),
               const SizedBox(height: 8),

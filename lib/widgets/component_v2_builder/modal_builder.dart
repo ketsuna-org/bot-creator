@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/types/component.dart';
@@ -28,6 +30,8 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
   late TextEditingController _titleCtrl;
   late TextEditingController _customIdCtrl;
   late TextEditingController _onWorkflowCtrl;
+  late TextEditingController _onWorkflowEntryPointCtrl;
+  late Map<String, dynamic> _onWorkflowArguments;
   late List<ModalTextInputDefinition> _inputs;
   List<String> _availableWorkflowNames = const [];
   bool _loadingWorkflows = false;
@@ -52,6 +56,12 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
       if (_onWorkflowCtrl.text != (widget.modal.onSubmitWorkflow ?? '')) {
         _onWorkflowCtrl.text = widget.modal.onSubmitWorkflow ?? '';
       }
+      if (_onWorkflowEntryPointCtrl.text != widget.modal.onSubmitEntryPoint) {
+        _onWorkflowEntryPointCtrl.text = widget.modal.onSubmitEntryPoint;
+      }
+      _onWorkflowArguments = Map<String, dynamic>.from(
+        widget.modal.onSubmitArguments,
+      );
       _inputs = List.from(widget.modal.inputs);
     }
     if (widget.botIdForConfig != oldWidget.botIdForConfig) {
@@ -65,6 +75,12 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
     _onWorkflowCtrl = TextEditingController(
       text: widget.modal.onSubmitWorkflow ?? '',
     );
+    _onWorkflowEntryPointCtrl = TextEditingController(
+      text: widget.modal.onSubmitEntryPoint,
+    );
+    _onWorkflowArguments = Map<String, dynamic>.from(
+      widget.modal.onSubmitArguments,
+    );
     _inputs = List.from(widget.modal.inputs);
   }
 
@@ -73,6 +89,7 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
     _titleCtrl.dispose();
     _customIdCtrl.dispose();
     _onWorkflowCtrl.dispose();
+    _onWorkflowEntryPointCtrl.dispose();
     super.dispose();
   }
 
@@ -86,6 +103,8 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
             _onWorkflowCtrl.text.trim().isEmpty
                 ? null
                 : _onWorkflowCtrl.text.trim(),
+        onSubmitEntryPoint: _onWorkflowEntryPointCtrl.text.trim(),
+        onSubmitArguments: Map<String, dynamic>.from(_onWorkflowArguments),
       ),
     );
   }
@@ -135,15 +154,96 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
     }
 
     final names = workflows
-        .map((workflow) => (workflow['name'] ?? '').toString().trim())
-        .where((name) => name.isNotEmpty)
-        .toList(growable: false)
-      ..sort();
+      .map((workflow) => (workflow['name'] ?? '').toString().trim())
+      .where((name) => name.isNotEmpty)
+      .toList(growable: false)..sort();
 
     setState(() {
       _availableWorkflowNames = names;
       _loadingWorkflows = false;
     });
+  }
+
+  Future<void> _editOnSubmitArguments() async {
+    final jsonController = TextEditingController(
+      text:
+          _onWorkflowArguments.isEmpty
+              ? '{}'
+              : const JsonEncoder.withIndent(
+                '  ',
+              ).convert(_onWorkflowArguments),
+    );
+    String? error;
+
+    await showDialog<void>(
+      context: context,
+      builder:
+          (dialogContext) => StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: const Text('Workflow Call Arguments (JSON)'),
+                content: SizedBox(
+                  width: 520,
+                  child: TextField(
+                    controller: jsonController,
+                    minLines: 8,
+                    maxLines: 16,
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      errorText: error,
+                      helperText: 'Example: {"ticketId":"((opts.ticket))"}',
+                    ),
+                    style: const TextStyle(fontFamily: 'monospace'),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      final raw = jsonController.text.trim();
+                      if (raw.isEmpty) {
+                        setState(() {
+                          _onWorkflowArguments = <String, dynamic>{};
+                        });
+                        _emit();
+                        Navigator.pop(dialogContext);
+                        return;
+                      }
+
+                      try {
+                        final parsed = jsonDecode(raw);
+                        if (parsed is! Map) {
+                          setDialogState(() {
+                            error = 'Root must be a JSON object';
+                          });
+                          return;
+                        }
+
+                        setState(() {
+                          _onWorkflowArguments = Map<String, dynamic>.from(
+                            parsed.map(
+                              (key, value) => MapEntry(key.toString(), value),
+                            ),
+                          );
+                        });
+                        _emit();
+                        Navigator.pop(dialogContext);
+                      } catch (e) {
+                        setDialogState(() {
+                          error = e.toString();
+                        });
+                      }
+                    },
+                    child: const Text('Save'),
+                  ),
+                ],
+              );
+            },
+          ),
+    );
   }
 
   @override
@@ -190,89 +290,137 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Title & customId
-              Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: VariableTextField(
-                      label: 'Modal Title',
-                      initialValue: widget.modal.title,
-                      suggestions: widget.variableSuggestions,
-                      onChanged: (v) {
-                        _titleCtrl.text = v;
-                        _emit();
-                      },
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final titleField = VariableTextField(
+                    label: 'Modal Title',
+                    initialValue: widget.modal.title,
+                    suggestions: widget.variableSuggestions,
+                    onChanged: (v) {
+                      _titleCtrl.text = v;
+                      _emit();
+                    },
+                  );
+                  final customIdField = TextFormField(
+                    controller: _customIdCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Custom ID',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      helperText: 'Used to identify this modal',
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: TextFormField(
-                      controller: _customIdCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Custom ID',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        helperText: 'Used to identify this modal',
-                      ),
-                      onChanged: (_) => _emit(),
-                    ),
-                  ),
-                ],
+                    onChanged: (_) => _emit(),
+                  );
+
+                  if (constraints.maxWidth < 560) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        titleField,
+                        const SizedBox(height: 8),
+                        customIdField,
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(flex: 3, child: titleField),
+                      const SizedBox(width: 8),
+                      Expanded(flex: 2, child: customIdField),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 12),
               if (widget.botIdForConfig != null) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue:
-                            _onWorkflowCtrl.text.trim().isEmpty
-                                ? null
-                                : (_availableWorkflowNames.contains(
-                                  _onWorkflowCtrl.text.trim(),
-                                )
-                                ? _onWorkflowCtrl.text.trim()
-                                : null),
-                        isExpanded: true,
-                        items:
-                            _availableWorkflowNames
-                                .map(
-                                  (name) => DropdownMenuItem<String>(
-                                    value: name,
-                                    child: Text(name),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged:
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final workflowSelector = DropdownButtonFormField<String>(
+                      initialValue:
+                          _onWorkflowCtrl.text.trim().isEmpty
+                              ? null
+                              : (_availableWorkflowNames.contains(
+                                    _onWorkflowCtrl.text.trim(),
+                                  )
+                                  ? _onWorkflowCtrl.text.trim()
+                                  : null),
+                      isExpanded: true,
+                      items:
+                          _availableWorkflowNames
+                              .map(
+                                (name) => DropdownMenuItem<String>(
+                                  value: name,
+                                  child: Text(name),
+                                ),
+                              )
+                              .toList(),
+                      onChanged:
+                          _loadingWorkflows
+                              ? null
+                              : (value) {
+                                setState(() {
+                                  _onWorkflowCtrl.text = (value ?? '').trim();
+                                });
+                                _emit();
+                              },
+                      decoration: InputDecoration(
+                        labelText: 'Workflow to run on submit (optional)',
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                        helperText:
                             _loadingWorkflows
-                                ? null
-                                : (value) {
-                                  setState(() {
-                                    _onWorkflowCtrl.text = (value ?? '').trim();
-                                  });
-                                  _emit();
-                                },
-                        decoration: InputDecoration(
-                          labelText: 'Workflow to run on submit (optional)',
-                          border: const OutlineInputBorder(),
-                          isDense: true,
-                          helperText:
-                              _loadingWorkflows
-                                  ? 'Loading workflows...'
-                                  : (_availableWorkflowNames.isEmpty
-                                      ? 'No saved workflows found'
-                                      : 'Select a saved workflow'),
-                        ),
+                                ? 'Loading workflows...'
+                                : (_availableWorkflowNames.isEmpty
+                                    ? 'No saved workflows found'
+                                    : 'Select a saved workflow'),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
+                    );
+
+                    final refreshButton = IconButton(
                       tooltip: 'Refresh workflows',
-                      onPressed: _loadingWorkflows ? null : _loadAvailableWorkflows,
+                      onPressed:
+                          _loadingWorkflows ? null : _loadAvailableWorkflows,
                       icon: const Icon(Icons.refresh),
-                    ),
-                  ],
+                    );
+
+                    if (constraints.maxWidth < 440) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          workflowSelector,
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: refreshButton,
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: workflowSelector),
+                        const SizedBox(width: 8),
+                        refreshButton,
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 6),
+                TextFormField(
+                  key: ValueKey(
+                    'modal_manual_workflow_${widget.modal.customId}_${_onWorkflowCtrl.text.trim()}',
+                  ),
+                  initialValue: _onWorkflowCtrl.text.trim(),
+                  decoration: const InputDecoration(
+                    labelText: 'Or type workflow name',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (value) {
+                    _onWorkflowCtrl.text = value.trim();
+                    _emit();
+                  },
                 ),
               ] else ...[
                 VariableTextField(
@@ -316,6 +464,29 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
               ),
               if (_onWorkflowCtrl.text.trim().isNotEmpty) ...[
                 const SizedBox(height: 8),
+                TextFormField(
+                  controller: _onWorkflowEntryPointCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Entry Point (optional)',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                    helperText: 'Defaults to workflow entry point when empty',
+                  ),
+                  onChanged: (_) => _emit(),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _editOnSubmitArguments,
+                  icon: const Icon(Icons.data_object),
+                  label: Text(
+                    _onWorkflowArguments.isEmpty
+                        ? 'Set Call Arguments'
+                        : 'Edit Call Arguments (${_onWorkflowArguments.length})',
+                  ),
+                ),
+              ],
+              if (_onWorkflowCtrl.text.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -333,7 +504,7 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'On submit, the workflow "${_onWorkflowCtrl.text.trim()}" will be executed.',
+                          'On submit, workflow "${_onWorkflowCtrl.text.trim()}" will run (entry: ${_onWorkflowEntryPointCtrl.text.trim().isEmpty ? 'default' : _onWorkflowEntryPointCtrl.text.trim()}, args: ${_onWorkflowArguments.length}).',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.green.shade800,
@@ -469,6 +640,30 @@ class _ModalTextInputTileState extends State<_ModalTextInputTile> {
     );
   }
 
+  Widget _buildResponsiveTwoFieldRow({
+    required Widget first,
+    required Widget second,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [first, const SizedBox(height: 8), second],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: first),
+            const SizedBox(width: 8),
+            Expanded(child: second),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -482,10 +677,9 @@ class _ModalTextInputTileState extends State<_ModalTextInputTile> {
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final titleText = Text(
                   widget.input.label.isEmpty
                       ? 'Input ${widget.index + 1}'
                       : widget.input.label,
@@ -493,8 +687,9 @@ class _ModalTextInputTileState extends State<_ModalTextInputTile> {
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
-                ),
-                Row(
+                );
+
+                final actions = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Chip(
@@ -513,37 +708,46 @@ class _ModalTextInputTileState extends State<_ModalTextInputTile> {
                       onPressed: widget.onRemove,
                     ),
                   ],
-                ),
-              ],
+                );
+
+                if (constraints.maxWidth < 420) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      titleText,
+                      const SizedBox(height: 6),
+                      Align(alignment: Alignment.centerRight, child: actions),
+                    ],
+                  );
+                }
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [Expanded(child: titleText), actions],
+                );
+              },
             ),
             const Divider(),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _labelCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Label',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    onChanged: (v) => _emit(),
-                  ),
+            _buildResponsiveTwoFieldRow(
+              first: TextFormField(
+                controller: _labelCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Label',
+                  border: OutlineInputBorder(),
+                  isDense: true,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    controller: _customIdCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Custom ID',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    onChanged: (v) => _emit(),
-                  ),
+                onChanged: (v) => _emit(),
+              ),
+              second: TextFormField(
+                controller: _customIdCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Custom ID',
+                  border: OutlineInputBorder(),
+                  isDense: true,
                 ),
-              ],
+                onChanged: (v) => _emit(),
+              ),
             ),
             const SizedBox(height: 8),
             TextFormField(
@@ -566,48 +770,45 @@ class _ModalTextInputTileState extends State<_ModalTextInputTile> {
               },
             ),
             const SizedBox(height: 4),
-            Row(
-              children: [
-                // Style picker
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Style:', style: TextStyle(fontSize: 12)),
-                      Row(
-                        children:
-                            BcTextInputStyle.values.map((style) {
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: FilterChip(
-                                  label: Text(
-                                    style.name,
-                                    style: const TextStyle(fontSize: 11),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final stylePicker = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Style:', style: TextStyle(fontSize: 12)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children:
+                          BcTextInputStyle.values.map((style) {
+                            return FilterChip(
+                              label: Text(
+                                style.name,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              selected: widget.input.style == style,
+                              onSelected: (_) {
+                                widget.onChanged(
+                                  ModalTextInputDefinition(
+                                    customId: _customIdCtrl.text,
+                                    label: _labelCtrl.text,
+                                    style: style,
+                                    placeholder: _placeholderCtrl.text,
+                                    defaultValue: _defaultValCtrl.text,
+                                    required: widget.input.required,
+                                    minLength: widget.input.minLength,
+                                    maxLength: widget.input.maxLength,
                                   ),
-                                  selected: widget.input.style == style,
-                                  onSelected: (_) {
-                                    widget.onChanged(
-                                      ModalTextInputDefinition(
-                                        customId: _customIdCtrl.text,
-                                        label: _labelCtrl.text,
-                                        style: style,
-                                        placeholder: _placeholderCtrl.text,
-                                        defaultValue: _defaultValCtrl.text,
-                                        required: widget.input.required,
-                                        minLength: widget.input.minLength,
-                                        maxLength: widget.input.maxLength,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              );
-                            }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
-                // Required toggle
-                Row(
+                                );
+                              },
+                            );
+                          }).toList(),
+                    ),
+                  ],
+                );
+
+                final requiredToggle = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text('Required', style: TextStyle(fontSize: 12)),
@@ -629,8 +830,31 @@ class _ModalTextInputTileState extends State<_ModalTextInputTile> {
                       },
                     ),
                   ],
-                ),
-              ],
+                );
+
+                if (constraints.maxWidth < 560) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      stylePicker,
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: requiredToggle,
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: stylePicker),
+                    const SizedBox(width: 8),
+                    requiredToggle,
+                  ],
+                );
+              },
             ),
           ],
         ),

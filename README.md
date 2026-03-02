@@ -92,6 +92,14 @@ The app supports two auth modes:
 
 Desktop supports `--dart-define` overrides for OAuth values (for example client id/secret) when needed by your environment.
 
+## Startup diagnostics and crash debugging
+
+- App startup is now wrapped with guarded initialization.
+- If Firebase/Crashlytics initialization fails on some devices, the app logs the failure locally instead of crashing silently.
+- Local diagnostics file path: app documents directory `/diagnostics/startup_diagnostics.log`
+- In-app access: **Settings** -> **Diagnostics** -> **View startup logs** / **Clear logs**
+- On fatal startup error, a fallback error screen appears with a **Copy diagnostics** action.
+
 ## Security notes
 
 - Bot tokens are sensitive secrets; treat exported data carefully.
@@ -117,4 +125,3 @@ Desktop supports `--dart-define` overrides for OAuth values (for example client 
 ## License
 
 No license file is currently included in this repository.
-

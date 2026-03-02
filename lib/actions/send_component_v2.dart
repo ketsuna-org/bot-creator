@@ -1,5 +1,6 @@
 import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator/types/component.dart';
+import 'package:bot_creator/utils/component_workflow_bindings.dart';
 
 class CustomSectionBuilder extends ComponentBuilder<SectionComponent> {
   final List<TextDisplayComponentBuilder> sectionComponents;
@@ -353,6 +354,7 @@ Future<Map<String, dynamic>> respondWithComponentV2Action(
   Interaction interaction, {
   required Map<String, dynamic> payload,
   String Function(String)? resolve,
+  String? botId,
 }) async {
   resolve ??= (s) => s;
   try {
@@ -387,6 +389,15 @@ Future<Map<String, dynamic>> respondWithComponentV2Action(
             components: nodes,
           );
           final message = await dynInt.updateOriginalResponse(builder);
+          if (botId != null && botId.trim().isNotEmpty) {
+            registerComponentWorkflowBindings(
+              definition: definition,
+              resolve: resolve,
+              botId: botId,
+              guildId: interaction.guildId?.toString(),
+              channelId: interaction.channelId?.toString(),
+            );
+          }
           return {'messageId': message.id.toString()};
         } else {
           final builder = MessageBuilder(
@@ -395,6 +406,15 @@ Future<Map<String, dynamic>> respondWithComponentV2Action(
             flags: MessageFlags(flagsOpt),
           );
           await dynInt.respond(builder);
+          if (botId != null && botId.trim().isNotEmpty) {
+            registerComponentWorkflowBindings(
+              definition: definition,
+              resolve: resolve,
+              botId: botId,
+              guildId: interaction.guildId?.toString(),
+              channelId: interaction.channelId?.toString(),
+            );
+          }
           return {'status': 'responded'};
         }
       } catch (e) {

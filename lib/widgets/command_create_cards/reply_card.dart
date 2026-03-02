@@ -64,26 +64,26 @@ class ReplyCard extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 12),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildResponseTypeChip(
                   value: 'normal',
-                  icon: Icon(Icons.message),
-                  label: Text('Normal Reply'),
+                  label: 'Normal Reply',
+                  icon: Icons.message,
                 ),
-                ButtonSegment(
+                _buildResponseTypeChip(
                   value: 'componentV2',
-                  icon: Icon(Icons.dashboard_customize),
-                  label: Text('Component V2'),
+                  label: 'Component V2',
+                  icon: Icons.dashboard_customize,
                 ),
-                ButtonSegment(
+                _buildResponseTypeChip(
                   value: 'modal',
-                  icon: Icon(Icons.web_asset),
-                  label: Text('Modal Form'),
+                  label: 'Modal Form',
+                  icon: Icons.web_asset,
                 ),
               ],
-              selected: {responseType},
-              onSelectionChanged: (set) => onResponseTypeChanged(set.first),
             ),
             const SizedBox(height: 16),
             if (responseType == 'normal') ...[
@@ -125,6 +125,7 @@ class ReplyCard extends StatelessWidget {
                     ),
                     onChanged: (def) => onComponentsChanged(def.toJson()),
                     variableSuggestions: variableSuggestions,
+                    botIdForConfig: botIdForConfig,
                   ),
                 ],
               ),
@@ -133,6 +134,7 @@ class ReplyCard extends StatelessWidget {
                 definition: ComponentV2Definition.fromJson(responseComponents),
                 onChanged: (def) => onComponentsChanged(def.toJson()),
                 variableSuggestions: variableSuggestions,
+                botIdForConfig: botIdForConfig,
               ),
             ] else if (responseType == 'modal') ...[
               ModalBuilderWidget(
@@ -172,6 +174,22 @@ class ReplyCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildResponseTypeChip({
+    required String value,
+    required String label,
+    required IconData icon,
+  }) {
+    final selected = responseType == value;
+    return ChoiceChip(
+      selected: selected,
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [Icon(icon, size: 16), const SizedBox(width: 6), Text(label)],
+      ),
+      onSelected: (_) => onResponseTypeChanged(value),
     );
   }
 }

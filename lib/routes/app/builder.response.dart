@@ -12,11 +12,13 @@ export 'builder/action_card.dart';
 class ActionsBuilderPage extends StatefulWidget {
   final List<Map<String, dynamic>> initialActions;
   final List<VariableSuggestion> variableSuggestions;
+  final String? botIdForConfig;
 
   const ActionsBuilderPage({
     super.key,
     this.initialActions = const [],
     this.variableSuggestions = const [],
+    this.botIdForConfig,
   });
 
   @override
@@ -419,7 +421,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.listGlobalVariables:
         return 'List all global variables as JSON';
       case BotCreatorActionType.runWorkflow:
-        return 'Execute a saved workflow by name';
+        return 'Execute a saved workflow (supports entry point + arguments)';
       case BotCreatorActionType.respondWithMessage:
         return 'Reply to command with a normal message';
       case BotCreatorActionType.respondWithComponentV2:
@@ -488,6 +490,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
                                   : action.type.name,
                           onRemove: () => _removeAction(action.id),
                           variableSuggestions: widget.variableSuggestions,
+                          botIdForConfig: widget.botIdForConfig,
                           fieldRefreshVersionOf:
                               (paramKey) =>
                                   _fieldRefreshVersions['${action.id}::$paramKey'] ??

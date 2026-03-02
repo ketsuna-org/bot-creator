@@ -1,7 +1,9 @@
 import 'package:nyxx/nyxx.dart';
 import '../types/component.dart';
 import '../utils/bot.dart'; // for updateString
+import '../utils/component_workflow_bindings.dart';
 import '../utils/interaction_listener_registry.dart';
+import '../utils/workflow_call.dart';
 import 'send_component_v2.dart';
 
 /// Shared logic to determine and send the final response of a workflow execution.
@@ -76,7 +78,10 @@ Future<void> sendWorkflowResponse({
             const {},
       );
       activeComponentsJson = Map<String, dynamic>.from(
-        (workflowConditional['whenTrueComponents'] as Map?)
+        ((activeResponseType == 'normal'
+                        ? workflowConditional['whenTrueNormalComponents']
+                        : workflowConditional['whenTrueComponents'])
+                    as Map?)
                 ?.cast<String, dynamic>() ??
             const {},
       );
@@ -92,7 +97,10 @@ Future<void> sendWorkflowResponse({
             const {},
       );
       activeComponentsJson = Map<String, dynamic>.from(
-        (workflowConditional['whenFalseComponents'] as Map?)
+        ((activeResponseType == 'normal'
+                        ? workflowConditional['whenFalseNormalComponents']
+                        : workflowConditional['whenFalseComponents'])
+                    as Map?)
                 ?.cast<String, dynamic>() ??
             const {},
       );
@@ -158,18 +166,35 @@ Future<void> sendWorkflowResponse({
         // Auto-register listener if onSubmitWorkflow is provided
         if (definition.onSubmitWorkflow != null &&
             definition.onSubmitWorkflow!.isNotEmpty) {
-          InteractionListenerRegistry.instance.register(
-            updateString(definition.customId, runtimeVariables),
-            ListenerEntry(
-              botId: botId,
-              workflowName: definition.onSubmitWorkflow!,
-              expiresAt: DateTime.now().add(const Duration(hours: 1)),
-              type: 'modal',
-              oneShot: true,
-              guildId: interaction.guildId?.toString(),
-              channelId: interaction.channelId?.toString(),
-            ),
-          );
+          final onSubmitWorkflow =
+              updateString(
+                definition.onSubmitWorkflow!,
+                runtimeVariables,
+              ).trim();
+          if (onSubmitWorkflow.isNotEmpty) {
+            final onSubmitArguments = resolveWorkflowCallArguments(
+              definition.onSubmitArguments,
+              (value) => updateString(value, runtimeVariables),
+            );
+            InteractionListenerRegistry.instance.register(
+              updateString(definition.customId, runtimeVariables),
+              ListenerEntry(
+                botId: botId,
+                workflowName: onSubmitWorkflow,
+                workflowEntryPoint:
+                    updateString(
+                      definition.onSubmitEntryPoint,
+                      runtimeVariables,
+                    ).trim(),
+                workflowArguments: onSubmitArguments,
+                expiresAt: DateTime.now().add(const Duration(hours: 1)),
+                type: 'modal',
+                oneShot: true,
+                guildId: interaction.guildId?.toString(),
+                channelId: interaction.channelId?.toString(),
+              ),
+            );
+          }
         }
 
         onLog?.call('Modal envoyé', botId: botId);
@@ -292,11 +317,15 @@ Future<void> sendWorkflowResponse({
     }
 
     List<ComponentBuilder>? componentNodes;
+    ComponentV2Definition? activeComponentDefinition;
     if (activeResponseType == 'componentV2' || activeResponseType == 'normal') {
       if (activeComponentsJson.isNotEmpty) {
         try {
+          activeComponentDefinition = ComponentV2Definition.fromJson(
+            activeComponentsJson,
+          );
           final built = buildComponentNodes(
-            definition: ComponentV2Definition.fromJson(activeComponentsJson),
+            definition: activeComponentDefinition,
             resolve: (s) => updateString(s, runtimeVariables),
           );
           if (built.isNotEmpty) componentNodes = built;
@@ -370,6 +399,16 @@ Future<void> sendWorkflowResponse({
         );
         onLog?.call('Réponse envoyée', botId: botId);
       } else {}
+    }
+
+    if (activeComponentDefinition != null) {
+      registerComponentWorkflowBindings(
+        definition: activeComponentDefinition,
+        resolve: (s) => updateString(s, runtimeVariables),
+        botId: botId,
+        guildId: interaction.guildId?.toString(),
+        channelId: interaction.channelId?.toString(),
+      );
     }
 
     // Auto-delete if requested

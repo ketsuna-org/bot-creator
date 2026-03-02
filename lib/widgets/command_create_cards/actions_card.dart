@@ -52,6 +52,7 @@ class ActionsCard extends StatelessWidget {
                               initialActions: actions,
                               variableSuggestions:
                                   actionVariableSuggestions as dynamic,
+                              botIdForConfig: botIdForConfig,
                             ),
                       ),
                     );
@@ -94,8 +95,7 @@ class ActionsCard extends StatelessWidget {
                                       ),
                                       FilledButton(
                                         onPressed: () {
-                                          final name =
-                                              controller.text.trim();
+                                          final name = controller.text.trim();
                                           if (name.isEmpty) {
                                             return;
                                           }
@@ -117,7 +117,10 @@ class ActionsCard extends StatelessWidget {
                               name: workflowName.trim(),
                               actions:
                                   actions
-                                      .map((item) => Map<String, dynamic>.from(item))
+                                      .map(
+                                        (item) =>
+                                            Map<String, dynamic>.from(item),
+                                      )
                                       .toList(),
                             );
 

@@ -1,8 +1,7 @@
-import 'dart:ui';
+import 'dart:async';
 
 import 'package:bot_creator/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -11,6 +10,7 @@ import "routes/home.dart";
 import "routes/settings.dart";
 import 'package:provider/provider.dart';
 import 'routes/create.dart';
+import 'utils/app_diagnostics.dart';
 import 'utils/database.dart';
 import 'utils/analytics.dart';
 
@@ -57,35 +57,103 @@ bool get _isCrashlyticsSupported {
   }
 }
 
-Future main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  FlutterForegroundTask.initCommunicationPort();
+Future<void> main() async {
+  await runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      await AppDiagnostics.initialize();
+      AppDiagnostics.installGlobalErrorHandlers();
+      try {
+        FlutterForegroundTask.initCommunicationPort();
+        await AppDiagnostics.logInfo(
+          'Foreground task communication initialized',
+        );
+      } catch (error, stack) {
+        await AppDiagnostics.logError(
+          'Foreground task communication initialization failed',
+          error,
+          stack,
+          fatal: false,
+        );
+      }
+
+      await _bootstrapAndRunApp();
+    },
+    (error, stack) async {
+      await AppDiagnostics.logError(
+        'Uncaught zone error during bootstrap/runtime',
+        error,
+        stack,
+        fatal: true,
+      );
+    },
+  );
+}
+
+Future<void> _bootstrapAndRunApp() async {
+  var firebaseReady = false;
+
   if (_isFirebaseSupported) {
-    firebaseApp = await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    if (!firebaseApp!.isAutomaticDataCollectionEnabled) {
-      await firebaseApp!.setAutomaticDataCollectionEnabled(true);
+    try {
+      await AppDiagnostics.logInfo(
+        'Initializing Firebase',
+        data: {'platform': defaultTargetPlatform.name},
+      );
+      firebaseApp = await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout:
+            () =>
+                throw TimeoutException(
+                  'Firebase initialization timed out after 10 seconds',
+                ),
+      );
+      if (!firebaseApp!.isAutomaticDataCollectionEnabled) {
+        await firebaseApp!.setAutomaticDataCollectionEnabled(true);
+      }
+      firebaseReady = true;
+      await AppDiagnostics.logInfo('Firebase initialized');
+    } catch (error, stack) {
+      await AppDiagnostics.logError(
+        'Firebase initialization failed',
+        error,
+        stack,
+        fatal: false,
+      );
     }
   }
-  await AppAnalytics.setCollectionEnabled(true);
-  if (_isCrashlyticsSupported) {
-    FlutterError.onError = (errorDetails) {
-      FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
-    };
-  }
-  // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
-  if (_isCrashlyticsSupported) {
-    PlatformDispatcher.instance.onError = (error, stack) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-      return true;
-    };
+
+  await AppDiagnostics.configureCrashlytics(
+    crashlyticsSupported: _isCrashlyticsSupported,
+    firebaseReady: firebaseReady,
+  );
+
+  try {
+    await AppAnalytics.setCollectionEnabled(true);
+  } catch (error, stack) {
+    await AppDiagnostics.logError(
+      'Analytics collection setup failed',
+      error,
+      stack,
+      fatal: false,
+    );
   }
 
-  appManager = AppManager();
-  runApp(
-    ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),
-  );
+  try {
+    appManager = AppManager();
+    runApp(
+      ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),
+    );
+  } catch (error, stack) {
+    await AppDiagnostics.logError(
+      'Fatal startup error before runApp',
+      error,
+      stack,
+      fatal: true,
+    );
+    runApp(StartupFailureApp(error: error.toString()));
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -161,5 +229,100 @@ class ThemeProvider extends ChangeNotifier {
     _themeMode =
         _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
     notifyListeners();
+  }
+}
+
+class StartupFailureApp extends StatefulWidget {
+  const StartupFailureApp({super.key, required this.error});
+
+  final String error;
+
+  @override
+  State<StartupFailureApp> createState() => _StartupFailureAppState();
+}
+
+class _StartupFailureAppState extends State<StartupFailureApp> {
+  String _diagnostics = 'Loading diagnostics...';
+  bool _copying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDiagnostics();
+  }
+
+  Future<void> _loadDiagnostics() async {
+    final text = await AppDiagnostics.readLog(maxLines: 200);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _diagnostics = text;
+    });
+  }
+
+  Future<void> _copyDiagnostics() async {
+    setState(() {
+      _copying = true;
+    });
+    try {
+      await AppDiagnostics.copyLogToClipboard(maxLines: 300);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Diagnostics copied to clipboard')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _copying = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Bot Creator',
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Startup Error')),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bot Creator failed to start on this device.',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(widget.error),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: _copying ? null : _copyDiagnostics,
+                    child: const Text('Copy diagnostics'),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: _loadDiagnostics,
+                    child: const Text('Refresh diagnostics'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: SelectableText(_diagnostics),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

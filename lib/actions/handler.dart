@@ -30,6 +30,7 @@ import 'package:bot_creator/actions/list_webhooks.dart';
 import 'package:bot_creator/actions/get_webhook.dart';
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/interaction_listener_registry.dart';
+import 'package:bot_creator/utils/workflow_call.dart';
 import 'package:http/http.dart' as http;
 import 'package:nyxx/nyxx.dart';
 import 'dart:convert';
@@ -531,6 +532,7 @@ Future<Map<String, String>> handleActions(
             interaction,
             payload: action.payload,
             resolve: resolveValue,
+            botId: botId,
           );
           if (respResult['error'] != null) {
             throw Exception(respResult['error']);
@@ -547,6 +549,7 @@ Future<Map<String, String>> handleActions(
             interaction,
             payload: action.payload,
             resolve: resolveValue,
+            botId: botId,
           );
           if (messageResult['error'] != null) {
             throw Exception(messageResult['error']);
@@ -571,13 +574,26 @@ Future<Map<String, String>> handleActions(
           results[resultKey] = customId;
 
           // Auto-register listener if onSubmitWorkflow is provided
-          final onSubmitWorkflow = modalResult['onSubmitWorkflow']?.toString();
-          if (onSubmitWorkflow != null && onSubmitWorkflow.isNotEmpty) {
+          final onSubmitWorkflow =
+              resolveValue(
+                (modalResult['onSubmitWorkflow'] ?? '').toString(),
+              ).trim();
+          if (onSubmitWorkflow.isNotEmpty) {
+            final onSubmitEntryPoint =
+                resolveValue(
+                  (modalResult['onSubmitEntryPoint'] ?? '').toString(),
+                ).trim();
+            final onSubmitArguments = resolveWorkflowCallArguments(
+              modalResult['onSubmitArguments'],
+              resolveValue,
+            );
             InteractionListenerRegistry.instance.register(
               customId,
               ListenerEntry(
                 botId: botId,
                 workflowName: onSubmitWorkflow,
+                workflowEntryPoint: onSubmitEntryPoint,
+                workflowArguments: onSubmitArguments,
                 expiresAt: DateTime.now().add(const Duration(hours: 1)),
                 type: 'modal',
                 oneShot: true,
@@ -626,12 +642,22 @@ Future<Map<String, String>> handleActions(
               action.type == BotCreatorActionType.listenForModalSubmit
                   ? true
                   : (action.payload['oneShot'] != false);
+          final workflowEntryPoint =
+              resolveValue(
+                (action.payload['entryPoint'] ?? '').toString(),
+              ).trim();
+          final workflowArguments = resolveWorkflowCallArguments(
+            action.payload['arguments'],
+            resolveValue,
+          );
 
           InteractionListenerRegistry.instance.register(
             customId,
             ListenerEntry(
               botId: botId,
               workflowName: workflowName,
+              workflowEntryPoint: workflowEntryPoint,
+              workflowArguments: workflowArguments,
               expiresAt: DateTime.now().add(Duration(minutes: ttlMinutes)),
               type:
                   action.type == BotCreatorActionType.listenForButtonClick
@@ -889,15 +915,41 @@ Future<Map<String, String>> handleActions(
           if (workflowName.isEmpty) {
             throw Exception('workflowName is required for runWorkflow');
           }
-          final lowered = workflowName.toLowerCase();
-          if (activeWorkflowStack.contains(lowered)) {
-            throw Exception('Workflow recursion detected for "$workflowName"');
-          }
 
           final workflow = await manager.getWorkflowByName(botId, workflowName);
           if (workflow == null) {
             throw Exception('Workflow not found: $workflowName');
           }
+          final requestedEntryPoint =
+              resolveValue(
+                (action.payload['entryPoint'] ?? '').toString(),
+              ).trim();
+          final workflowEntryPoint = normalizeWorkflowEntryPoint(
+            requestedEntryPoint,
+            fallback: normalizeWorkflowEntryPoint(workflow['entryPoint']),
+          );
+          final workflowArgDefinitions = parseWorkflowArgumentDefinitions(
+            workflow['arguments'],
+          );
+          final workflowCallArguments = resolveWorkflowCallArguments(
+            action.payload['arguments'],
+            resolveValue,
+          );
+          final stackKey =
+              '${workflowName.toLowerCase()}::${workflowEntryPoint.toLowerCase()}';
+          if (activeWorkflowStack.contains(stackKey)) {
+            throw Exception(
+              'Workflow recursion detected for "$workflowName" (entry: $workflowEntryPoint)',
+            );
+          }
+
+          applyWorkflowInvocationContext(
+            variables: variables,
+            workflowName: workflowName,
+            entryPoint: workflowEntryPoint,
+            definitions: workflowArgDefinitions,
+            providedArguments: workflowCallArguments,
+          );
 
           final workflowActions = List<Action>.from(
             ((workflow['actions'] as List?) ?? const <dynamic>[])
@@ -907,24 +959,28 @@ Future<Map<String, String>> handleActions(
                 ),
           );
 
-          activeWorkflowStack.add(lowered);
-          final workflowResults = await handleActions(
-            client,
-            interaction,
-            actions: workflowActions,
-            manager: manager,
-            botId: botId,
-            variables: variables,
-            resolveTemplate: resolveTemplate,
-            workflowStack: activeWorkflowStack,
-            onLog: onLog,
-          );
-          activeWorkflowStack.remove(lowered);
+          activeWorkflowStack.add(stackKey);
+          late final Map<String, String> workflowResults;
+          try {
+            workflowResults = await handleActions(
+              client,
+              interaction,
+              actions: workflowActions,
+              manager: manager,
+              botId: botId,
+              variables: variables,
+              resolveTemplate: resolveTemplate,
+              workflowStack: activeWorkflowStack,
+              onLog: onLog,
+            );
+          } finally {
+            activeWorkflowStack.remove(stackKey);
+          }
 
           for (final entry in workflowResults.entries) {
             results['$resultKey.${entry.key}'] = entry.value;
           }
-          results[resultKey] = 'WORKFLOW_OK';
+          results[resultKey] = 'WORKFLOW_OK:$workflowEntryPoint';
           break;
       }
     } catch (e) {

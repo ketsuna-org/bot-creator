@@ -1052,6 +1052,18 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             hint: 'Saved workflow name to execute',
             required: true,
           ),
+          ParameterDefinition(
+            key: 'entryPoint',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional entry point override (defaults to workflow entry)',
+          ),
+          ParameterDefinition(
+            key: 'arguments',
+            type: ParameterType.map,
+            defaultValue: <String, dynamic>{},
+            hint: 'Optional key/value arguments injected as ((arg.key))',
+          ),
         ];
       case BotCreatorActionType.respondWithMessage:
         return [
@@ -1060,7 +1072,19 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: '',
             hint: 'Response text (supports placeholders ((...)))',
-            required: true,
+            required: false,
+          ),
+          ParameterDefinition(
+            key: 'embeds',
+            type: ParameterType.embeds,
+            defaultValue: <Map<String, dynamic>>[],
+            hint: 'Optional embeds (same format as normal command reply)',
+          ),
+          ParameterDefinition(
+            key: 'components',
+            type: ParameterType.normalComponents,
+            defaultValue: <String, dynamic>{},
+            hint: 'Optional message components (buttons/select menus only).',
           ),
           ParameterDefinition(
             key: 'ephemeral',
@@ -1138,6 +1162,18 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             required: true,
           ),
           ParameterDefinition(
+            key: 'entryPoint',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional entry point override',
+          ),
+          ParameterDefinition(
+            key: 'arguments',
+            type: ParameterType.map,
+            defaultValue: <String, dynamic>{},
+            hint: 'Optional key/value arguments for workflow call',
+          ),
+          ParameterDefinition(
             key: 'ttlMinutes',
             type: ParameterType.number,
             defaultValue: 60,
@@ -1167,6 +1203,18 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             defaultValue: '',
             hint: 'Workflow to run when modal is submitted',
             required: true,
+          ),
+          ParameterDefinition(
+            key: 'entryPoint',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional entry point override',
+          ),
+          ParameterDefinition(
+            key: 'arguments',
+            type: ParameterType.map,
+            defaultValue: <String, dynamic>{},
+            hint: 'Optional key/value arguments for workflow call',
           ),
           ParameterDefinition(
             key: 'ttlMinutes',

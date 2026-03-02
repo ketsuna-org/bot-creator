@@ -2,6 +2,7 @@ import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator/utils/interaction_listener_registry.dart';
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/template_resolver.dart';
+import 'package:bot_creator/utils/workflow_call.dart';
 import 'package:bot_creator/types/action.dart';
 import 'package:bot_creator/actions/handler.dart';
 import 'package:bot_creator/actions/interaction_response.dart';
@@ -46,6 +47,8 @@ Future<void> handleComponentInteraction(
     manager: manager,
     botId: entry.botId,
     workflowName: entry.workflowName,
+    workflowEntryPoint: entry.workflowEntryPoint,
+    workflowArguments: entry.workflowArguments,
     variables: variables,
     interaction: interaction,
   );
@@ -96,6 +99,8 @@ Future<void> handleModalSubmitInteraction(
     manager: manager,
     botId: entry.botId,
     workflowName: entry.workflowName,
+    workflowEntryPoint: entry.workflowEntryPoint,
+    workflowArguments: entry.workflowArguments,
     variables: variables,
     interaction: interaction,
   );
@@ -107,6 +112,8 @@ Future<void> _runListenerWorkflow({
   required AppManager manager,
   required String botId,
   required String workflowName,
+  required String workflowEntryPoint,
+  required Map<String, String> workflowArguments,
   required Map<String, String> variables,
   Interaction? interaction,
 }) async {
@@ -117,6 +124,20 @@ Future<void> _runListenerWorkflow({
     // Merge variables with global ones if needed?
     // For now we assume they are passed or loaded by handleActions
     // But handleActions expects variables.
+    final effectiveEntryPoint = normalizeWorkflowEntryPoint(
+      workflowEntryPoint,
+      fallback: normalizeWorkflowEntryPoint(workflow['entryPoint']),
+    );
+    final argDefinitions = parseWorkflowArgumentDefinitions(
+      workflow['arguments'],
+    );
+    applyWorkflowInvocationContext(
+      variables: variables,
+      workflowName: workflowName,
+      entryPoint: effectiveEntryPoint,
+      definitions: argDefinitions,
+      providedArguments: workflowArguments,
+    );
 
     final actions = List<Action>.from(
       ((workflow['actions'] as List?) ?? const <dynamic>[])

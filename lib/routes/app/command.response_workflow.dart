@@ -149,6 +149,44 @@ class _CommandResponseWorkflowPageState
     };
   }
 
+  Widget _buildResponseTypeSelector({
+    required String selected,
+    required ValueChanged<String> onChanged,
+  }) {
+    Widget chip({
+      required String value,
+      required String label,
+      required IconData icon,
+    }) {
+      return ChoiceChip(
+        selected: selected == value,
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16),
+            const SizedBox(width: 6),
+            Text(label),
+          ],
+        ),
+        onSelected: (_) => onChanged(value),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        chip(value: 'normal', label: 'Normal', icon: Icons.message),
+        chip(
+          value: 'componentV2',
+          label: 'Component',
+          icon: Icons.dashboard_customize,
+        ),
+        chip(value: 'modal', label: 'Modal', icon: Icons.web_asset),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -276,28 +314,11 @@ class _CommandResponseWorkflowPageState
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(
-                        value: 'normal',
-                        icon: Icon(Icons.message),
-                        label: Text('Normal'),
-                      ),
-                      ButtonSegment(
-                        value: 'componentV2',
-                        icon: Icon(Icons.dashboard_customize),
-                        label: Text('Component'),
-                      ),
-                      ButtonSegment(
-                        value: 'modal',
-                        icon: Icon(Icons.web_asset),
-                        label: Text('Modal'),
-                      ),
-                    ],
-                    selected: {_whenTrueType},
-                    onSelectionChanged: (set) {
+                  _buildResponseTypeSelector(
+                    selected: _whenTrueType,
+                    onChanged: (value) {
                       setState(() {
-                        _whenTrueType = set.first;
+                        _whenTrueType = value;
                       });
                     },
                   ),
@@ -332,6 +353,7 @@ class _CommandResponseWorkflowPageState
                         });
                       },
                       variableSuggestions: widget.variableSuggestions,
+                      botIdForConfig: widget.botIdForConfig,
                     ),
                   ] else if (_whenTrueType == 'componentV2') ...[
                     ComponentV2EditorWidget(
@@ -344,6 +366,7 @@ class _CommandResponseWorkflowPageState
                         });
                       },
                       variableSuggestions: widget.variableSuggestions,
+                      botIdForConfig: widget.botIdForConfig,
                     ),
                   ] else if (_whenTrueType == 'modal') ...[
                     ModalBuilderWidget(
@@ -365,28 +388,11 @@ class _CommandResponseWorkflowPageState
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(
-                        value: 'normal',
-                        icon: Icon(Icons.message),
-                        label: Text('Normal'),
-                      ),
-                      ButtonSegment(
-                        value: 'componentV2',
-                        icon: Icon(Icons.dashboard_customize),
-                        label: Text('Component'),
-                      ),
-                      ButtonSegment(
-                        value: 'modal',
-                        icon: Icon(Icons.web_asset),
-                        label: Text('Modal'),
-                      ),
-                    ],
-                    selected: {_whenFalseType},
-                    onSelectionChanged: (set) {
+                  _buildResponseTypeSelector(
+                    selected: _whenFalseType,
+                    onChanged: (value) {
                       setState(() {
-                        _whenFalseType = set.first;
+                        _whenFalseType = value;
                       });
                     },
                   ),
@@ -421,6 +427,7 @@ class _CommandResponseWorkflowPageState
                         });
                       },
                       variableSuggestions: widget.variableSuggestions,
+                      botIdForConfig: widget.botIdForConfig,
                     ),
                   ] else if (_whenFalseType == 'componentV2') ...[
                     ComponentV2EditorWidget(
@@ -433,6 +440,7 @@ class _CommandResponseWorkflowPageState
                         });
                       },
                       variableSuggestions: widget.variableSuggestions,
+                      botIdForConfig: widget.botIdForConfig,
                     ),
                   ] else if (_whenFalseType == 'modal') ...[
                     ModalBuilderWidget(

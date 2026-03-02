@@ -17,6 +17,8 @@ enum ParameterType {
   roleId,
   emoji,
   multiSelect,
+  embeds,
+  normalComponents,
   componentV2,
   modalDefinition,
 }

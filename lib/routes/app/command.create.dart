@@ -36,6 +36,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     ApplicationIntegrationType.guildInstall,
   ];
   List<InteractionContextType> _contexts = [InteractionContextType.guild];
+  String _defaultMemberPermissions = '';
 
   static Map<String, dynamic> _defaultWorkflow() {
     return {
@@ -45,10 +46,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       'conditional': {
         'enabled': false,
         'variable': '',
+        'whenTrueType': 'normal',
+        'whenFalseType': 'normal',
         'whenTrueText': '',
         'whenFalseText': '',
         'whenTrueEmbeds': <Map<String, dynamic>>[],
         'whenFalseEmbeds': <Map<String, dynamic>>[],
+        'whenTrueNormalComponents': <String, dynamic>{},
+        'whenFalseNormalComponents': <String, dynamic>{},
+        'whenTrueComponents': <String, dynamic>{},
+        'whenFalseComponents': <String, dynamic>{},
+        'whenTrueModal': <String, dynamic>{},
+        'whenFalseModal': <String, dynamic>{},
       },
     };
   }
@@ -84,6 +93,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       'conditional': {
         'enabled': conditional['enabled'] == true,
         'variable': (conditional['variable'] ?? '').toString(),
+        'whenTrueType': (conditional['whenTrueType'] ?? 'normal').toString(),
+        'whenFalseType': (conditional['whenFalseType'] ?? 'normal').toString(),
         'whenTrueText': (conditional['whenTrueText'] ?? '').toString(),
         'whenFalseText': (conditional['whenFalseText'] ?? '').toString(),
         'whenTrueEmbeds': _normalizeEmbedsPayload(
@@ -91,6 +102,34 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         ),
         'whenFalseEmbeds': _normalizeEmbedsPayload(
           conditional['whenFalseEmbeds'],
+        ),
+        'whenTrueNormalComponents': Map<String, dynamic>.from(
+          (conditional['whenTrueNormalComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenFalseNormalComponents': Map<String, dynamic>.from(
+          (conditional['whenFalseNormalComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenTrueComponents': Map<String, dynamic>.from(
+          (conditional['whenTrueComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenFalseComponents': Map<String, dynamic>.from(
+          (conditional['whenFalseComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenTrueModal': Map<String, dynamic>.from(
+          (conditional['whenTrueModal'] as Map?)?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenFalseModal': Map<String, dynamic>.from(
+          (conditional['whenFalseModal'] as Map?)?.cast<String, dynamic>() ??
+              const {},
         ),
       },
     };
@@ -253,6 +292,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 ) ??
                 const [],
           );
+          _defaultMemberPermissions =
+              (normalizedData['defaultMemberPermissions'] ?? '')
+                  .toString()
+                  .trim();
         });
       }
       if (command != null) {
@@ -304,6 +347,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             // legacy defaults to guild
             _contexts = [InteractionContextType.guild];
           }
+          if (_defaultMemberPermissions.isEmpty &&
+              currentCommand.defaultMemberPermissions != null) {
+            _defaultMemberPermissions =
+                currentCommand.defaultMemberPermissions!.value.toString();
+          }
           _isLoading = false;
         });
       }
@@ -335,6 +383,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
 
     final commandData = {
       "version": 1,
+      "defaultMemberPermissions": _defaultMemberPermissions.trim(),
       "response": {
         "mode": _responseEmbeds.isNotEmpty ? "embed" : "text",
         "type": _responseType,
@@ -365,6 +414,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           type: ApplicationCommandType.chatInput,
         );
 
+        final parsedPermissions = _parseDefaultMemberPermissions(
+          _defaultMemberPermissions,
+        );
+        commandBuilder.defaultMemberPermissions = parsedPermissions;
+
         commandBuilder.integrationTypes = _integrationTypes;
         if (_contexts.isNotEmpty) {
           commandBuilder.contexts = _contexts;
@@ -379,6 +433,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           name: _commandName,
           description: _commandDescription,
         );
+        final parsedPermissions = _parseDefaultMemberPermissions(
+          _defaultMemberPermissions,
+        );
+        commandBuilder.defaultMemberPermissions = parsedPermissions;
         commandBuilder.integrationTypes = _integrationTypes;
         if (_contexts.isNotEmpty) {
           commandBuilder.contexts = _contexts;
@@ -453,6 +511,20 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       return "Command name cannot start with a percent sign";
     }
     return null; // No error
+  }
+
+  Permissions? _parseDefaultMemberPermissions(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    final parsed = int.tryParse(trimmed);
+    if (parsed == null || parsed < 0) {
+      throw Exception(
+        'Invalid default member permissions bitfield. Use a positive integer or leave empty.',
+      );
+    }
+    return Permissions(parsed);
   }
 
   List<String> get _variableNames {
@@ -659,6 +731,15 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         );
       }
     }
+
+    addSuggestion('workflow.name', kind: VariableSuggestionKind.nonNumeric);
+    addSuggestion(
+      'workflow.entryPoint',
+      kind: VariableSuggestionKind.nonNumeric,
+    );
+    addSuggestion('workflow.args', kind: VariableSuggestionKind.nonNumeric);
+    addSuggestion('arg.yourArg', kind: VariableSuggestionKind.unknown);
+    addSuggestion('workflow.arg.yourArg', kind: VariableSuggestionKind.unknown);
 
     final suggestions = suggestionsByName.values.toList(growable: false)
       ..sort((a, b) => a.name.compareTo(b.name));
@@ -975,6 +1056,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               commandDescription: _commandDescription,
                               integrationTypes: _integrationTypes,
                               contexts: _contexts,
+                              defaultMemberPermissions:
+                                  _defaultMemberPermissions,
                               onNameChanged: (val) {
                                 setState(() {
                                   _commandName = val;
@@ -993,6 +1076,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               onContextsChanged: (val) {
                                 setState(() {
                                   _contexts = val;
+                                });
+                              },
+                              onDefaultMemberPermissionsChanged: (value) {
+                                setState(() {
+                                  _defaultMemberPermissions = value;
                                 });
                               },
                               nameValidator: _validateName,

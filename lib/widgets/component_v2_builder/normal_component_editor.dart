@@ -9,12 +9,14 @@ class NormalComponentEditorWidget extends StatefulWidget {
   final ComponentV2Definition definition;
   final ValueChanged<ComponentV2Definition> onChanged;
   final List<VariableSuggestion> variableSuggestions;
+  final String? botIdForConfig;
 
   const NormalComponentEditorWidget({
     super.key,
     required this.definition,
     required this.onChanged,
     required this.variableSuggestions,
+    this.botIdForConfig,
   });
 
   @override
@@ -140,6 +142,7 @@ class _NormalComponentEditorWidgetState
                       _updateNode(index, row);
                     },
                     variableSuggestions: widget.variableSuggestions,
+                    botIdForConfig: widget.botIdForConfig,
                   );
                 }),
                 Builder(

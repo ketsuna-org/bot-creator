@@ -5,8 +5,12 @@ import 'package:flutter_highlight/themes/darcula.dart';
 import 'package:flutter/material.dart';
 import '../../../types/action.dart' show BotCreatorActionType;
 import '../../../types/component.dart';
+import '../../../routes/app/workflows.page.dart';
+import '../../../main.dart';
 import '../../../widgets/component_v2_builder/component_v2_editor.dart';
 import '../../../widgets/component_v2_builder/modal_builder.dart';
+import '../../../widgets/component_v2_builder/normal_component_editor.dart';
+import '../../../widgets/response_embeds_editor.dart';
 import 'action_types.dart';
 import 'action_type_extension.dart';
 import 'package:http/http.dart' as http;
@@ -19,6 +23,7 @@ class ActionCard extends StatelessWidget {
   final Function(String key, dynamic value) onSuggestionSelected;
   final VoidCallback onRemove;
   final Function(String key, dynamic value) onParameterChanged;
+  final String? botIdForConfig;
 
   const ActionCard({
     super.key,
@@ -29,6 +34,7 @@ class ActionCard extends StatelessWidget {
     required this.fieldRefreshVersionOf,
     required this.actionKey,
     required this.variableSuggestions,
+    this.botIdForConfig,
   });
 
   Key _parameterInputKey(String paramKey) {
@@ -821,6 +827,36 @@ class ActionCard extends StatelessWidget {
           ],
         );
 
+      case ParameterType.embeds:
+        final embeds =
+            (currentValue is List)
+                ? List<Map<String, dynamic>>.from(
+                  currentValue.whereType<Map>().map(
+                    (embed) => Map<String, dynamic>.from(
+                      embed.map(
+                        (key, value) => MapEntry(key.toString(), value),
+                      ),
+                    ),
+                  ),
+                )
+                : <Map<String, dynamic>>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _formatParameterName(paramDef.key),
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            ResponseEmbedsEditor(
+              embeds: embeds,
+              onChanged: (updated) {
+                onParameterChanged(paramDef.key, updated);
+              },
+            ),
+          ],
+        );
+
       case ParameterType.componentV2:
         final compDef =
             currentValue is Map<String, dynamic>
@@ -843,6 +879,37 @@ class ActionCard extends StatelessWidget {
             ComponentV2EditorWidget(
               definition: compDef,
               variableSuggestions: variableSuggestions,
+              botIdForConfig: botIdForConfig,
+              onChanged: (updated) {
+                onParameterChanged(paramDef.key, updated.toJson());
+              },
+            ),
+          ],
+        );
+
+      case ParameterType.normalComponents:
+        final compDef =
+            currentValue is Map<String, dynamic>
+                ? ComponentV2Definition.fromJson(currentValue)
+                : currentValue is Map
+                ? ComponentV2Definition.fromJson(
+                  Map<String, dynamic>.from(
+                    currentValue.map((k, v) => MapEntry(k.toString(), v)),
+                  ),
+                )
+                : ComponentV2Definition();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _formatParameterName(paramDef.key),
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            NormalComponentEditorWidget(
+              definition: compDef,
+              variableSuggestions: variableSuggestions,
+              botIdForConfig: botIdForConfig,
               onChanged: (updated) {
                 onParameterChanged(paramDef.key, updated.toJson());
               },
@@ -872,6 +939,7 @@ class ActionCard extends StatelessWidget {
             ModalBuilderWidget(
               modal: modalDef,
               variableSuggestions: variableSuggestions,
+              botIdForConfig: botIdForConfig,
               onChanged: (updated) {
                 onParameterChanged(paramDef.key, updated.toJson());
               },
@@ -880,6 +948,22 @@ class ActionCard extends StatelessWidget {
         );
 
       default: // ParameterType.string and ParameterType.url and others
+        if (paramDef.type == ParameterType.string &&
+            paramDef.key == 'workflowName' &&
+            botIdForConfig != null &&
+            botIdForConfig!.trim().isNotEmpty) {
+          return _WorkflowNameParameterField(
+            label: _formatParameterName(paramDef.key),
+            currentValue:
+                (currentValue ?? paramDef.defaultValue).toString().trim(),
+            hint: paramDef.hint ?? 'Saved workflow name',
+            botId: botIdForConfig!,
+            onChanged: (value) {
+              onParameterChanged(paramDef.key, value);
+            },
+          );
+        }
+
         if (paramDef.key == 'extractJsonPath' &&
             action.type == BotCreatorActionType.httpRequest) {
           final cachedPaths =
@@ -1851,5 +1935,156 @@ class ActionCard extends StatelessWidget {
         .split(' ')
         .map((word) => word[0].toUpperCase() + word.substring(1))
         .join(' ');
+  }
+}
+
+class _WorkflowNameParameterField extends StatefulWidget {
+  final String label;
+  final String currentValue;
+  final String hint;
+  final String botId;
+  final ValueChanged<String> onChanged;
+
+  const _WorkflowNameParameterField({
+    required this.label,
+    required this.currentValue,
+    required this.hint,
+    required this.botId,
+    required this.onChanged,
+  });
+
+  @override
+  State<_WorkflowNameParameterField> createState() =>
+      _WorkflowNameParameterFieldState();
+}
+
+class _WorkflowNameParameterFieldState
+    extends State<_WorkflowNameParameterField> {
+  List<String> _workflowNames = const [];
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWorkflows();
+  }
+
+  @override
+  void didUpdateWidget(covariant _WorkflowNameParameterField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.botId != widget.botId) {
+      _loadWorkflows();
+    }
+  }
+
+  Future<void> _loadWorkflows() async {
+    setState(() {
+      _loading = true;
+    });
+    final workflows = await appManager.getWorkflows(widget.botId);
+    if (!mounted) {
+      return;
+    }
+    final names = workflows
+      .map((workflow) => (workflow['name'] ?? '').toString().trim())
+      .where((name) => name.isNotEmpty)
+      .toSet()
+      .toList(growable: false)..sort();
+    setState(() {
+      _workflowNames = names;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmedCurrent = widget.currentValue.trim();
+    final items = <String>{
+      ..._workflowNames,
+      if (trimmedCurrent.isNotEmpty) trimmedCurrent,
+    }.toList(growable: false)..sort();
+
+    final dropdownValue =
+        trimmedCurrent.isNotEmpty && items.contains(trimmedCurrent)
+            ? trimmedCurrent
+            : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(widget.label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                key: ValueKey(
+                  'workflowNameDropdown_${widget.currentValue}_${items.length}',
+                ),
+                initialValue: dropdownValue,
+                isExpanded: true,
+                items:
+                    items
+                        .map(
+                          (name) => DropdownMenuItem<String>(
+                            value: name,
+                            child: Text(name),
+                          ),
+                        )
+                        .toList(),
+                onChanged:
+                    _loading
+                        ? null
+                        : (value) {
+                          widget.onChanged((value ?? '').trim());
+                        },
+                decoration: InputDecoration(
+                  hintText: widget.hint,
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  helperText:
+                      _loading
+                          ? 'Loading workflows...'
+                          : (_workflowNames.isEmpty
+                              ? 'No saved workflows found'
+                              : 'Select a saved workflow'),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Refresh workflows',
+              onPressed: _loading ? null : _loadWorkflows,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          key: ValueKey('workflowNameInput_${widget.currentValue}'),
+          initialValue: trimmedCurrent,
+          decoration: const InputDecoration(
+            labelText: 'Or type workflow name',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          onChanged: (value) => widget.onChanged(value.trim()),
+        ),
+        const SizedBox(height: 6),
+        OutlinedButton.icon(
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => WorkflowsPage(botId: widget.botId),
+              ),
+            );
+            await _loadWorkflows();
+          },
+          icon: const Icon(Icons.account_tree),
+          label: const Text('Manage Workflows'),
+        ),
+      ],
+    );
   }
 }

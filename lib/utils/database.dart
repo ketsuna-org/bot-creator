@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:bot_creator/utils/global.dart';
+import 'package:bot_creator/utils/workflow_call.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -207,18 +208,23 @@ class AppManager {
 
   Future<List<Map<String, dynamic>>> getWorkflows(String id) async {
     final app = await getApp(id);
-    return List<Map<String, dynamic>>.from(
+    final rawWorkflows = List<Map<String, dynamic>>.from(
       (app['workflows'] as List?)?.whereType<Map>().map(
             (workflow) => Map<String, dynamic>.from(workflow),
           ) ??
           const <Map<String, dynamic>>[],
     );
+    return rawWorkflows
+        .map((workflow) => _normalizeStoredWorkflow(workflow))
+        .toList(growable: false);
   }
 
   Future<void> saveWorkflow(
     String id, {
     required String name,
     required List<Map<String, dynamic>> actions,
+    String? entryPoint,
+    List<Map<String, dynamic>>? arguments,
   }) async {
     final app = Map<String, dynamic>.from(await getApp(id));
     final workflows = List<Map<String, dynamic>>.from(
@@ -234,10 +240,27 @@ class AppManager {
           (workflow['name'] ?? '').toString().toLowerCase() ==
           normalizedName.toLowerCase(),
     );
+    final existing =
+        index >= 0
+            ? _normalizeStoredWorkflow(
+              Map<String, dynamic>.from(workflows[index]),
+            )
+            : null;
+    final normalizedEntryPoint =
+        entryPoint == null
+            ? normalizeWorkflowEntryPoint(existing?['entryPoint'])
+            : normalizeWorkflowEntryPoint(entryPoint);
+    final normalizedArguments = serializeWorkflowArgumentDefinitions(
+      parseWorkflowArgumentDefinitions(
+        arguments ?? existing?['arguments'] ?? const [],
+      ),
+    );
 
     final payload = <String, dynamic>{
       'name': normalizedName,
       'actions': List<Map<String, dynamic>>.from(actions),
+      'entryPoint': normalizedEntryPoint,
+      'arguments': normalizedArguments,
       'updatedAt': DateTime.now().toIso8601String(),
     };
 
@@ -282,6 +305,24 @@ class AppManager {
       }
     }
     return null;
+  }
+
+  Map<String, dynamic> _normalizeStoredWorkflow(Map<String, dynamic> workflow) {
+    final normalized = Map<String, dynamic>.from(workflow);
+    normalized['name'] = (normalized['name'] ?? '').toString().trim();
+    normalized['entryPoint'] = normalizeWorkflowEntryPoint(
+      normalized['entryPoint'],
+    );
+    normalized['arguments'] = serializeWorkflowArgumentDefinitions(
+      parseWorkflowArgumentDefinitions(normalized['arguments']),
+    );
+    normalized['actions'] = List<Map<String, dynamic>>.from(
+      (normalized['actions'] as List?)?.whereType<Map>().map(
+            (item) => Map<String, dynamic>.from(item),
+          ) ??
+          const <Map<String, dynamic>>[],
+    );
+    return normalized;
   }
 
   Future<Map<String, dynamic>> getAppCommand(
@@ -380,6 +421,9 @@ class AppManager {
       'conditional': {
         'enabled': rawConditional['enabled'] == true,
         'variable': (rawConditional['variable'] ?? '').toString(),
+        'whenTrueType': (rawConditional['whenTrueType'] ?? 'normal').toString(),
+        'whenFalseType':
+            (rawConditional['whenFalseType'] ?? 'normal').toString(),
         'whenTrueText': (rawConditional['whenTrueText'] ?? '').toString(),
         'whenFalseText': (rawConditional['whenFalseText'] ?? '').toString(),
         'whenTrueEmbeds':
@@ -392,11 +436,41 @@ class AppManager {
                 .whereType<Map>()
                 .map((e) => Map<String, dynamic>.from(e))
                 .toList(),
+        'whenTrueNormalComponents': Map<String, dynamic>.from(
+          (rawConditional['whenTrueNormalComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenFalseNormalComponents': Map<String, dynamic>.from(
+          (rawConditional['whenFalseNormalComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenTrueComponents': Map<String, dynamic>.from(
+          (rawConditional['whenTrueComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenFalseComponents': Map<String, dynamic>.from(
+          (rawConditional['whenFalseComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenTrueModal': Map<String, dynamic>.from(
+          (rawConditional['whenTrueModal'] as Map?)?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenFalseModal': Map<String, dynamic>.from(
+          (rawConditional['whenFalseModal'] as Map?)?.cast<String, dynamic>() ??
+              const {},
+        ),
       },
     };
 
     normalized['data'] = {
       'version': 1,
+      'defaultMemberPermissions':
+          (rawData['defaultMemberPermissions'] ?? '').toString().trim(),
       'response': {
         'mode':
             (embeds.isNotEmpty ? 'embed' : (response['mode'] ?? 'text'))

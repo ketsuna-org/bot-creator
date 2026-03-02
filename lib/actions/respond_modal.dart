@@ -74,6 +74,8 @@ Future<Map<String, dynamic>> respondWithModalAction(
       'status': 'modal_sent',
       'customId': resolvedCustomId,
       'onSubmitWorkflow': definition.onSubmitWorkflow,
+      'onSubmitEntryPoint': definition.onSubmitEntryPoint,
+      'onSubmitArguments': definition.onSubmitArguments,
     };
   } catch (e) {
     return {'error': e.toString()};

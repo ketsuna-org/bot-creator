@@ -1,5 +1,7 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
+import 'package:bot_creator/routes/app/workflow_docs.page.dart';
+import 'package:bot_creator/utils/workflow_call.dart';
 import 'package:flutter/material.dart';
 
 class WorkflowsPage extends StatefulWidget {
@@ -36,29 +38,173 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
     final nameController = TextEditingController(
       text: (initial?['name'] ?? '').toString(),
     );
+    final entryPointController = TextEditingController(
+      text: normalizeWorkflowEntryPoint(initial?['entryPoint']),
+    );
+    final editableArgs =
+        parseWorkflowArgumentDefinitions(initial?['arguments']).map((
+          definition,
+        ) {
+          return _EditableWorkflowArgument(
+            name: definition.name,
+            required: definition.required,
+            defaultValue: definition.defaultValue,
+          );
+        }).toList();
+    if (editableArgs.isEmpty) {
+      editableArgs.add(const _EditableWorkflowArgument(name: ''));
+    }
 
     final saveInfo = await showDialog<bool>(
       context: context,
       builder:
-          (context) => AlertDialog(
-            title: Text(initial == null ? 'Create Workflow' : 'Edit Workflow'),
-            content: TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Workflow Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Continue'),
-              ),
-            ],
+          (context) => StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: Text(
+                  initial == null ? 'Create Workflow' : 'Edit Workflow',
+                ),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Workflow Name',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: entryPointController,
+                          decoration: const InputDecoration(
+                            labelText: 'Default Entry Point',
+                            border: OutlineInputBorder(),
+                            helperText: 'Used if caller does not override it',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Arguments',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Add argument',
+                              onPressed: () {
+                                setDialogState(() {
+                                  editableArgs.add(
+                                    const _EditableWorkflowArgument(name: ''),
+                                  );
+                                });
+                              },
+                              icon: const Icon(Icons.add),
+                            ),
+                          ],
+                        ),
+                        ...editableArgs.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final value = entry.value;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 4,
+                                  child: TextFormField(
+                                    initialValue: value.name,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Name',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    onChanged: (next) {
+                                      editableArgs[index] = editableArgs[index]
+                                          .copyWith(name: next.trim());
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  flex: 4,
+                                  child: TextFormField(
+                                    initialValue: value.defaultValue,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Default value',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    onChanged: (next) {
+                                      editableArgs[index] = editableArgs[index]
+                                          .copyWith(defaultValue: next);
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Column(
+                                  children: [
+                                    Checkbox(
+                                      value: value.required,
+                                      onChanged: (next) {
+                                        editableArgs[index] =
+                                            editableArgs[index].copyWith(
+                                              required: next == true,
+                                            );
+                                        setDialogState(() {});
+                                      },
+                                    ),
+                                    const Text(
+                                      'Req',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                                IconButton(
+                                  onPressed: () {
+                                    setDialogState(() {
+                                      editableArgs.removeAt(index);
+                                      if (editableArgs.isEmpty) {
+                                        editableArgs.add(
+                                          const _EditableWorkflowArgument(
+                                            name: '',
+                                          ),
+                                        );
+                                      }
+                                    });
+                                  },
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        const Text(
+                          'Arguments become runtime variables as ((arg.name)) and ((workflow.arg.name)).',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Continue'),
+                  ),
+                ],
+              );
+            },
           ),
     );
 
@@ -70,6 +216,41 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
     if (name.isEmpty) {
       return;
     }
+    final entryPoint = normalizeWorkflowEntryPoint(entryPointController.text);
+    final argumentDefinitions = editableArgs
+        .where((item) => item.name.trim().isNotEmpty)
+        .map(
+          (item) => WorkflowArgumentDefinition(
+            name: item.name.trim(),
+            required: item.required,
+            defaultValue: item.defaultValue,
+          ),
+        )
+        .toList(growable: false);
+    final workflowVariableSuggestions = <VariableSuggestion>[
+      const VariableSuggestion(
+        name: 'workflow.name',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      const VariableSuggestion(
+        name: 'workflow.entryPoint',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      const VariableSuggestion(
+        name: 'workflow.args',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      for (final arg in argumentDefinitions) ...[
+        VariableSuggestion(
+          name: 'arg.${arg.name}',
+          kind: VariableSuggestionKind.unknown,
+        ),
+        VariableSuggestion(
+          name: 'workflow.arg.${arg.name}',
+          kind: VariableSuggestionKind.unknown,
+        ),
+      ],
+    ];
 
     final initialActions = List<Map<String, dynamic>>.from(
       (initial?['actions'] as List?)?.whereType<Map>().map(
@@ -82,7 +263,11 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
       context,
       MaterialPageRoute(
         builder:
-            (context) => ActionsBuilderPage(initialActions: initialActions),
+            (context) => ActionsBuilderPage(
+              initialActions: initialActions,
+              botIdForConfig: widget.botId,
+              variableSuggestions: workflowVariableSuggestions,
+            ),
       ),
     );
 
@@ -94,6 +279,8 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
       widget.botId,
       name: name,
       actions: nextActions,
+      entryPoint: entryPoint,
+      arguments: serializeWorkflowArgumentDefinitions(argumentDefinitions),
     );
     await _load();
   }
@@ -106,7 +293,23 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Workflows')),
+      appBar: AppBar(
+        title: const Text('Workflows'),
+        actions: [
+          IconButton(
+            tooltip: 'Workflow Documentation',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const WorkflowDocumentationPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.menu_book_outlined),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _createOrEditWorkflow(),
         child: const Icon(Icons.add),
@@ -128,9 +331,18 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                       (workflow['actions'] is List)
                           ? (workflow['actions'] as List).length
                           : 0;
+                  final entryPoint = normalizeWorkflowEntryPoint(
+                    workflow['entryPoint'],
+                  );
+                  final argsCount =
+                      parseWorkflowArgumentDefinitions(
+                        workflow['arguments'],
+                      ).length;
                   return ListTile(
                     title: Text(name),
-                    subtitle: Text('$actions action(s)'),
+                    subtitle: Text(
+                      '$actions action(s) • entry: $entryPoint • args: $argsCount',
+                    ),
                     trailing: Wrap(
                       spacing: 4,
                       children: [
@@ -148,6 +360,30 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                   );
                 },
               ),
+    );
+  }
+}
+
+class _EditableWorkflowArgument {
+  final String name;
+  final bool required;
+  final String defaultValue;
+
+  const _EditableWorkflowArgument({
+    required this.name,
+    this.required = false,
+    this.defaultValue = '',
+  });
+
+  _EditableWorkflowArgument copyWith({
+    String? name,
+    bool? required,
+    String? defaultValue,
+  }) {
+    return _EditableWorkflowArgument(
+      name: name ?? this.name,
+      required: required ?? this.required,
+      defaultValue: defaultValue ?? this.defaultValue,
     );
   }
 }

@@ -5,9 +5,11 @@ library;
 class ListenerEntry {
   final String botId;
   final String workflowName;
+  final String workflowEntryPoint;
+  final Map<String, String> workflowArguments;
   final DateTime expiresAt;
   final bool oneShot;
-  final String type; // 'button' | 'modal'
+  final String type; // 'button' | 'select' | 'modal'
   final String? guildId;
   final String? channelId;
   final String? userId; // if userId is set, only respond to that user
@@ -15,6 +17,8 @@ class ListenerEntry {
   const ListenerEntry({
     required this.botId,
     required this.workflowName,
+    this.workflowEntryPoint = 'main',
+    this.workflowArguments = const <String, String>{},
     required this.expiresAt,
     required this.type,
     this.oneShot = true,
