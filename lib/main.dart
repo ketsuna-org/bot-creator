@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:bot_creator/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -58,6 +59,20 @@ bool get _isCrashlyticsSupported {
 }
 
 Future<void> main() async {
+  // On desktop platforms - especially Windows - the built-in certificate
+  // bundle used by BoringSSL does not necessarily include all of the root
+  // authorities that the operating system trusts.  This can lead to
+  // `HandshakeException` errors such as the one shown in the screenshot:
+  //
+  //   CERTIFICATE_VERIFY_FAILED: unable to get local issuer certificate
+  //
+  // During development we don't want invalid certs to completely break the
+  // app, so we install a global `HttpOverrides` that will allow an
+  // insecure connection on Windows.  In release builds you should either
+  // remove this override or supply the proper certificate to
+  // `SecurityContext` instead of bypassing verification.
+  HttpOverrides.global = _MyHttpOverrides();
+
   await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
@@ -88,6 +103,22 @@ Future<void> main() async {
       );
     },
   );
+}
+
+/// An [HttpOverrides] implementation that accepts all certificates on
+/// Windows.  We scope the change to Windows to avoid hiding real network
+/// problems on other platforms where the system certificate store is
+/// trusted.
+class _MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    if (Platform.isWindows) {
+      client.badCertificateCallback =
+          (X509Certificate cert, String host, int port) => true;
+    }
+    return client;
+  }
 }
 
 Future<void> _bootstrapAndRunApp() async {
