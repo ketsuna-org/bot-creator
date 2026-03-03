@@ -58,7 +58,7 @@ class _AppCreatePageState extends State<AppCreatePage> {
               onPressed: () async {
                 // open link in browser
                 final url = Uri.parse(
-                  "https://jeremysoler.com/tutorials/2025/05/18/how-to-create-a-bot-token-bot-creator.html",
+                  "https://bot-creator.fr/tutorials/2025/05/18/how-to-create-a-bot-token-bot-creator.html",
                 );
 
                 if (await canLaunchUrl(url)) {
