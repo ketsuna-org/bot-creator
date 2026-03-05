@@ -78,6 +78,11 @@ bool get _isMobilePlatform {
       defaultTargetPlatform == TargetPlatform.iOS;
 }
 
+bool get _isWindowsDesktop {
+  if (kIsWeb) return false;
+  return defaultTargetPlatform == TargetPlatform.windows;
+}
+
 // ---------------------------------------------------------------------------
 // Mobile (Android + iOS): native GoogleSignIn
 // ---------------------------------------------------------------------------
@@ -530,14 +535,53 @@ Future<File> uploadFile(
 }) async {
   final local = manager.File(filePath);
   if (!await local.exists()) throw Exception('File does not exist');
-  final size = (await local.stat()).size;
+  final bytes = await local.readAsBytes();
+  final size = bytes.length;
   final parents = parentId.isEmpty ? ['appDataFolder'] : [parentId];
   final meta =
       File()
         ..name = fileName
         ..mimeType = mimeType
         ..parents = parents;
-  return drive.files.create(meta, uploadMedia: Media(local.openRead(), size));
+  return drive.files.create(
+    meta,
+    uploadMedia: Media(Stream<List<int>>.value(bytes), size),
+  );
+}
+
+Future<void> _deleteFileWithRetry(manager.File file) async {
+  const maxAttempts = 6;
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      if (await file.exists()) {
+        await file.delete();
+      }
+      return;
+    } on manager.FileSystemException {
+      if (!_isWindowsDesktop || attempt == maxAttempts) {
+        rethrow;
+      }
+      await Future.delayed(Duration(milliseconds: 120 * attempt));
+    }
+  }
+}
+
+Future<void> _recreateDirectoryWithRetry(manager.Directory directory) async {
+  const maxAttempts = 6;
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+      await directory.create(recursive: true);
+      return;
+    } on manager.FileSystemException {
+      if (!_isWindowsDesktop || attempt == maxAttempts) {
+        rethrow;
+      }
+      await Future.delayed(Duration(milliseconds: 150 * attempt));
+    }
+  }
 }
 
 Future<void> downloadFile(DriveApi drive, {fileId = '', filePath = ''}) async {
@@ -669,9 +713,7 @@ Future<BackupSnapshotSummary> createBackupSnapshot(
       parentId: snapshotFolder.id!,
     );
   } finally {
-    if (await tempArchive.exists()) {
-      await tempArchive.delete();
-    }
+    await _deleteFileWithRetry(tempArchive);
   }
 
   final apps = await appm.getAllApps();
@@ -781,18 +823,13 @@ Future<String> restoreBackupSnapshot(
 
     final localRootPath = await appm.path;
     final localAppsDir = manager.Directory('$localRootPath/apps');
-    if (await localAppsDir.exists()) {
-      await localAppsDir.delete(recursive: true);
-    }
-    await localAppsDir.create(recursive: true);
+    await _recreateDirectoryWithRetry(localAppsDir);
 
     try {
       extractFileToDisk(archivePath, localAppsDir.path);
     } finally {
       final archiveLocal = manager.File(archivePath);
-      if (await archiveLocal.exists()) {
-        await archiveLocal.delete();
-      }
+      await _deleteFileWithRetry(archiveLocal);
     }
 
     await appm.refreshApps();
@@ -811,10 +848,7 @@ Future<String> restoreBackupSnapshot(
 
   final localRootPath = await appm.path;
   final localAppsDir = manager.Directory('$localRootPath/apps');
-  if (await localAppsDir.exists()) {
-    await localAppsDir.delete(recursive: true);
-  }
-  await localAppsDir.create(recursive: true);
+  await _recreateDirectoryWithRetry(localAppsDir);
 
   Future<void> restoreFolder(String folderId, String relPath) async {
     final children = childrenByParent[folderId] ?? const <File>[];
@@ -884,10 +918,7 @@ Future<String> _downloadLegacyFlatBackup(
   final localRootPath = await appm.path;
 
   final localAppsDir = manager.Directory('$localRootPath/apps');
-  if (await localAppsDir.exists()) {
-    await localAppsDir.delete(recursive: true);
-  }
-  await localAppsDir.create(recursive: true);
+  await _recreateDirectoryWithRetry(localAppsDir);
 
   final folders = <String, String>{};
   for (final file in files) {

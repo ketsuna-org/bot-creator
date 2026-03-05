@@ -117,11 +117,16 @@ jobs:
       - name: Build Linux release
         run: flutter build linux --release
 
-      - name: Archive Linux build
+      - name: Package Linux portable ZIP
+        run: |
+          cd build/linux/x64/release
+          zip -r ../../../../bot_creator-linux-x64-portable.zip bundle
+
+      - name: Archive Linux ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: linux-release
-          path: build/linux/x64/release/bundle/
+          name: linux-portable-zip
+          path: build/bot_creator-linux-x64-portable.zip
 
       - name: Build Linux AppImage
         run: packaging/linux/appimage/build_appimage.sh
@@ -130,7 +135,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: build/appimage/*.AppImage
+          path: build/appimage/bot_creator-linux-x86_64.AppImage
 
   build_windows_release:
     runs-on: windows-latest
@@ -163,11 +168,16 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release
 
-      - name: Archive Windows build
+      - name: Package Windows portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath build/bot_creator-windows-x64-portable.zip -Force
+
+      - name: Archive Windows ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: windows-release
-          path: build/windows/x64/runner/Release/
+          name: windows-portable-zip
+          path: build/bot_creator-windows-x64-portable.zip
 
       - name: Archive Windows EXE
         uses: actions/upload-artifact@v4
@@ -202,7 +212,7 @@ jobs:
           files: |
             release-apk/app-release.apk
             release-aab/app-release.aab
-            linux-release/**/*
+            linux-portable-zip/bot_creator-linux-x64-portable.zip
             linux-appimage/*.AppImage
-            windows-exe/*.exe
+            windows-portable-zip/bot_creator-windows-x64-portable.zip
             windows-msix/*.msix
