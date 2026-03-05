@@ -185,6 +185,25 @@ jobs:
           name: windows-exe
           path: build/windows/x64/runner/Release/*.exe
 
+      - name: Set unique MSIX version
+        shell: pwsh
+        run: |
+          $pubspec = 'pubspec.yaml'
+          $buildPart = [int]($env:GITHUB_RUN_NUMBER % 65535)
+          if ($buildPart -eq 0) { $buildPart = 1 }
+          $content = Get-Content -Raw $pubspec
+          $versionMatch = [regex]::Match($content, '(?m)^version:\s*([0-9]+)\.([0-9]+)\.([0-9]+)\+[0-9]+\s*$')
+          if (-not $versionMatch.Success) {
+            throw 'Unable to parse app version from pubspec.yaml'
+          }
+          $msixVersion = "$($versionMatch.Groups[1].Value).$($versionMatch.Groups[2].Value).$($versionMatch.Groups[3].Value).$buildPart"
+          $updated = [regex]::Replace($content, '(?m)^\s*msix_version:\s*[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\s*$', "  msix_version: $msixVersion")
+          if ($updated -eq $content) {
+            throw 'Unable to update msix_version in pubspec.yaml'
+          }
+          Set-Content -Path $pubspec -Value $updated -NoNewline
+          Write-Host "MSIX version set to $msixVersion"
+
       - name: Create MSIX package
         run: dart run msix:create
 
