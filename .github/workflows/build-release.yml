@@ -22,16 +22,6 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Cache NDK and CMake
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/local/lib/android/sdk/ndk
-            /usr/local/lib/android/sdk/cmake
-          key: ${{ runner.os }}-android-ndk-cmake-${{ hashFiles('android/app/build.gradle.kts') }}
-          restore-keys: |
-            ${{ runner.os }}-android-ndk-cmake-
-
       - name: Cache Flutter dependencies
         uses: actions/cache@v4
         with:
@@ -120,7 +110,7 @@ jobs:
       - name: Package Linux portable ZIP
         run: |
           cd build/linux/x64/release
-          zip -r ../../../../bot_creator-linux-x64-portable.zip bundle
+          zip -r "$GITHUB_WORKSPACE/build/bot_creator-linux-x64-portable.zip" bundle
 
       - name: Archive Linux ZIP
         uses: actions/upload-artifact@v4
@@ -129,7 +119,7 @@ jobs:
           path: build/bot_creator-linux-x64-portable.zip
 
       - name: Build Linux AppImage
-        run: packaging/linux/appimage/build_appimage.sh
+        run: bash packaging/linux/appimage/build_appimage.sh
 
       - name: Archive AppImage
         uses: actions/upload-artifact@v4
@@ -185,18 +175,16 @@ jobs:
           name: windows-exe
           path: build/windows/x64/runner/Release/*.exe
 
-      - name: Set unique MSIX version
+      - name: Set Store-compatible MSIX version
         shell: pwsh
         run: |
           $pubspec = 'pubspec.yaml'
-          $buildPart = [int]($env:GITHUB_RUN_NUMBER % 65535)
-          if ($buildPart -eq 0) { $buildPart = 1 }
           $content = Get-Content -Raw $pubspec
           $versionMatch = [regex]::Match($content, '(?m)^version:\s*([0-9]+)\.([0-9]+)\.([0-9]+)\+[0-9]+\s*$')
           if (-not $versionMatch.Success) {
             throw 'Unable to parse app version from pubspec.yaml'
           }
-          $msixVersion = "$($versionMatch.Groups[1].Value).$($versionMatch.Groups[2].Value).$($versionMatch.Groups[3].Value).$buildPart"
+          $msixVersion = "$($versionMatch.Groups[1].Value).$($versionMatch.Groups[2].Value).$($versionMatch.Groups[3].Value).0"
           $updated = [regex]::Replace($content, '(?m)^\s*msix_version:\s*[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\s*$', "  msix_version: $msixVersion")
           if ($updated -eq $content) {
             throw 'Unable to update msix_version in pubspec.yaml'
