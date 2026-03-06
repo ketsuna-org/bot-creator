@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Bot Creator
+Comment=Discord bot creator
+Exec=bot_creator
+Icon=com.cardia_kexa.bot_creator
+Terminal=false
+Categories=Utility;Development;
+StartupNotify=true
+StartupWMClass=bot_creator

@@ -1,147 +1,194 @@
-import 'package:bot_creator/main.dart';
-import 'package:bot_creator/utils/database.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import 'package:nyxx/nyxx.dart';
+library;
+
+import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:bot_creator/actions/handler.dart';
+import 'package:bot_creator/main.dart';
+import 'package:bot_creator/types/action.dart';
+import 'package:bot_creator/actions/handle_component_interaction.dart';
+import 'package:bot_creator/actions/interaction_response.dart';
+import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/global.dart';
+import 'package:bot_creator/utils/template_resolver.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:logging/logging.dart';
+import 'package:nyxx/nyxx.dart';
 
-@pragma('vm:entry-point')
-String updateString(String initial, Map<String, String> updates) {
-  final placeholderRegex = RegExp(r'\(\((.*?)\)\)', caseSensitive: false);
+part 'bot.logs.dart';
+part 'bot.template.dart';
+part 'bot.mobile_service.dart';
+part 'bot.commands.dart';
 
-  return initial.replaceAllMapped(placeholderRegex, (Match match) {
-    final content = match.group(1)!;
-    final keys = content.split('|').map((k) => k.trim()).toList();
+NyxxGateway? _desktopGateway;
+StreamSubscription<LogRecord>? _desktopNyxxLogsSubscription;
+Timer? _desktopMetricsTimer;
 
-    for (final key in keys) {
-      if (updates.containsKey(key)) {
-        return updates[key]!;
-      }
-    }
+const int _maxBotLogLines = 500;
+final StreamController<List<String>> _botLogsController =
+    StreamController<List<String>>.broadcast();
+final StreamController<int?> _botProcessRssController =
+    StreamController<int?>.broadcast();
+final StreamController<int?> _botEstimatedRssController =
+    StreamController<int?>.broadcast();
+final StreamController<double?> _botProcessCpuController =
+    StreamController<double?>.broadcast();
+final StreamController<int?> _botProcessStorageController =
+    StreamController<int?>.broadcast();
+List<String> _botLogs = <String>[];
+String? _activeBotLogBotId;
+bool _debugBotLogsEnabled = false;
+const String _debugLogsEnabledDataKey = 'debugLogsEnabled';
+int? _botProcessRssBytes;
+int? _botBaselineRssBytes;
+DateTime? _botBaselineCapturedAt;
+int? _botEstimatedRssBytes;
+double? _botProcessCpuPercent;
+int? _botProcessStorageBytes;
+bool _botRuntimeActive = false;
 
-    return ''; // Aucune clé trouvée -> remplacement par chaîne vide
-  });
-}
+bool get isDesktopBotRunning => _desktopGateway != null;
+bool get isBotDebugLogsEnabled => _debugBotLogsEnabled;
+bool get isBotRuntimeActive => _botRuntimeActive;
 
-@pragma('vm:entry-point')
-Future<void> handleLocalCommands(
-  InteractionCreateEvent event,
-  AppManager manager,
-) async {
-  final interaction = event.interaction;
-  final clientId = event.gateway.client.user.id.toString();
-  if (interaction is ApplicationCommandInteraction) {
-    final command = interaction.data;
-    final action = await manager.getAppCommand(clientId, command.id.toString());
-
-    if (action["id"] == command.id.toString()) {
-      final listOfArgs = await generateKeyValues(interaction);
-
-      // extract the "reply" from the "data" field
-      final value = action["data"];
-      if (value != null) {
-        String response = value["response"] ?? "No response found";
-        response = updateString(response, listOfArgs);
-        await interaction.respond(MessageBuilder(content: response));
-      } else {
-        await interaction.respond(MessageBuilder(content: "No data found"));
-      }
-
-      return;
-    } else {
-      await interaction.respond(MessageBuilder(content: "Command not found"));
-      return;
-    }
-  }
-}
-
-Future<void> startService() async {
-  // Start the foreground service
-  await FlutterForegroundTask.startService(
-    serviceId: 110,
-    notificationTitle: "Bot is running",
-    notificationText: "Bot is running in the background",
-    callback: startCallback,
-    notificationButtons: [NotificationButton(id: "stop", text: "Stop")],
+void setBotDebugLogsEnabled(bool enabled) {
+  _debugBotLogsEnabled = enabled;
+  appendBotLog(
+    enabled ? 'Mode debug logs activé' : 'Mode debug logs désactivé',
   );
+  unawaited(_persistDebugLogsEnabled(enabled));
 }
 
-@pragma('vm:entry-point')
-void startCallback() {
-  FlutterForegroundTask.setTaskHandler(DiscordBotTaskHandler());
+String _two(int value) => value < 10 ? '0$value' : '$value';
+
+String _timestampNow() {
+  final now = DateTime.now();
+  return '${_two(now.hour)}:${_two(now.minute)}:${_two(now.second)}';
 }
 
-@pragma('vm:entry-point')
-void stopCallback() {
-  FlutterForegroundTask.stopService();
+/// Convert the intents configuration map to GatewayIntents
+Flags<GatewayIntents> buildGatewayIntents(Map<String, bool>? intentsMap) {
+  if (intentsMap == null || intentsMap.isEmpty) {
+    return GatewayIntents.allUnprivileged;
+  }
+
+  Flags<GatewayIntents> intents = GatewayIntents.none;
+
+  if (intentsMap['Guild Presence'] == true) {
+    intents = intents | GatewayIntents.guildPresences;
+  }
+  if (intentsMap['Guild Members'] == true) {
+    intents = intents | GatewayIntents.guildMembers;
+  }
+  if (intentsMap['Message Content'] == true) {
+    intents = intents | GatewayIntents.messageContent;
+  }
+  if (intentsMap['Direct Messages'] == true) {
+    intents = intents | GatewayIntents.directMessages;
+  }
+  if (intentsMap['Guilds'] == true) {
+    intents = intents | GatewayIntents.guilds;
+  }
+  if (intentsMap['Guild Messages'] == true) {
+    intents = intents | GatewayIntents.guildMessages;
+  }
+  if (intentsMap['Guild Message Reactions'] == true) {
+    intents = intents | GatewayIntents.guildMessageReactions;
+  }
+  if (intentsMap['Direct Message Reactions'] == true) {
+    intents = intents | GatewayIntents.directMessageReactions;
+  }
+  if (intentsMap['Guild Message Typing'] == true) {
+    intents = intents | GatewayIntents.guildMessageTyping;
+  }
+  if (intentsMap['Direct Message Typing'] == true) {
+    intents = intents | GatewayIntents.directMessageTyping;
+  }
+  if (intentsMap['Guild Scheduled Events'] == true) {
+    intents = intents | GatewayIntents.guildScheduledEvents;
+  }
+  if (intentsMap['Auto Moderation Configuration'] == true) {
+    intents = intents | GatewayIntents.autoModerationConfiguration;
+  }
+  if (intentsMap['Auto Moderation Execution'] == true) {
+    intents = intents | GatewayIntents.autoModerationExecution;
+  }
+
+  if (intents == GatewayIntents.none) {
+    return GatewayIntents.allUnprivileged;
+  }
+
+  return intents;
 }
 
-@pragma('vm:entry-point')
-class DiscordBotTaskHandler extends TaskHandler {
-  NyxxGateway? client;
-  bool isReady = false;
-
-  @override
-  Future<void> onStart(DateTime timestamp, TaskStarter taskStarter) async {
-    // Initialiser le client Discord
-    developer.log("Starting Discord bot", name: "DiscordBotTaskHandler");
-    final token = await FlutterForegroundTask.getData<String>(key: "token");
-    if (token != null) {
-      try {
-        appManager = AppManager();
-        developer.log("Token: $token", name: "DiscordBotTaskHandler");
-        final gateway = await Nyxx.connectGateway(
-          token,
-          GatewayIntents.allUnprivileged,
-          options: GatewayClientOptions(
-            loggerName: "CardiaKexa",
-            plugins: [Logging(logLevel: Level.ALL)],
-          ),
-        );
-        gateway.onReady.listen((event) async {
-          isReady = true;
-          gateway.onInteractionCreate.listen((event) async {
-            // Traiter les interactions
-            await handleLocalCommands(event, appManager);
-          });
-        });
-
-        client = gateway;
-      } catch (e) {
-        developer.log(
-          "Failed to connect to Discord: $e",
-          name: "DiscordBotTaskHandler",
-        );
-      }
-    } else {
-      developer.log("Token not found", name: "DiscordBotTaskHandler");
-    }
+Future<void> startDesktopBot(String token) async {
+  if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
+    throw Exception('Desktop bot mode is only available on desktop platforms.');
   }
 
-  @override
-  void onNotificationButtonPressed(String id) {
-    if (id == "stop") {
-      stopCallback();
-    }
+  if (_desktopGateway != null) {
+    appendBotLog('Le bot desktop est déjà en cours d’exécution');
+    return;
   }
+  appendBotLog('Démarrage du bot desktop...');
+  appendBotDebugLog('Plateforme desktop détectée');
 
-  @override
-  Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
-    await client?.close();
-    client = null;
-    if (isTimeout) {
-      // let's restart the service
-      developer.log("Service timeout", name: "DiscordBotTaskHandler");
-      await startService();
-    } else {
-      developer.log("Service stopped", name: "DiscordBotTaskHandler");
-    }
-  }
+  final botUser = await getDiscordUser(token);
+  final appData = await appManager.getApp(botUser.id.toString());
+  final intentsMap = Map<String, bool>.from(appData['intents'] as Map? ?? {});
+  final intents = buildGatewayIntents(intentsMap);
+  _bindDesktopNyxxLogs(botId: botUser.id.toString());
+  appendBotDebugLog(
+    'Intents actifs: ${intentsMap.entries.where((e) => e.value).length}',
+    botId: botUser.id.toString(),
+  );
 
-  @override
-  void onRepeatEvent(DateTime timestamp) {
-    developer.log("Repeat event", name: "DiscordBotTaskHandler");
-  }
+  final gateway = await Nyxx.connectGateway(
+    token,
+    intents,
+    options: GatewayClientOptions(
+      loggerName: 'CardiaKexaDesktop',
+      plugins: [Logging(logLevel: Level.ALL)],
+    ),
+  );
+
+  gateway.onReady.listen((event) async {
+    final botId = event.gateway.client.user.id.toString();
+    setBotRuntimeActive(true);
+    appendBotLog('Bot desktop connecté et prêt', botId: botId);
+    unawaited(_refreshBotMetrics(botId: botId));
+    _desktopMetricsTimer?.cancel();
+    _desktopMetricsTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      unawaited(_refreshBotMetrics(botId: botId));
+    });
+    appManager = AppManager();
+    gateway.onInteractionCreate.listen((event) async {
+      await handleLocalCommands(event, appManager);
+    });
+  });
+
+  _desktopGateway = gateway;
+}
+
+Future<void> stopDesktopBot() async {
+  appendBotLog('Arrêt du bot desktop demandé');
+  _desktopMetricsTimer?.cancel();
+  _desktopMetricsTimer = null;
+  await _desktopGateway?.close();
+  _desktopGateway = null;
+  await _desktopNyxxLogsSubscription?.cancel();
+  _desktopNyxxLogsSubscription = null;
+  _updateBotMetrics(
+    rssBytes: null,
+    cpuPercent: null,
+    storageBytes: null,
+    overwriteNulls: true,
+  );
+  setBotRuntimeActive(false);
 }
 
 Future<void> createCommand(
@@ -151,14 +198,14 @@ Future<void> createCommand(
 }) async {
   try {
     final command = await client.commands.create(commandBuilder);
-    Map<String, dynamic> commandData = {
-      "name": command.name,
-      "description": command.description,
-      "id": command.id.toString(),
-      "createdAt": DateTime.now().toIso8601String(),
+    final Map<String, dynamic> commandData = {
+      'name': command.name,
+      'description': command.description,
+      'id': command.id.toString(),
+      'createdAt': DateTime.now().toIso8601String(),
     };
     if (data.isNotEmpty) {
-      commandData["data"] = data;
+      commandData['data'] = data;
     }
     appManager.saveAppCommand(
       client.user.id.toString(),
@@ -166,7 +213,7 @@ Future<void> createCommand(
       commandData,
     );
   } catch (e) {
-    throw Exception("Failed to create command: $e");
+    throw Exception('Failed to create command: $e');
   }
 }
 
@@ -176,18 +223,17 @@ Future<void> updateCommand(
   required ApplicationCommandUpdateBuilder commandBuilder,
   Map<String, dynamic> data = const {},
 }) async {
-  // let's check what we are gonna update
   try {
     final command = await client.commands.update(commandId, commandBuilder);
-    Map<String, dynamic> commandData = {
-      "name": command.name,
-      "description": command.description,
-      "id": command.id.toString(),
-      "updatedAt": DateTime.now().toIso8601String(),
+    final Map<String, dynamic> commandData = {
+      'name': command.name,
+      'description': command.description,
+      'id': command.id.toString(),
+      'updatedAt': DateTime.now().toIso8601String(),
     };
 
     if (data.isNotEmpty) {
-      commandData["data"] = data;
+      commandData['data'] = data;
     }
     appManager.saveAppCommand(
       client.user.id.toString(),
@@ -195,6 +241,6 @@ Future<void> updateCommand(
       commandData,
     );
   } catch (e) {
-    throw Exception("Failed to update command: $e");
+    throw Exception('Failed to update command: $e');
   }
 }

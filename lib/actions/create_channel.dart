@@ -13,9 +13,7 @@ Future<Map<String, String>> createChannel(
       name: name,
       type: type,
     );
-    final channel = await guild.createChannel(
-      channelBuilder,
-    );
+    final channel = await guild.createChannel(channelBuilder);
 
     return {"channelId": channel.id.toString()};
   } catch (e) {

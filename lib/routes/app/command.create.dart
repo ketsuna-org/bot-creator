@@ -1,8 +1,12 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
 import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:bot_creator/widgets/command_create_cards/basic_info_card.dart';
+import 'package:bot_creator/widgets/command_create_cards/reply_card.dart';
+import 'package:bot_creator/widgets/command_create_cards/actions_card.dart';
+import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -20,10 +24,132 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   String _commandDescription = "";
   List<CommandOptionBuilder> _options = [];
   String _response = "";
+  final TextEditingController _responseController = TextEditingController();
+  String _responseType = 'normal';
+  List<Map<String, dynamic>> _responseEmbeds = [];
+  Map<String, dynamic> _responseComponents = {};
+  Map<String, dynamic> _responseModal = {};
+  List<Map<String, dynamic>> _actions = [];
+  Map<String, dynamic> _responseWorkflow = _defaultWorkflow();
   bool _isLoading = true;
   List<ApplicationIntegrationType> _integrationTypes = [
     ApplicationIntegrationType.guildInstall,
   ];
+  List<InteractionContextType> _contexts = [InteractionContextType.guild];
+  String _defaultMemberPermissions = '';
+
+  static Map<String, dynamic> _defaultWorkflow() {
+    return {
+      'autoDeferIfActions': true,
+      'visibility': 'public',
+      'onError': 'edit_error',
+      'conditional': {
+        'enabled': false,
+        'variable': '',
+        'whenTrueType': 'normal',
+        'whenFalseType': 'normal',
+        'whenTrueText': '',
+        'whenFalseText': '',
+        'whenTrueEmbeds': <Map<String, dynamic>>[],
+        'whenFalseEmbeds': <Map<String, dynamic>>[],
+        'whenTrueNormalComponents': <String, dynamic>{},
+        'whenFalseNormalComponents': <String, dynamic>{},
+        'whenTrueComponents': <String, dynamic>{},
+        'whenFalseComponents': <String, dynamic>{},
+        'whenTrueModal': <String, dynamic>{},
+        'whenFalseModal': <String, dynamic>{},
+      },
+    };
+  }
+
+  List<Map<String, dynamic>> _normalizeEmbedsPayload(dynamic rawEmbeds) {
+    if (rawEmbeds is! List) {
+      return <Map<String, dynamic>>[];
+    }
+
+    return rawEmbeds
+        .whereType<Map>()
+        .map((embed) {
+          return Map<String, dynamic>.from(
+            embed.map((key, value) => MapEntry(key.toString(), value)),
+          );
+        })
+        .take(10)
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic> _normalizeWorkflow(Map<String, dynamic> input) {
+    final conditional = Map<String, dynamic>.from(
+      (input['conditional'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+
+    return {
+      'autoDeferIfActions': input['autoDeferIfActions'] != false,
+      'visibility':
+          (input['visibility']?.toString().toLowerCase() == 'ephemeral')
+              ? 'ephemeral'
+              : 'public',
+      'onError': 'edit_error',
+      'conditional': {
+        'enabled': conditional['enabled'] == true,
+        'variable': (conditional['variable'] ?? '').toString(),
+        'whenTrueType': (conditional['whenTrueType'] ?? 'normal').toString(),
+        'whenFalseType': (conditional['whenFalseType'] ?? 'normal').toString(),
+        'whenTrueText': (conditional['whenTrueText'] ?? '').toString(),
+        'whenFalseText': (conditional['whenFalseText'] ?? '').toString(),
+        'whenTrueEmbeds': _normalizeEmbedsPayload(
+          conditional['whenTrueEmbeds'],
+        ),
+        'whenFalseEmbeds': _normalizeEmbedsPayload(
+          conditional['whenFalseEmbeds'],
+        ),
+        'whenTrueNormalComponents': Map<String, dynamic>.from(
+          (conditional['whenTrueNormalComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenFalseNormalComponents': Map<String, dynamic>.from(
+          (conditional['whenFalseNormalComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenTrueComponents': Map<String, dynamic>.from(
+          (conditional['whenTrueComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenFalseComponents': Map<String, dynamic>.from(
+          (conditional['whenFalseComponents'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenTrueModal': Map<String, dynamic>.from(
+          (conditional['whenTrueModal'] as Map?)?.cast<String, dynamic>() ??
+              const {},
+        ),
+        'whenFalseModal': Map<String, dynamic>.from(
+          (conditional['whenFalseModal'] as Map?)?.cast<String, dynamic>() ??
+              const {},
+        ),
+      },
+    };
+  }
+
+  String _workflowSummary() {
+    final visibility =
+        _responseWorkflow['visibility'] == 'ephemeral' ? 'Ephemeral' : 'Public';
+    final autoDefer = _responseWorkflow['autoDeferIfActions'] != false;
+    final conditional = Map<String, dynamic>.from(
+      (_responseWorkflow['conditional'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+    );
+    final conditionEnabled = conditional['enabled'] == true;
+    final conditionLabel = conditionEnabled ? 'Condition ON' : 'Condition OFF';
+
+    return '${autoDefer ? 'Auto defer if actions' : 'No auto defer'} • $visibility • $conditionLabel';
+  }
+
+  String? get _botIdForConfig => widget.client?.user.id.toString();
 
   final List<Map<String, String>> _argsList = [
     {"name": "guildName", "description": "Name of the guild"},
@@ -51,12 +177,25 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   @override
   void initState() {
     super.initState();
+    _responseController.text = _response;
+    _responseController.addListener(() {
+      _response = _responseController.text;
+      if (mounted) {
+        setState(() {});
+      }
+    });
     _init();
     // Initialize any necessary data or state
   }
 
+  @override
+  void dispose() {
+    _responseController.dispose();
+    super.dispose();
+  }
+
   Future<void> _init() async {
-    await FirebaseAnalytics.instance.logScreenView(
+    await AppAnalytics.logScreenView(
       screenName: "CommandCreatePage",
       screenClass: "CommandCreatePage",
       parameters: {
@@ -68,7 +207,19 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     );
     // first let's check if the command is already created or not
     if (!widget.id.isZero) {
-      final command = await widget.client?.commands.fetch(widget.id);
+      ApplicationCommand? command;
+      try {
+        final commandsList = await widget.client?.commands.list(
+          withLocalizations: true,
+        );
+        command = commandsList?.cast<ApplicationCommand?>().firstWhere(
+          (c) => c?.id == widget.id,
+          orElse: () => null,
+        );
+      } catch (_) {}
+
+      command ??= await widget.client?.commands.fetch(widget.id);
+
       // check if we also have the command in the database
       final commandData = await appManager.getAppCommand(
         widget.client!.user.id.toString(),
@@ -77,22 +228,93 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       // let's set the command data to the fields
       final data = commandData["data"];
       if (data != null) {
+        final normalized = appManager.normalizeCommandData(
+          Map<String, dynamic>.from(commandData),
+        );
+        final normalizedData = Map<String, dynamic>.from(
+          normalized["data"] ?? const {},
+        );
+        final response = Map<String, dynamic>.from(
+          (normalizedData["response"] as Map?)?.cast<String, dynamic>() ??
+              const {},
+        );
+        final embeds =
+            (response['embeds'] is List)
+                ? List<Map<String, dynamic>>.from(
+                  (response['embeds'] as List).whereType<Map>().map(
+                    (embed) => Map<String, dynamic>.from(
+                      embed.map(
+                        (key, value) => MapEntry(key.toString(), value),
+                      ),
+                    ),
+                  ),
+                )
+                : <Map<String, dynamic>>[];
+
+        if (embeds.isEmpty) {
+          final legacyEmbed = Map<String, dynamic>.from(
+            (response['embed'] as Map?)?.cast<String, dynamic>() ?? const {},
+          );
+          final hasLegacyEmbed =
+              (legacyEmbed['title']?.toString().isNotEmpty ?? false) ||
+              (legacyEmbed['description']?.toString().isNotEmpty ?? false) ||
+              (legacyEmbed['url']?.toString().isNotEmpty ?? false);
+          if (hasLegacyEmbed) {
+            embeds.add({
+              'title': legacyEmbed['title']?.toString() ?? '',
+              'description': legacyEmbed['description']?.toString() ?? '',
+              'url': legacyEmbed['url']?.toString() ?? '',
+            });
+          }
+        }
+
         setState(() {
-          _response = data["response"] ?? "";
+          _responseType = (response['type'] ?? 'normal').toString();
+          _response = (response["text"] ?? "").toString();
+          _responseController.text = _response;
+          _responseEmbeds = embeds.take(10).toList();
+          _responseComponents = Map<String, dynamic>.from(
+            (response['components'] as Map?)?.cast<String, dynamic>() ??
+                const {},
+          );
+          _responseModal = Map<String, dynamic>.from(
+            (response['modal'] as Map?)?.cast<String, dynamic>() ?? const {},
+          );
+          _responseWorkflow = _normalizeWorkflow(
+            Map<String, dynamic>.from(
+              (response['workflow'] as Map?)?.cast<String, dynamic>() ??
+                  _defaultWorkflow(),
+            ),
+          );
+          _actions = List<Map<String, dynamic>>.from(
+            (normalizedData["actions"] as List?)?.whereType<Map>().map(
+                  (e) => Map<String, dynamic>.from(e),
+                ) ??
+                const [],
+          );
+          _defaultMemberPermissions =
+              (normalizedData['defaultMemberPermissions'] ?? '')
+                  .toString()
+                  .trim();
         });
       }
       if (command != null) {
+        final currentCommand = command;
         setState(() {
-          _commandName = command.name;
-          _commandDescription = command.description;
-          if (command.options != null) {
+          _commandName = currentCommand.name;
+          _commandDescription = currentCommand.description;
+          if (currentCommand.options != null) {
             _options =
-                command.options!.map((e) {
+                currentCommand.options!.map((e) {
                   final option = CommandOptionBuilder(
                     type: e.type,
                     name: e.name,
                     description: e.description,
                     isRequired: e.isRequired,
+                    minValue: e.minValue,
+                    maxValue: e.maxValue,
+                    nameLocalizations: e.nameLocalizations,
+                    descriptionLocalizations: e.descriptionLocalizations,
                   );
                   if (e.choices?.isNotEmpty ?? false) {
                     option.choices =
@@ -109,7 +331,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             _options = [];
           }
           _integrationTypes =
-              command.integrationTypes.map((e) {
+              currentCommand.integrationTypes.map((e) {
                 if (e == ApplicationIntegrationType.guildInstall) {
                   return ApplicationIntegrationType.guildInstall;
                 } else if (e == ApplicationIntegrationType.userInstall) {
@@ -118,6 +340,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                   return ApplicationIntegrationType.guildInstall;
                 }
               }).toList();
+          _contexts = [];
+          if (currentCommand.contexts != null) {
+            _contexts = currentCommand.contexts!.toList();
+          } else {
+            // legacy defaults to guild
+            _contexts = [InteractionContextType.guild];
+          }
+          if (_defaultMemberPermissions.isEmpty &&
+              currentCommand.defaultMemberPermissions != null) {
+            _defaultMemberPermissions =
+                currentCommand.defaultMemberPermissions!.value.toString();
+          }
           _isLoading = false;
         });
       }
@@ -147,6 +381,25 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       return;
     }
 
+    final commandData = {
+      "version": 1,
+      "defaultMemberPermissions": _defaultMemberPermissions.trim(),
+      "response": {
+        "mode": _responseEmbeds.isNotEmpty ? "embed" : "text",
+        "type": _responseType,
+        "text": _responseController.text,
+        "embed":
+            _responseEmbeds.isNotEmpty
+                ? _responseEmbeds.first
+                : {"title": "", "description": "", "url": ""},
+        "embeds": _responseEmbeds.take(10).toList(),
+        "components": _responseComponents,
+        "modal": _responseModal,
+        "workflow": _normalizeWorkflow(_responseWorkflow),
+      },
+      "actions": _actions,
+    };
+
     final client = widget.client;
     if (client == null) {
       // Handle error: client is null
@@ -161,22 +414,35 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           type: ApplicationCommandType.chatInput,
         );
 
+        final parsedPermissions = _parseDefaultMemberPermissions(
+          _defaultMemberPermissions,
+        );
+        commandBuilder.defaultMemberPermissions = parsedPermissions;
+
         commandBuilder.integrationTypes = _integrationTypes;
+        if (_contexts.isNotEmpty) {
+          commandBuilder.contexts = _contexts;
+        }
         if (_options.isNotEmpty) {
           commandBuilder.options = _options;
         }
-        await createCommand(
-          client,
-          commandBuilder,
-          data: {"response": _response},
-        );
+        await createCommand(client, commandBuilder, data: commandData);
       } else {
         // Update the existing command
         final commandBuilder = ApplicationCommandUpdateBuilder(
           name: _commandName,
           description: _commandDescription,
         );
+        final parsedPermissions = _parseDefaultMemberPermissions(
+          _defaultMemberPermissions,
+        );
+        commandBuilder.defaultMemberPermissions = parsedPermissions;
         commandBuilder.integrationTypes = _integrationTypes;
+        if (_contexts.isNotEmpty) {
+          commandBuilder.contexts = _contexts;
+        } else {
+          commandBuilder.contexts = [];
+        }
         if (_options.isNotEmpty) {
           commandBuilder.options = _options;
         } else {
@@ -187,7 +453,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           client,
           widget.id,
           commandBuilder: commandBuilder,
-          data: {"response": _response},
+          data: commandData,
         );
       }
       Navigator.pop(context);
@@ -247,6 +513,362 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     return null; // No error
   }
 
+  Permissions? _parseDefaultMemberPermissions(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    final parsed = int.tryParse(trimmed);
+    if (parsed == null || parsed < 0) {
+      throw Exception(
+        'Invalid default member permissions bitfield. Use a positive integer or leave empty.',
+      );
+    }
+    return Permissions(parsed);
+  }
+
+  List<String> get _variableNames {
+    final base = _argsList
+        .map((e) => e['name'])
+        .whereType<String>()
+        .toList(growable: true);
+
+    for (final option in _options) {
+      final optionName = option.name;
+      if (optionName.isEmpty) {
+        continue;
+      }
+
+      base.add('opts.$optionName');
+
+      switch (option.type) {
+        case CommandOptionType.user:
+        case CommandOptionType.mentionable:
+          base.addAll(['opts.$optionName.id', 'opts.$optionName.avatar']);
+          break;
+        case CommandOptionType.channel:
+          base.addAll(['opts.$optionName.id', 'opts.$optionName.type']);
+          break;
+        case CommandOptionType.role:
+          base.add('opts.$optionName.id');
+          break;
+        default:
+          break;
+      }
+    }
+
+    base.addAll(_actionOutputVariableNames());
+
+    return base.toSet().toList(growable: false)..sort();
+  }
+
+  String _resolveActionKey(Map<String, dynamic> action, int index) {
+    final rootKey = (action['key'] ?? '').toString().trim();
+    if (rootKey.isNotEmpty) {
+      return rootKey;
+    }
+
+    final parameters = Map<String, dynamic>.from(
+      (action['parameters'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final parametersKey = (parameters['key'] ?? '').toString().trim();
+    if (parametersKey.isNotEmpty) {
+      return parametersKey;
+    }
+
+    final payload = Map<String, dynamic>.from(
+      (action['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final payloadKey = (payload['key'] ?? '').toString().trim();
+    if (payloadKey.isNotEmpty) {
+      return payloadKey;
+    }
+
+    return 'action_$index';
+  }
+
+  List<String> _actionOutputVariableNames() {
+    final outputVariables = <String>{};
+
+    for (var i = 0; i < _actions.length; i++) {
+      final action = _actions[i];
+      final actionKey = _resolveActionKey(action, i);
+      if (actionKey.isEmpty) {
+        continue;
+      }
+
+      outputVariables.add('action.$actionKey');
+
+      final type = (action['type'] ?? '').toString();
+      if (type == 'deleteMessages') {
+        outputVariables.addAll([
+          'action.$actionKey.count',
+          '$actionKey.count',
+          'action.$actionKey.deleteItself',
+          '$actionKey.deleteItself',
+        ]);
+      }
+
+      if (type == 'httpRequest') {
+        outputVariables.addAll([
+          'action.$actionKey.status',
+          'action.$actionKey.body',
+          'action.$actionKey.jsonPath',
+          '$actionKey.status',
+          '$actionKey.body',
+          '$actionKey.jsonPath',
+        ]);
+      }
+    }
+
+    return outputVariables.toList(growable: false)..sort();
+  }
+
+  List<VariableSuggestion> get _actionVariableSuggestions {
+    final suggestionsByName = <String, VariableSuggestion>{};
+
+    void addSuggestion(String name, {required VariableSuggestionKind kind}) {
+      final existing = suggestionsByName[name];
+      if (existing == null) {
+        suggestionsByName[name] = VariableSuggestion(name: name, kind: kind);
+        return;
+      }
+
+      if (existing.kind == VariableSuggestionKind.numeric ||
+          existing.kind == kind) {
+        return;
+      }
+
+      if (kind == VariableSuggestionKind.numeric) {
+        suggestionsByName[name] = VariableSuggestion(name: name, kind: kind);
+      }
+    }
+
+    for (final arg in _argsList) {
+      final name = (arg['name'] ?? '').toString().trim();
+      if (name.isEmpty) {
+        continue;
+      }
+
+      addSuggestion(
+        name,
+        kind:
+            name == 'guildCount'
+                ? VariableSuggestionKind.numeric
+                : VariableSuggestionKind.nonNumeric,
+      );
+    }
+
+    for (final option in _options) {
+      final optionName = option.name.trim();
+      if (optionName.isEmpty) {
+        continue;
+      }
+
+      addSuggestion('opts.$optionName', kind: VariableSuggestionKind.unknown);
+
+      switch (option.type) {
+        case CommandOptionType.integer:
+        case CommandOptionType.number:
+          addSuggestion(
+            'opts.$optionName',
+            kind: VariableSuggestionKind.numeric,
+          );
+          break;
+        case CommandOptionType.user:
+        case CommandOptionType.mentionable:
+          addSuggestion(
+            'opts.$optionName.id',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          addSuggestion(
+            'opts.$optionName.avatar',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          break;
+        case CommandOptionType.channel:
+          addSuggestion(
+            'opts.$optionName.id',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          addSuggestion(
+            'opts.$optionName.type',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          break;
+        case CommandOptionType.role:
+          addSuggestion(
+            'opts.$optionName.id',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          break;
+        default:
+          break;
+      }
+    }
+
+    for (var i = 0; i < _actions.length; i++) {
+      final action = _actions[i];
+      final actionKey = _resolveActionKey(action, i);
+      if (actionKey.isEmpty) {
+        continue;
+      }
+      addSuggestion('action.$actionKey', kind: VariableSuggestionKind.unknown);
+
+      final type = (action['type'] ?? '').toString();
+      if (type == 'httpRequest') {
+        addSuggestion(
+          'action.$actionKey.status',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion(
+          'action.$actionKey.body',
+          kind: VariableSuggestionKind.nonNumeric,
+        );
+        addSuggestion(
+          'action.$actionKey.jsonPath',
+          kind: VariableSuggestionKind.nonNumeric,
+        );
+      }
+    }
+
+    addSuggestion('workflow.name', kind: VariableSuggestionKind.nonNumeric);
+    addSuggestion(
+      'workflow.entryPoint',
+      kind: VariableSuggestionKind.nonNumeric,
+    );
+    addSuggestion('workflow.args', kind: VariableSuggestionKind.nonNumeric);
+    addSuggestion('arg.yourArg', kind: VariableSuggestionKind.unknown);
+    addSuggestion('workflow.arg.yourArg', kind: VariableSuggestionKind.unknown);
+
+    final suggestions = suggestionsByName.values.toList(growable: false)
+      ..sort((a, b) => a.name.compareTo(b.name));
+
+    return suggestions;
+  }
+
+  String _currentVariableQuery(TextEditingController controller) {
+    final selection = controller.selection;
+    final cursor = selection.baseOffset;
+    if (cursor < 0) {
+      return '';
+    }
+
+    final beforeCursor = controller.text.substring(0, cursor);
+    final start = beforeCursor.lastIndexOf('((');
+    if (start == -1) {
+      return '';
+    }
+
+    final alreadyClosed = beforeCursor.substring(start).contains('))');
+    if (alreadyClosed) {
+      return '';
+    }
+
+    final raw = beforeCursor.substring(start + 2);
+    final parts = raw.split('|');
+    return parts.last.trimLeft();
+  }
+
+  void _insertVariable(TextEditingController controller, String variableName) {
+    final selection = controller.selection;
+    final cursor = selection.baseOffset;
+    if (cursor < 0) {
+      return;
+    }
+
+    final beforeCursor = controller.text.substring(0, cursor);
+    final afterCursor = controller.text.substring(cursor);
+    final start = beforeCursor.lastIndexOf('((');
+    if (start == -1) {
+      return;
+    }
+
+    final rawInner = beforeCursor.substring(start + 2);
+    final parts = rawInner.split('|');
+    final prefixParts =
+        parts.length > 1 ? parts.sublist(0, parts.length - 1) : <String>[];
+    final previous =
+        prefixParts.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    final merged = [...previous, variableName];
+    final inner = merged.join(' | ');
+
+    final newBefore = '${beforeCursor.substring(0, start)}(($inner))';
+    final nextText = '$newBefore$afterCursor';
+    final nextCursor = newBefore.length;
+
+    controller.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextCursor),
+    );
+  }
+
+  Widget _buildVariableSuggestionBar(TextEditingController controller) {
+    final query = _currentVariableQuery(controller).trim();
+    final cursor = controller.selection.baseOffset;
+    if (cursor < 0) {
+      return const SizedBox.shrink();
+    }
+
+    final beforeCursor = controller.text.substring(0, cursor);
+    final start = beforeCursor.lastIndexOf('((');
+    if (start == -1) {
+      return const SizedBox.shrink();
+    }
+
+    final inner = beforeCursor.substring(start + 2);
+    final inFallbackMode = inner.contains('|');
+
+    if (query.isEmpty && !inFallbackMode) {
+      return const SizedBox.shrink();
+    }
+
+    final suggestions =
+        _variableNames
+            .where((name) => name.toLowerCase().contains(query.toLowerCase()))
+            .take(8)
+            .toList();
+
+    if (suggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (inFallbackMode)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  'Fallback mode: next variable is used if previous is empty.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                ),
+              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children:
+                  suggestions
+                      .map(
+                        (name) => ActionChip(
+                          label: Text('(($name))'),
+                          onPressed: () => _insertVariable(controller, name),
+                        ),
+                      )
+                      .toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Card helper removed.
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -258,7 +880,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               final dialogFullscren = Dialog.fullscreen(
                 child: Scaffold(
                   appBar: AppBar(
-                    title: const Text("Command arguments"),
+                    title: const Text("Command Variables"),
                     leading: IconButton(
                       icon: const Icon(Icons.arrow_back),
                       onPressed: () {
@@ -308,11 +930,13 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 builder: (context) => dialogFullscren,
               );
             },
-            icon: const Icon(Icons.info),
+            tooltip: "Show variables",
+            icon: const Icon(Icons.info_outline),
           ),
           if (widget.id.isZero)
             IconButton(
               icon: const Icon(Icons.add),
+              tooltip: "Create command",
               onPressed: () {
                 if (_formKey.currentState!.validate()) {
                   _updateOrCreate();
@@ -341,6 +965,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             icon: Icon(
               widget.id.isZero ? Icons.cancel : Icons.save,
             ), // Change icon based on command existence
+            tooltip: widget.id.isZero ? "Cancel" : "Save command",
             onPressed: () async {
               if (widget.id.isZero) {
                 Navigator.pop(context);
@@ -349,7 +974,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               } else {
                 if (_formKey.currentState!.validate()) {
                   _updateOrCreate();
-                  FirebaseAnalytics.instance.logEvent(
+                  AppAnalytics.logEvent(
                     name: "update_command",
                     parameters: {
                       "command_name": _commandName,
@@ -380,6 +1005,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           if (!widget.id.isZero)
             IconButton(
               icon: const Icon(Icons.delete),
+              tooltip: "Delete command",
               onPressed: () async {
                 await widget.client?.commands.delete(widget.id);
                 await appManager.deleteAppCommand(
@@ -393,12 +1019,19 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             ),
         ],
       ),
-      body: Center(
-        child: Scrollable(
-          physics: const BouncingScrollPhysics(),
-          scrollBehavior: const ScrollBehavior(),
-          viewportBuilder:
-              (context, position) => SingleChildScrollView(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final contentMaxWidth =
+              constraints.maxWidth >= 1200
+                  ? 980.0
+                  : (constraints.maxWidth >= 900 ? 860.0 : 680.0);
+
+          return Center(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: contentMaxWidth),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
@@ -407,6 +1040,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                           ? "Create a new command"
                           : "Update command",
                       style: const TextStyle(fontSize: 24),
+                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
                     if (_isLoading)
@@ -415,137 +1049,132 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                       Form(
                         key: _formKey,
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            TextFormField(
-                              autocorrect: false,
-                              validator: _validateName,
-                              initialValue: _commandName,
-                              maxLength: 32,
-                              decoration: InputDecoration(
-                                labelText: "Name",
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (value) {
+                            BasicInfoCard(
+                              commandName: _commandName,
+                              commandDescription: _commandDescription,
+                              integrationTypes: _integrationTypes,
+                              contexts: _contexts,
+                              defaultMemberPermissions:
+                                  _defaultMemberPermissions,
+                              onNameChanged: (val) {
                                 setState(() {
-                                  _commandName = value;
+                                  _commandName = val;
                                 });
-                                // Handle command name input
                               },
-                            ),
-                            const SizedBox(height: 20),
-                            TextFormField(
-                              autocorrect: false,
-                              maxLength: 100,
-                              maxLines: 3,
-                              minLines: 1,
-                              keyboardType: TextInputType.multiline,
-                              validator: (value) {
-                                if (value!.isEmpty) {
-                                  return "Please enter a command description";
-                                }
-                                if (value.length > 100) {
-                                  return "Command description must be at most 100 characters long";
-                                }
-                                return null; // No error
-                              },
-                              initialValue: _commandDescription,
-                              decoration: InputDecoration(
-                                labelText: "Description",
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (value) {
+                              onDescriptionChanged: (val) {
                                 setState(() {
-                                  _commandDescription = value;
+                                  _commandDescription = val;
                                 });
-                                // Handle command description input
                               },
+                              onIntegrationTypesChanged: (val) {
+                                setState(() {
+                                  _integrationTypes = val;
+                                });
+                              },
+                              onContextsChanged: (val) {
+                                setState(() {
+                                  _contexts = val;
+                                });
+                              },
+                              onDefaultMemberPermissionsChanged: (value) {
+                                setState(() {
+                                  _defaultMemberPermissions = value;
+                                });
+                              },
+                              nameValidator: _validateName,
                             ),
-                            const Text(
-                              "Where this command can be used",
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Checkbox(
-                                  value: _integrationTypes.contains(
-                                    ApplicationIntegrationType.guildInstall,
+                            const SizedBox(height: 12),
+                            ReplyCard(
+                              responseType: _responseType,
+                              onResponseTypeChanged: (type) {
+                                setState(() {
+                                  _responseType = type;
+                                });
+                              },
+                              responseController: _responseController,
+                              variableSuggestionBar:
+                                  _buildVariableSuggestionBar(
+                                    _responseController,
                                   ),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      if (value == true) {
-                                        _integrationTypes.add(
-                                          ApplicationIntegrationType
-                                              .guildInstall,
-                                        );
-                                      } else {
-                                        _integrationTypes.remove(
-                                          ApplicationIntegrationType
-                                              .guildInstall,
-                                        );
-                                      }
-                                    });
-                                  },
-                                ),
-                                const Text("Guild install"),
-                                const SizedBox(width: 20),
-                                Checkbox(
-                                  value: _integrationTypes.contains(
-                                    ApplicationIntegrationType.userInstall,
-                                  ),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      if (value == true) {
-                                        _integrationTypes.add(
-                                          ApplicationIntegrationType
-                                              .userInstall,
-                                        );
-                                      } else {
-                                        _integrationTypes.remove(
-                                          ApplicationIntegrationType
-                                              .userInstall,
-                                        );
-                                      }
-                                    });
-                                  },
-                                ),
-                                const Text("User Install"),
-                                const SizedBox(width: 20),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-                            const Text(
-                              "Options",
-                              style: TextStyle(fontSize: 18),
-                            ),
-                            const SizedBox(height: 10),
-                            OptionWidget(
-                              initialOptions: _options,
-                              onChange: (options) {
+                              responseEmbeds: _responseEmbeds,
+                              onEmbedsChanged: (embeds) {
                                 setState(() {
-                                  _options = options;
+                                  _responseEmbeds = embeds;
                                 });
                               },
+                              responseComponents: _responseComponents,
+                              onComponentsChanged: (components) {
+                                setState(() {
+                                  _responseComponents = components;
+                                });
+                              },
+                              responseModal: _responseModal,
+                              onModalChanged: (modal) {
+                                setState(() {
+                                  _responseModal = modal;
+                                });
+                              },
+                              responseWorkflow: _responseWorkflow,
+                              normalizeWorkflow: _normalizeWorkflow,
+                              variableSuggestions: _actionVariableSuggestions,
+                              botIdForConfig: _botIdForConfig,
+                              onWorkflowChanged: (workflow) {
+                                setState(() {
+                                  _responseWorkflow = workflow;
+                                });
+                              },
+                              workflowSummary: _workflowSummary(),
                             ),
-                            const SizedBox(height: 20),
-                            if (!widget.id.isZero)
-                              FilledButton(
-                                onPressed: () {
-                                  // let's push to the Response Builder Page
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => ActionsBuilderPage(),
+                            const SizedBox(height: 16),
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    const Text(
+                                      "Command Options",
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
-                                  );
-                                },
-                                child: const Text("Build Response"),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      "Slash-command parameters",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    OptionWidget(
+                                      initialOptions: _options,
+                                      onChange: (options) {
+                                        setState(() {
+                                          _options = options;
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ),
+                            const SizedBox(height: 16),
+                            ActionsCard(
+                              actions: _actions,
+                              onActionsChanged: (val) {
+                                setState(() {
+                                  _actions = val;
+                                });
+                              },
+                              actionVariableSuggestions:
+                                  _actionVariableSuggestions,
+                              botIdForConfig: _botIdForConfig,
+                            ),
                             const SizedBox(height: 20),
                           ],
                         ),
@@ -553,7 +1182,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                   ],
                 ),
               ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

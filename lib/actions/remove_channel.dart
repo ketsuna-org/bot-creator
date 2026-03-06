@@ -1,6 +1,6 @@
 import 'package:nyxx/nyxx.dart';
 
-Future<Map<String, String>> createChannel(
+Future<Map<String, String>> removeChannel(
   NyxxGateway client,
   Snowflake channelId,
 ) async {

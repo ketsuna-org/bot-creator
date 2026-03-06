@@ -5,6 +5,9 @@ Future<Map<String, String>> deleteMessage(
   Snowflake channelId, {
   required int count,
   String onlyThisUserID = '',
+  Snowflake? beforeMessageId,
+  bool deleteItself = false,
+  Snowflake? commandMessageId,
 }) async {
   try {
     if (count <= 0) {
@@ -21,7 +24,7 @@ Future<Map<String, String>> deleteMessage(
 
     final messages = await channel.messages.fetchMany(
       limit: count,
-      before: null, // You can specify a message ID to fetch messages before it
+      before: beforeMessageId,
     );
 
     if (messages.isEmpty) {
@@ -33,26 +36,44 @@ Future<Map<String, String>> deleteMessage(
     for (final message in messages) {
       if (onlyThisUserID.isNotEmpty &&
           message.author.id.toString() != onlyThisUserID) {
-        continue; // Skip messages not from the specified user
+        continue;
+      }
+      if (!deleteItself &&
+          commandMessageId != null &&
+          message.id == commandMessageId) {
+        continue;
+      }
+      if (!deleteItself &&
+          beforeMessageId != null &&
+          message.id == beforeMessageId) {
+        continue;
       }
       if (message.timestamp.isBefore(
         DateTime.now().subtract(Duration(days: 14)),
       )) {
         await message.delete();
         deletedOlderThan14Days++;
-        continue; // Skip messages older than 14 days
+        continue;
       }
       deletedMessages.add(message.id);
     }
 
-    if (deletedMessages.isEmpty) {
-      return {"count": "0"};
+    if (deleteItself && beforeMessageId != null) {
+      try {
+        final selfMessage = await channel.messages.fetch(beforeMessageId);
+        await selfMessage.delete();
+        deletedOlderThan14Days++;
+      } catch (e) {
+        // Ignore error if message cannot be found or deleted
+      }
     }
 
-    await channel.messages.bulkDelete(deletedMessages);
-    return {
-      "count": (deletedMessages.length - deletedOlderThan14Days).toString(),
-    };
+    if (deletedMessages.isNotEmpty) {
+      await channel.messages.bulkDelete(deletedMessages);
+    }
+
+    final totalDeleted = deletedMessages.length + deletedOlderThan14Days;
+    return {"count": totalDeleted.toString()};
   } catch (e) {
     return {"error": "Failed to delete messages: $e", "count": "0"};
   }

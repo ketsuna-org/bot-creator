@@ -1,0 +1,225 @@
+name: Build Release
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
+
+jobs:
+  build_android_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: /opt/hostedtoolcache/flutter
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.2"
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+
+      - name: Create key.properties
+        run: |
+          cat <<EOF > android/key.properties
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Archive APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Build release AAB
+        run: flutter build appbundle --release
+
+      - name: Archive AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+
+  build_linux_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake git ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: /opt/hostedtoolcache/flutter
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.2"
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Enable Linux Flutter Desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Build Linux release
+        run: flutter build linux --release
+
+      - name: Package Linux portable ZIP
+        run: |
+          cd build/linux/x64/release
+          zip -r "$GITHUB_WORKSPACE/build/bot_creator-linux-x64-portable.zip" bundle
+
+      - name: Archive Linux ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-portable-zip
+          path: build/bot_creator-linux-x64-portable.zip
+
+      - name: Build Linux AppImage
+        run: bash packaging/linux/appimage/build_appimage.sh
+
+      - name: Archive AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: build/appimage/bot_creator-linux-x86_64.AppImage
+
+  build_windows_release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: C:\hostedtoolcache\windows\Flutter
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.2"
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Enable Windows Flutter Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Package Windows portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath build/bot_creator-windows-x64-portable.zip -Force
+
+      - name: Archive Windows ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable-zip
+          path: build/bot_creator-windows-x64-portable.zip
+
+      - name: Archive Windows EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: build/windows/x64/runner/Release/*.exe
+
+      - name: Set Store-compatible MSIX version
+        shell: pwsh
+        run: |
+          $pubspec = 'pubspec.yaml'
+          $content = Get-Content -Raw $pubspec
+          $versionMatch = [regex]::Match($content, '(?m)^version:\s*([0-9]+)\.([0-9]+)\.([0-9]+)\+[0-9]+\s*$')
+          if (-not $versionMatch.Success) {
+            throw 'Unable to parse app version from pubspec.yaml'
+          }
+          $msixVersion = "$($versionMatch.Groups[1].Value).$($versionMatch.Groups[2].Value).$($versionMatch.Groups[3].Value).0"
+          $updated = [regex]::Replace($content, '(?m)^\s*msix_version:\s*[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\s*$', "  msix_version: $msixVersion")
+          if ($updated -eq $content) {
+            throw 'Unable to update msix_version in pubspec.yaml'
+          }
+          Set-Content -Path $pubspec -Value $updated -NoNewline
+          Write-Host "MSIX version set to $msixVersion"
+
+      - name: Create MSIX package
+        run: dart run msix:create
+
+      - name: Archive Windows MSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msix
+          path: build/windows/x64/runner/Release/*.msix
+
+  create_release:
+    needs: [build_android_release, build_linux_release, build_windows_release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Alpha Release - ${{ github.sha }}
+          tag_name: alpha-${{ github.run_number }}
+          prerelease: true
+          files: |
+            release-apk/app-release.apk
+            release-aab/app-release.aab
+            linux-portable-zip/bot_creator-linux-x64-portable.zip
+            linux-appimage/*.AppImage
+            windows-portable-zip/bot_creator-windows-x64-portable.zip
+            windows-msix/*.msix

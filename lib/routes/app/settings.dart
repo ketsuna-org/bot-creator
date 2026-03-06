@@ -1,6 +1,7 @@
 import 'package:bot_creator/main.dart';
+import 'package:bot_creator/routes/app/workflow_docs.page.dart';
+import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/global.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 import 'dart:developer' as developer;
@@ -16,15 +17,36 @@ class AppSettingsPage extends StatefulWidget {
 class _AppSettingsPageState extends State<AppSettingsPage> {
   String _token = "";
   Application? app;
+  late Map<String, bool> _intentsMap;
+
   @override
   void initState() {
     super.initState();
-    FirebaseAnalytics.instance.logScreenView(
+    AppAnalytics.logScreenView(
       screenName: "AppSettingsPage",
       screenClass: "AppSettingsPage",
       parameters: {"app_id": widget.client.application.id.toString()},
     );
+    _initIntents();
     _init();
+  }
+
+  void _initIntents() {
+    _intentsMap = {
+      'Guild Presence': false,
+      'Guild Members': false,
+      'Message Content': false,
+      'Direct Messages': false,
+      'Guilds': false,
+      'Guild Messages': false,
+      'Guild Message Reactions': false,
+      'Direct Message Reactions': false,
+      'Guild Message Typing': false,
+      'Direct Message Typing': false,
+      'Guild Scheduled Events': false,
+      'Auto Moderation Configuration': false,
+      'Auto Moderation Execution': false,
+    };
   }
 
   Future<void> _init() async {
@@ -57,29 +79,62 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
 
     return Scaffold(
       appBar: AppBar(title: Text("Application Settings")),
-      body: Scrollable(
-        controller: ScrollController(),
-        viewportBuilder:
-            (context, position) => SingleChildScrollView(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final contentMaxWidth = constraints.maxWidth >= 900 ? 760.0 : 640.0;
+          return Center(
+            child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              controller: ScrollController(),
-              child: Center(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: contentMaxWidth),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     const SizedBox(height: 20),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.menu_book_outlined),
+                        title: const Text('Workflow Documentation'),
+                        subtitle: const Text(
+                          'Detailed guide for entry points, call arguments, and runtime behavior.',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) =>
+                                      const WorkflowDocumentationPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Application Flags Section
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        "Application Flags",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                     if (app != null)
                       ListView.separated(
-                        shrinkWrap: true, // ← limite la hauteur
-                        physics:
-                            const NeverScrollableScrollPhysics(), // ← désactive son propre scroll
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
                         itemCount: flagsMap.length,
                         itemBuilder: (context, index) {
                           final flagName = flagsMap.keys.elementAt(index);
                           final flagValue = flagsMap[flagName];
 
                           if (flagName == 'Hash Code') {
-                            // ← même casse que dans la map
                             return ListTile(
                               title: Text(flagName),
                               trailing: Text(flagValue.toString()),
@@ -96,7 +151,59 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                         separatorBuilder: (_, _) => const Divider(),
                       ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 30),
+                    // Intents Configuration Section
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        "Gateway Intents Configuration",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        "Select which intents your bot needs. Configure these in the Discord Developer Portal.",
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _intentsMap.length,
+                      itemBuilder: (context, index) {
+                        final intentName = _intentsMap.keys.elementAt(index);
+                        final intentValue = _intentsMap[intentName] ?? false;
+
+                        return CheckboxListTile(
+                          title: Text(intentName),
+                          value: intentValue,
+                          onChanged: (newValue) {
+                            setState(() {
+                              _intentsMap[intentName] = newValue ?? false;
+                            });
+                          },
+                          controlAffinity: ListTileControlAffinity.trailing,
+                        );
+                      },
+                      separatorBuilder: (_, _) => const Divider(),
+                    ),
+
+                    const SizedBox(height: 30),
+                    // Token Update Section
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        "Bot Token",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                     TextField(
                       decoration: InputDecoration(
                         labelText: "Update Bot Token",
@@ -119,6 +226,12 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                           await appManager.createOrUpdateApp(
                             discordUser,
                             _token,
+                            intents: _intentsMap,
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Settings saved successfully"),
+                            ),
                           );
                           Navigator.pop(context);
                         } catch (e) {
@@ -155,6 +268,8 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                 ),
               ),
             ),
+          );
+        },
       ),
     );
   }
