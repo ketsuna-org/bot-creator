@@ -37,7 +37,7 @@ const String _desktopClientSecret = String.fromEnvironment(
 const String _iosClientId = String.fromEnvironment(
   'GOOGLE_IOS_CLIENT_ID',
   defaultValue:
-      '777382167262-454ckdtstv4jb7m1fue0foqcibvm6f7k.apps.googleusercontent.com',
+      '777382167262-2clnpnd4ijkjp71gvmpp5u0rik446kn8.apps.googleusercontent.com',
 );
 
 const String _androidServerClientIdFallback =

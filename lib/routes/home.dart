@@ -44,11 +44,8 @@ class _HomePageState extends State<HomePage> {
           padding: EdgeInsets.all(horizontalPadding),
           child: StreamBuilder(
             stream: appManager.getAppStream(),
+            initialData: const <dynamic>[],
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
               if (snapshot.hasError) {
                 developer.log(
                   "Error loading data: ${snapshot.error}",

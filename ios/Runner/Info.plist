@@ -5,12 +5,6 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <key>BGTaskSchedulerPermittedIdentifiers</key>
-    <array>
-      <string>com.pravera.flutter_foreground_task.refresh</string>
-    </array>
-    <key>CADisableMinimumFrameDurationOnPhone</key>
-    <true />
     <string>Bot Creator</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
@@ -50,7 +44,7 @@
         <string>Editor</string>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.googleusercontent.apps.777382167262-454ckdtstv4jb7m1fue0foqcibvm6f7k</string>
+          <string>com.googleusercontent.apps.777382167262-2clnpnd4ijkjp71gvmpp5u0rik446kn8</string>
         </array>
       </dict>
     </array>
@@ -83,5 +77,26 @@
     <array>
       <string>fetch</string>
     </array>
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+      <key>UIApplicationSupportsMultipleScenes</key>
+      <false />
+      <key>UISceneConfigurations</key>
+      <dict>
+        <key>UIWindowSceneSessionRoleApplication</key>
+        <array>
+          <dict>
+            <key>UISceneClassName</key>
+            <string>UIWindowScene</string>
+            <key>UISceneDelegateClassName</key>
+            <string>FlutterSceneDelegate</string>
+            <key>UISceneConfigurationName</key>
+            <string>flutter</string>
+            <key>UISceneStoryboardFile</key>
+            <string>Main</string>
+          </dict>
+        </array>
+      </dict>
+    </dict>
   </dict>
 </plist>

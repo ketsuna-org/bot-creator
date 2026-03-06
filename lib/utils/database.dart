@@ -14,7 +14,7 @@ class AppManager {
   List<dynamic> _apps = [];
 
   AppManager._internal() {
-    _init();
+    unawaited(_init());
   }
 
   static Future<String> _path() async {
@@ -26,11 +26,20 @@ class AppManager {
       (await getApplicationDocumentsDirectory()).path;
 
   Future<void> _init() async {
-    final path = await _path();
-    final appsDir = Directory("$path/apps");
-    if (!await appsDir.exists()) await appsDir.create(recursive: true);
+    try {
+      final path = await _path();
+      final appsDir = Directory("$path/apps");
+      if (!await appsDir.exists()) {
+        await appsDir.create(recursive: true);
+      }
 
-    await getAllApps();
+      await getAllApps();
+    } catch (_) {
+      // Keep app startup resilient even if persisted data is missing/corrupt.
+      _apps = [];
+    }
+
+    _appsStreamController.add(_apps);
     _startStreamUpdateLoop();
   }
 
