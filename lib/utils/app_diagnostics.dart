@@ -90,7 +90,12 @@ class AppDiagnostics {
   }
 
   static void installGlobalErrorHandlers() {
+    final previousFlutterOnError = FlutterError.onError;
     FlutterError.onError = (details) {
+      // Keep default debug error surface (red screen + console) so startup
+      // issues are visible instead of silently rendering a blank frame.
+      FlutterError.presentError(details);
+      previousFlutterOnError?.call(details);
       unawaited(recordFlutterError(details, fatal: true));
     };
 
