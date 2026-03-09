@@ -6,6 +6,7 @@ import 'package:bot_creator/utils/recovery_manager.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:googleapis/drive/v3.dart';
+import 'package:provider/provider.dart';
 
 class SettingPage extends StatefulWidget {
   const SettingPage({super.key});
@@ -83,17 +84,7 @@ class _SettingPageState extends State<SettingPage> {
       screenClass: "SettingPage",
       parameters: {"user_id": userId as Object},
     );
-
-    try {
-      await _ensureDriveApiConnected(interactive: false);
-      if (driveApi != null) {
-        await _refreshSnapshots();
-        await _runAutoBackupCheck(force: false, showSnack: false);
-      }
-    } catch (e, st) {
-      debugPrint('Drive API init failed: $e');
-      debugPrintStack(stackTrace: st);
-    }
+    // La connexion à Google Drive se fait uniquement sur action de l'utilisateur.
   }
 
   Future<void> _loadRecoverySettings() async {
@@ -369,8 +360,21 @@ class _SettingPageState extends State<SettingPage> {
     final iconSize = isMobile ? 60.0 : 80.0;
     final titleSize = isMobile ? 24.0 : 28.0;
 
+    final themeProvider = context.watch<ThemeProvider>();
+    final isDark = themeProvider.themeMode == ThemeMode.dark;
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Settings"), centerTitle: true),
+      appBar: AppBar(
+        title: const Text("Settings"),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: isDark ? 'Passer en mode clair' : 'Passer en mode sombre',
+            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
+            onPressed: () => themeProvider.toggleTheme(),
+          ),
+        ],
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(
