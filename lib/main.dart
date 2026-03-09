@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bot_creator/firebase_options.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -195,13 +196,16 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     AppAnalytics.logAppOpen();
+    final themeProvider = context.watch<ThemeProvider>();
     return MaterialApp(
       title: 'Bot Creator',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
       ),
-      debugShowCheckedModeBanner: false,
       darkTheme: ThemeData.dark(useMaterial3: true),
+      themeMode: themeProvider.themeMode,
+      debugShowCheckedModeBanner: false,
       home: const MyMainPage(title: 'Bot Creator'),
     );
   }
@@ -252,14 +256,34 @@ class _MyMainPageState extends State<MyMainPage> {
 }
 
 class ThemeProvider extends ChangeNotifier {
+  static const _key = 'theme_mode';
+
   ThemeMode _themeMode = ThemeMode.light;
 
   ThemeMode get themeMode => _themeMode;
 
-  void toggleTheme() {
+  ThemeProvider() {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_key);
+    if (saved == 'dark') {
+      _themeMode = ThemeMode.dark;
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleTheme() async {
     _themeMode =
         _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
     notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _key,
+      _themeMode == ThemeMode.dark ? 'dark' : 'light',
+    );
   }
 }
 
