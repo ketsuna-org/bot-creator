@@ -48,3 +48,4 @@ app.*.map.json
 *.jks
 *.keystore
 /android/key.properties
+/packages/app/build
