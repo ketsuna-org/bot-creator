@@ -1,0 +1,16 @@
+name: bot_creator_shared
+description: Shared bot logic between the Flutter app and the CLI runner.
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  nyxx: ^6.8.1
+  http: ^1.6.0
+  logging: ^1.3.0
+  crypto: ^3.0.6
+
+dev_dependencies:
+  lints: ^6.0.0
