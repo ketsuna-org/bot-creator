@@ -35,10 +35,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    AppAnalytics.logScreenView(
-      screenName: 'HomePage',
-      screenClass: 'HomePage',
-    );
+    AppAnalytics.logScreenView(screenName: 'HomePage', screenClass: 'HomePage');
     AppAnalytics.logEvent(name: 'home_page_opened');
     _initRunningState();
   }
@@ -138,8 +135,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 await FlutterForegroundTask.checkNotificationPermission();
             if (perm != NotificationPermission.granted) {
               await FlutterForegroundTask.requestNotificationPermission();
-              perm =
-                  await FlutterForegroundTask.checkNotificationPermission();
+              perm = await FlutterForegroundTask.checkNotificationPermission();
               if (perm != NotificationPermission.granted) {
                 throw Exception(
                   'Permission notification requise pour lancer le bot.',
@@ -183,9 +179,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _syncPulse(_runningBotId);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     } finally {
       if (mounted) setState(() => _isTogglingBot = false);
@@ -212,9 +208,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         final cardHeight =
             width >= 1200 ? 340.0 : (width >= 900 ? 320.0 : 300.0);
         final cardWidth =
-            (width -
-                (horizontalPadding * 2) -
-                ((crossAxisCount - 1) * 12)) /
+            (width - (horizontalPadding * 2) - ((crossAxisCount - 1) * 12)) /
             crossAxisCount;
         final childAspectRatio = cardWidth / cardHeight;
 
@@ -234,9 +228,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
               final apps = snapshot.data;
               if (apps == null || apps.isEmpty) {
-                return const Center(
-                  child: Text('Aucune application trouvée'),
-                );
+                return const Center(child: Text('Aucune application trouvée'));
               }
 
               return GridView.builder(
@@ -256,8 +248,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   final isRunning = _runningBotId == id;
                   // On ne peut démarrer que si aucun autre bot ne tourne.
                   final canToggle =
-                      !_isTogglingBot &&
-                      (_runningBotId == null || isRunning);
+                      !_isTogglingBot && (_runningBotId == null || isRunning);
 
                   final pulseCtrl = _getOrCreatePulseController(id);
 
@@ -270,24 +261,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     canToggle: canToggle,
                     isTogglingThisBot: _isTogglingBot && isRunning,
                     pulseController: pulseCtrl,
-                    onManage: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AppEditPage(
-                          appName: name,
-                          id: int.tryParse(id) ?? 0,
+                    onManage:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => AppEditPage(
+                                  appName: name,
+                                  id: int.tryParse(id) ?? 0,
+                                ),
+                          ),
                         ),
-                      ),
-                    ),
                     onToggle: () => _toggleBot(botId: id, botName: name),
-                    onLogs: isRunning
-                        ? () => Navigator.push(
+                    onLogs:
+                        isRunning
+                            ? () => Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => const BotLogsPage(),
                               ),
                             )
-                        : null,
+                            : null,
                   );
                 },
               );
@@ -335,9 +329,10 @@ class _BotCard extends StatelessWidget {
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: isRunning
-            ? BorderSide(color: Colors.green.shade400, width: 1.5)
-            : BorderSide.none,
+        side:
+            isRunning
+                ? BorderSide(color: Colors.green.shade400, width: 1.5)
+                : BorderSide.none,
       ),
       elevation: isRunning ? 6 : 4,
       child: Padding(
@@ -348,9 +343,9 @@ class _BotCard extends StatelessWidget {
             // ── Avatar ──────────────────────────────────────────────────────
             avatar != null && avatar!.isNotEmpty
                 ? CircleAvatar(
-                    radius: 36,
-                    backgroundImage: NetworkImage(avatar!),
-                  )
+                  radius: 36,
+                  backgroundImage: NetworkImage(avatar!),
+                )
                 : const Icon(Icons.account_circle, size: 72),
 
             const SizedBox(height: 8),
@@ -434,21 +429,22 @@ class _BotCard extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: canToggle ? onToggle : null,
-                icon: isTogglingThisBot
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
+                icon:
+                    isTogglingThisBot
+                        ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                        : Icon(
+                          isRunning
+                              ? Icons.stop_rounded
+                              : Icons.play_arrow_rounded,
+                          size: 16,
                         ),
-                      )
-                    : Icon(
-                        isRunning
-                            ? Icons.stop_rounded
-                            : Icons.play_arrow_rounded,
-                        size: 16,
-                      ),
                 label: Text(isRunning ? 'Arrêter' : 'Lancer'),
                 style: ElevatedButton.styleFrom(
                   shape: const StadiumBorder(),
@@ -485,9 +481,10 @@ class _BotCard extends StatelessWidget {
                   icon: const Icon(Icons.article_outlined, size: 18),
                   tooltip: 'Logs du bot',
                   style: IconButton.styleFrom(
-                    backgroundColor: onLogs != null
-                        ? Colors.deepPurple.shade100
-                        : Colors.grey.shade200,
+                    backgroundColor:
+                        onLogs != null
+                            ? Colors.deepPurple.shade100
+                            : Colors.grey.shade200,
                     foregroundColor:
                         onLogs != null ? Colors.deepPurple : Colors.grey,
                   ),
