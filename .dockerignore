@@ -1,0 +1,17 @@
+# Git
+.git
+.github
+
+# Dart/Flutter build artifacts
+build/
+**/.dart_tool/
+**/build/
+**/*.dart_snapshot
+
+# Flutter-only packages (not needed in runner image)
+packages/app/
+
+# Misc
+.idea/
+.vscode/
+*.iml
