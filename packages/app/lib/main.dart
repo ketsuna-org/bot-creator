@@ -241,7 +241,7 @@ class _MyMainPageState extends State<MyMainPage> {
       ),
       body: const HomePage(),
       floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
             context,
@@ -249,7 +249,8 @@ class _MyMainPageState extends State<MyMainPage> {
           );
         },
         backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('Créer un bot'),
       ),
     );
   }
