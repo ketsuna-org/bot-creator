@@ -472,7 +472,7 @@ class _BotCard extends StatelessWidget {
                             ? AppStrings.t('home_status_online')
                             : AppStrings.t('home_status_offline'),
                         style: TextStyle(
-                            fontSize: statusFontSize,
+                          fontSize: statusFontSize,
                           fontWeight: FontWeight.w500,
                           color: isRunning ? Colors.green : Colors.grey,
                         ),
@@ -541,7 +541,9 @@ class _BotCard extends StatelessWidget {
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: Colors.grey.shade300,
                   disabledForegroundColor: Colors.white70,
-                  padding: EdgeInsets.symmetric(vertical: buttonVerticalPadding),
+                  padding: EdgeInsets.symmetric(
+                    vertical: buttonVerticalPadding,
+                  ),
                 ),
               ),
             ),
@@ -560,7 +562,9 @@ class _BotCard extends StatelessWidget {
                       shape: const StadiumBorder(),
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: buttonVerticalPadding),
+                      padding: EdgeInsets.symmetric(
+                        vertical: buttonVerticalPadding,
+                      ),
                     ),
                   ),
                 ),
