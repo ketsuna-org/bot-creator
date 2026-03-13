@@ -154,12 +154,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 await FlutterForegroundTask.checkNotificationPermission();
             if (perm != NotificationPermission.granted) {
               await FlutterForegroundTask.requestNotificationPermission();
-              perm = await FlutterForegroundTask.checkNotificationPermission();
-              if (perm != NotificationPermission.granted) {
-                throw Exception(
-                  AppStrings.t('home_notification_permission_required'),
-                );
-              }
             }
           } on MissingPluginException {
             // Continuer sans vérification sur les plateformes non supportées.
