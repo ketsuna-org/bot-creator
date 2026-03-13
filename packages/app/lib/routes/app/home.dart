@@ -100,8 +100,7 @@ class _AppHomePageState extends State<AppHomePage>
       }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Request permissions and initialize the service.
-      _requestPermissions();
+      // Initialize service configuration.
       _initService();
     });
     _init();
@@ -233,18 +232,6 @@ class _AppHomePageState extends State<AppHomePage>
                             }
 
                             if (_supportsForegroundTask) {
-                              await _requestPermissions();
-                              await _initService();
-
-                              final notificationPermission =
-                                  await FlutterForegroundTask.checkNotificationPermission();
-                              if (notificationPermission !=
-                                  NotificationPermission.granted) {
-                                throw Exception(
-                                  AppStrings.t('bot_home_notif_required'),
-                                );
-                              }
-
                               if (_botLaunched) {
                                 appendBotLog(
                                   AppStrings.t('bot_home_log_stop'),
@@ -269,6 +256,9 @@ class _AppHomePageState extends State<AppHomePage>
                                 }
                                 return;
                               }
+
+                              await _requestPermissions();
+                              await _initService();
 
                               await FlutterForegroundTask.saveData(
                                 key: "token",
