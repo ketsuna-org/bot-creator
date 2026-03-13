@@ -3,8 +3,6 @@ name: Build Release
 on:
   push:
     branches: [ "master", "main" ]
-  pull_request:
-    branches: [ "master", "main" ]
   workflow_dispatch:
 
 env:
@@ -130,6 +128,7 @@ jobs:
 
       - name: Package Linux portable ZIP
         run: |
+          mkdir -p "$GITHUB_WORKSPACE/build"
           cd build/linux/x64/release
           zip -r "$GITHUB_WORKSPACE/build/bot_creator-linux-x64-portable.zip" bundle
 
