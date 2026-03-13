@@ -254,6 +254,12 @@ class _AppHomePageState extends State<AppHomePage>
                                 await FlutterForegroundTask.removeData(
                                   key: "token",
                                 );
+                                try {
+                                  await FlutterForegroundTask.removeData(
+                                    key: 'running_bot_id',
+                                  );
+                                } catch (_) {}
+                                setMobileRunningBotId(null);
                                 setBotRuntimeActive(false);
                                 clearBotBaselineRss();
                                 if (mounted) {
@@ -268,6 +274,11 @@ class _AppHomePageState extends State<AppHomePage>
                                 key: "token",
                                 value: token,
                               );
+                              await FlutterForegroundTask.saveData(
+                                key: 'running_bot_id',
+                                value: botId,
+                              );
+                              setMobileRunningBotId(botId);
                               developer.log(
                                 'Token saved, starting foreground service',
                                 name: 'AppHomePage',

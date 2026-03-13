@@ -187,6 +187,7 @@ class _VariableTextFieldState extends State<VariableTextField> {
     final start = currentValue.lastIndexOf('((', safeCursor);
     final inFallbackMode =
         start != -1 &&
+        start + 2 <= safeCursor &&
         currentValue.substring(start + 2, safeCursor).contains('|');
 
     final normalizedQuery = query.trim().toLowerCase();

@@ -432,8 +432,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     );
     // first let's check if the command is already created or not
     if (!widget.id.isZero) {
-      _editorMode = _editorModeAdvanced;
-      _simpleModeLocked = true;
       ApplicationCommand? command;
       try {
         final commandsList = await widget.client?.commands.list(
@@ -445,7 +443,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         );
       } catch (_) {}
 
-      command ??= await widget.client?.commands.fetch(widget.id);
+      try {
+        command ??= await widget.client?.commands.fetch(widget.id);
+      } catch (_) {}
 
       // check if we also have the command in the database
       final commandData = await appManager.getAppCommand(
@@ -509,6 +509,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           }
         }
 
+        if (!mounted) return;
         setState(() {
           _editorMode = editorMode;
           _simpleModeLocked = editorMode == _editorModeAdvanced;
@@ -541,9 +542,17 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                   .toString()
                   .trim();
         });
+      } else {
+        // No local data found for this existing command — default to advanced
+        if (!mounted) return;
+        setState(() {
+          _editorMode = _editorModeAdvanced;
+          _simpleModeLocked = true;
+        });
       }
       if (command != null) {
         final currentCommand = command;
+        if (!mounted) return;
         setState(() {
           _commandName = currentCommand.name;
           _commandDescription = currentCommand.description;

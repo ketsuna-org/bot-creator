@@ -57,7 +57,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (_supportsForegroundTask) {
       try {
         final running = await FlutterForegroundTask.isRunningService;
-        if (running) runningId = mobileRunningBotId;
+        if (running) {
+          // Priorité : variable en mémoire (process vivant)
+          // Fallback : donnée persistée (process tué puis relancé)
+          runningId =
+              mobileRunningBotId ??
+              await FlutterForegroundTask.getData<String>(
+                key: 'running_bot_id',
+              );
+          // Re-synchronise la variable en mémoire si restaurée depuis le disque
+          if (runningId != null && mobileRunningBotId == null) {
+            setMobileRunningBotId(runningId);
+          }
+        }
       } on MissingPluginException {
         // Plateforme non supportée.
       }
@@ -128,6 +140,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           try {
             await FlutterForegroundTask.removeData(key: 'token');
           } catch (_) {}
+          try {
+            await FlutterForegroundTask.removeData(key: 'running_bot_id');
+          } catch (_) {}
           setMobileRunningBotId(null);
           setBotRuntimeActive(false);
           clearBotBaselineRss();
@@ -152,6 +167,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
           await initForegroundService();
           await FlutterForegroundTask.saveData(key: 'token', value: token);
+          await FlutterForegroundTask.saveData(
+            key: 'running_bot_id',
+            value: botId,
+          );
           await startService();
 
           try {
@@ -309,7 +328,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   id: int.tryParse(id) ?? 0,
                                 ),
                           ),
-                        ),
+                        ).then((_) => _initRunningState()),
                     onToggle: () => _toggleBot(botId: id, botName: name),
                     onLogs:
                         isRunning
