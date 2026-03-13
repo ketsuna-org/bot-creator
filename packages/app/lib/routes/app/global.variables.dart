@@ -1,4 +1,5 @@
 import 'package:bot_creator/main.dart';
+import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
 
 class GlobalVariablesPage extends StatefulWidget {
@@ -41,15 +42,19 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(key == null ? 'Add Variable' : 'Edit Variable'),
+          title: Text(
+            key == null
+                ? AppStrings.t('globals_add')
+                : AppStrings.t('globals_edit'),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: keyController,
-                decoration: const InputDecoration(
-                  labelText: 'Key',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: AppStrings.t('globals_key'),
+                  border: const OutlineInputBorder(),
                 ),
                 enabled: key == null,
               ),
@@ -58,9 +63,9 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
                 controller: valueController,
                 maxLines: 4,
                 minLines: 1,
-                decoration: const InputDecoration(
-                  labelText: 'Value',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: AppStrings.t('globals_value'),
+                  border: const OutlineInputBorder(),
                 ),
               ),
             ],
@@ -68,11 +73,11 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: Text(AppStrings.t('cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save'),
+              child: Text(AppStrings.t('app_save')),
             ),
           ],
         );
@@ -104,7 +109,7 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Global Variables')),
+      appBar: AppBar(title: Text(AppStrings.t('globals_title'))),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _editVariable(),
         child: const Icon(Icons.add),
@@ -113,7 +118,7 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
           _loading
               ? const Center(child: CircularProgressIndicator())
               : _variables.isEmpty
-              ? const Center(child: Text('No global variables yet'))
+              ? Center(child: Text(AppStrings.t('globals_empty')))
               : ListView.separated(
                 itemCount: _variables.length,
                 separatorBuilder:

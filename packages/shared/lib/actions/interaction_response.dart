@@ -115,15 +115,27 @@ Future<void> sendWorkflowResponse({
       try {
         final definition = ModalDefinition.fromJson(activeModalJson);
         final modalBuilder = ModalBuilder(
-          title: resolveTemplatePlaceholders(definition.title, runtimeVariables),
-          customId: resolveTemplatePlaceholders(definition.customId, runtimeVariables),
+          title: resolveTemplatePlaceholders(
+            definition.title,
+            runtimeVariables,
+          ),
+          customId: resolveTemplatePlaceholders(
+            definition.customId,
+            runtimeVariables,
+          ),
           components:
               definition.inputs.map((input) {
                 return ActionRowBuilder(
                   components: [
                     TextInputBuilder(
-                      customId: resolveTemplatePlaceholders(input.customId, runtimeVariables),
-                      label: resolveTemplatePlaceholders(input.label, runtimeVariables),
+                      customId: resolveTemplatePlaceholders(
+                        input.customId,
+                        runtimeVariables,
+                      ),
+                      label: resolveTemplatePlaceholders(
+                        input.label,
+                        runtimeVariables,
+                      ),
                       style:
                           input.style == BcTextInputStyle.paragraph
                               ? TextInputStyle.paragraph
@@ -177,7 +189,10 @@ Future<void> sendWorkflowResponse({
               (value) => resolveTemplatePlaceholders(value, runtimeVariables),
             );
             InteractionListenerRegistry.instance.register(
-              resolveTemplatePlaceholders(definition.customId, runtimeVariables),
+              resolveTemplatePlaceholders(
+                definition.customId,
+                runtimeVariables,
+              ),
               ListenerEntry(
                 botId: botId,
                 workflowName: onSubmitWorkflow,
@@ -217,6 +232,22 @@ Future<void> sendWorkflowResponse({
       }
     }
 
+    Uri? resolveEmbedUri(dynamic raw) {
+      final resolved =
+          resolveTemplatePlaceholders(
+            (raw ?? '').toString(),
+            runtimeVariables,
+          ).trim();
+      if (resolved.isEmpty) {
+        return null;
+      }
+      final uri = Uri.tryParse(resolved);
+      if (uri == null || !uri.hasScheme) {
+        return null;
+      }
+      return uri;
+    }
+
     final embeds = <EmbedBuilder>[];
     for (final embedJson in embedsRaw.take(10)) {
       embedJson.remove('video');
@@ -230,21 +261,25 @@ Future<void> sendWorkflowResponse({
         (embedJson['description'] ?? '').toString(),
         runtimeVariables,
       );
-      final url = resolveTemplatePlaceholders(
-        (embedJson['url'] ?? '').toString(),
-        runtimeVariables,
-      );
+      final embedUrl = resolveEmbedUri(embedJson['url']);
 
       if (title.isNotEmpty) embed.title = title;
       if (description.isNotEmpty) embed.description = description;
-      if (url.isNotEmpty) embed.url = Uri.tryParse(url);
+      if (embedUrl != null) embed.url = embedUrl;
 
       final timestamp = DateTime.tryParse(
-        (embedJson['timestamp'] ?? '').toString(),
+        resolveTemplatePlaceholders(
+          (embedJson['timestamp'] ?? '').toString(),
+          runtimeVariables,
+        ).trim(),
       );
       if (timestamp != null) embed.timestamp = timestamp;
 
-      final colorRaw = (embedJson['color'] ?? '').toString();
+      final colorRaw =
+          resolveTemplatePlaceholders(
+            (embedJson['color'] ?? '').toString(),
+            runtimeVariables,
+          ).trim();
       if (colorRaw.isNotEmpty) {
         int? colorInt;
         if (colorRaw.startsWith('#')) {
@@ -264,44 +299,64 @@ Future<void> sendWorkflowResponse({
       final footerJson = Map<String, dynamic>.from(
         (embedJson['footer'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
-      final footerText = (footerJson['text'] ?? '').toString();
-      final footerIcon = (footerJson['icon_url'] ?? '').toString();
-      if (footerText.isNotEmpty || footerIcon.isNotEmpty) {
+      final footerText = resolveTemplatePlaceholders(
+        (footerJson['text'] ?? '').toString(),
+        runtimeVariables,
+      );
+      final footerIconUri = resolveEmbedUri(footerJson['icon_url']);
+      if (footerText.isNotEmpty || footerIconUri != null) {
         embed.footer = EmbedFooterBuilder(
           text: footerText,
-          iconUrl: footerIcon.isNotEmpty ? Uri.tryParse(footerIcon) : null,
+          iconUrl: footerIconUri,
         );
       }
 
       final authorJson = Map<String, dynamic>.from(
         (embedJson['author'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
-      final authorName = (authorJson['name'] ?? '').toString();
-      final authorUrl = (authorJson['url'] ?? '').toString();
-      final authorIcon =
-          (authorJson['author_icon_url'] ?? authorJson['icon_url'] ?? '')
-              .toString();
+      final authorName = resolveTemplatePlaceholders(
+        (authorJson['name'] ?? '').toString(),
+        runtimeVariables,
+      );
+      final authorUrlUri = resolveEmbedUri(authorJson['url']);
+      final authorIconUri = resolveEmbedUri(
+        authorJson['author_icon_url'] ?? authorJson['icon_url'],
+      );
       if (authorName.isNotEmpty) {
         embed.author = EmbedAuthorBuilder(
           name: authorName,
-          url: authorUrl.isNotEmpty ? Uri.tryParse(authorUrl) : null,
-          iconUrl: authorIcon.isNotEmpty ? Uri.tryParse(authorIcon) : null,
+          url: authorUrlUri,
+          iconUrl: authorIconUri,
         );
       }
 
       final imageJson = Map<String, dynamic>.from(
         (embedJson['image'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
-      final imageUrl = (imageJson['url'] ?? '').toString();
-      if (imageUrl.isNotEmpty) {
-        embed.image = EmbedImageBuilder(url: Uri.parse(imageUrl));
+      final imageUri = resolveEmbedUri(imageJson['url']);
+      if (imageUri != null) {
+        embed.image = EmbedImageBuilder(url: imageUri);
+      }
+
+      final thumbnailJson = Map<String, dynamic>.from(
+        (embedJson['thumbnail'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final thumbnailUri = resolveEmbedUri(thumbnailJson['url']);
+      if (thumbnailUri != null) {
+        embed.thumbnail = EmbedThumbnailBuilder(url: thumbnailUri);
       }
 
       final fieldList =
           (embedJson['fields'] as List?)?.whereType<Map>() ?? const [];
       for (final fieldJson in fieldList.take(25)) {
-        final name = (fieldJson['name'] ?? '').toString();
-        final value = (fieldJson['value'] ?? '').toString();
+        final name = resolveTemplatePlaceholders(
+          (fieldJson['name'] ?? '').toString(),
+          runtimeVariables,
+        );
+        final value = resolveTemplatePlaceholders(
+          (fieldJson['value'] ?? '').toString(),
+          runtimeVariables,
+        );
         if (name.isNotEmpty && value.isNotEmpty) {
           (embed.fields ??= []).add(
             EmbedFieldBuilder(

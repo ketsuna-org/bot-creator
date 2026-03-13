@@ -441,6 +441,24 @@ class AppManager implements BotDataStore {
             )
             : <Map<String, dynamic>>[];
 
+    final rawEditorMode =
+        (rawData['editorMode'] ?? 'advanced').toString().toLowerCase();
+    final editorMode = rawEditorMode == 'simple' ? 'simple' : 'advanced';
+
+    final simpleConfigRaw = Map<String, dynamic>.from(
+      (rawData['simpleConfig'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final simpleConfig = <String, dynamic>{
+      'deleteMessages': simpleConfigRaw['deleteMessages'] == true,
+      'kickUser': simpleConfigRaw['kickUser'] == true,
+      'banUser': simpleConfigRaw['banUser'] == true,
+      'muteUser': simpleConfigRaw['muteUser'] == true,
+      'addRole': simpleConfigRaw['addRole'] == true,
+      'removeRole': simpleConfigRaw['removeRole'] == true,
+      'sendMessage': simpleConfigRaw['sendMessage'] == true,
+      'sendMessageText': (simpleConfigRaw['sendMessageText'] ?? '').toString(),
+    };
+
     final rawWorkflow = Map<String, dynamic>.from(
       (response['workflow'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
@@ -506,6 +524,8 @@ class AppManager implements BotDataStore {
 
     normalized['data'] = {
       'version': 1,
+      'editorMode': editorMode,
+      'simpleConfig': simpleConfig,
       'defaultMemberPermissions':
           (rawData['defaultMemberPermissions'] ?? '').toString().trim(),
       'response': {

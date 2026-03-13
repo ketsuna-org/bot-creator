@@ -240,6 +240,8 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.kickUser:
       case BotCreatorActionType.muteUser:
       case BotCreatorActionType.unmuteUser:
+      case BotCreatorActionType.addRole:
+      case BotCreatorActionType.removeRole:
         return 'Moderation';
       case BotCreatorActionType.sendComponentV2:
       case BotCreatorActionType.editComponentV2:
@@ -386,6 +388,10 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Temporarily mute user';
       case BotCreatorActionType.unmuteUser:
         return 'Remove mute from user';
+      case BotCreatorActionType.addRole:
+        return 'Add a role to a user';
+      case BotCreatorActionType.removeRole:
+        return 'Remove a role from a user';
       case BotCreatorActionType.sendComponentV2:
         return 'Send interactive components';
       case BotCreatorActionType.editComponentV2:

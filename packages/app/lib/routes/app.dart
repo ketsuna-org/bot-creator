@@ -5,6 +5,8 @@ import 'package:bot_creator/routes/app/home.dart';
 import 'package:bot_creator/routes/app/settings.dart';
 import 'package:bot_creator/routes/app/workflows.page.dart';
 import 'package:bot_creator/utils/analytics.dart';
+import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -65,35 +67,60 @@ class _AppEditPageState extends State<AppEditPage>
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isSmallPhone = ResponsiveHelper.isSmallPhone(context);
 
     return Scaffold(
       bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
+        type:
+            isSmallPhone
+                ? BottomNavigationBarType.shifting
+                : BottomNavigationBarType.fixed,
         backgroundColor: colorScheme.surface,
         selectedItemColor: colorScheme.primary,
         unselectedItemColor: colorScheme.onSurfaceVariant,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
-        showUnselectedLabels: false,
+        showUnselectedLabels: !isMobile,
         currentIndex: _selectedIndex,
         onTap: (index) {
           setState(() {
             _selectedIndex = index;
           });
         },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle),
-            label: "Commands",
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.key), label: "Globals"),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_tree),
-            label: "Workflows",
+            icon: const Icon(Icons.home),
+            label: AppStrings.t('home_tab'),
+            backgroundColor: colorScheme.surface,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: "Settings",
+            icon: const Icon(Icons.add_circle),
+            label:
+                isSmallPhone
+                    ? AppStrings.t('commands_tab_short')
+                    : AppStrings.t('commands_tab'),
+            backgroundColor: colorScheme.surface,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.key),
+            label:
+                isSmallPhone
+                    ? AppStrings.t('globals_tab_short')
+                    : AppStrings.t('globals_tab'),
+            backgroundColor: colorScheme.surface,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.account_tree),
+            label:
+                isSmallPhone
+                    ? AppStrings.t('workflows_tab_short')
+                    : AppStrings.t('workflows_tab'),
+            backgroundColor: colorScheme.surface,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.settings),
+            label: AppStrings.t('settings_tab'),
+            backgroundColor: colorScheme.surface,
           ),
         ],
       ),

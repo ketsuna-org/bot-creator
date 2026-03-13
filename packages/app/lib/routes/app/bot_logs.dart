@@ -1,4 +1,5 @@
 import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -50,11 +51,13 @@ class _BotLogsPageState extends State<BotLogsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bot Logs'),
+        title: Text(AppStrings.t('bot_logs_title')),
         actions: [
           IconButton(
             tooltip:
-                _debugEnabled ? 'Désactiver debug logs' : 'Activer debug logs',
+                _debugEnabled
+                    ? AppStrings.t('bot_logs_disable_debug')
+                    : AppStrings.t('bot_logs_enable_debug'),
             icon: Icon(
               _debugEnabled ? Icons.bug_report : Icons.bug_report_outlined,
             ),
@@ -66,23 +69,23 @@ class _BotLogsPageState extends State<BotLogsPage> {
             },
           ),
           IconButton(
-            tooltip: 'Copier',
+            tooltip: AppStrings.t('copy'),
             icon: const Icon(Icons.copy),
             onPressed: () async {
               final logs = getBotLogsSnapshot();
               await Clipboard.setData(ClipboardData(text: logs.join('\n')));
               if (context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Logs copiés')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(AppStrings.t('bot_logs_copied'))),
+                );
               }
             },
           ),
           IconButton(
             tooltip:
                 _showNewestFirst
-                    ? 'Afficher les plus anciens en premier'
-                    : 'Afficher les plus récents en premier',
+                    ? AppStrings.t('bot_logs_oldest_first')
+                    : AppStrings.t('bot_logs_newest_first'),
             icon: Icon(
               _showNewestFirst
                   ? Icons.vertical_align_top
@@ -98,7 +101,7 @@ class _BotLogsPageState extends State<BotLogsPage> {
             },
           ),
           PopupMenuButton<int>(
-            tooltip: 'Nombre de logs affichés',
+            tooltip: AppStrings.t('bot_logs_filter_count'),
             icon: const Icon(Icons.filter_list),
             initialValue: _visibleLimit,
             onSelected: (value) {
@@ -107,11 +110,38 @@ class _BotLogsPageState extends State<BotLogsPage> {
               });
             },
             itemBuilder:
-                (context) => const [
-                  PopupMenuItem(value: 100, child: Text('Afficher 100 logs')),
-                  PopupMenuItem(value: 200, child: Text('Afficher 200 logs')),
-                  PopupMenuItem(value: 500, child: Text('Afficher 500 logs')),
-                  PopupMenuItem(value: 0, child: Text('Afficher tout')),
+                (context) => [
+                  PopupMenuItem(
+                    value: 100,
+                    child: Text(
+                      AppStrings.tr(
+                        'bot_logs_show_n',
+                        params: {'count': '100'},
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 200,
+                    child: Text(
+                      AppStrings.tr(
+                        'bot_logs_show_n',
+                        params: {'count': '200'},
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 500,
+                    child: Text(
+                      AppStrings.tr(
+                        'bot_logs_show_n',
+                        params: {'count': '500'},
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 0,
+                    child: Text(AppStrings.t('bot_logs_show_all')),
+                  ),
                 ],
           ),
         ],
@@ -139,7 +169,12 @@ class _BotLogsPageState extends State<BotLogsPage> {
                     children: [
                       const Icon(Icons.memory, size: 18),
                       const SizedBox(width: 8),
-                      Text('RAM process bot: $memoryText'),
+                      Text(
+                        AppStrings.tr(
+                          'bot_logs_ram',
+                          params: {'memory': memoryText},
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -151,8 +186,8 @@ class _BotLogsPageState extends State<BotLogsPage> {
                   builder: (context, snapshot) {
                     final allLogs = snapshot.data ?? const <String>[];
                     if (allLogs.isEmpty) {
-                      return const Center(
-                        child: Text('Aucun log pour le moment'),
+                      return Center(
+                        child: Text(AppStrings.t('bot_logs_empty')),
                       );
                     }
 
@@ -271,8 +306,8 @@ class _BotLogsPageState extends State<BotLogsPage> {
                                     ),
                                     label: Text(
                                       isExpanded
-                                          ? 'Afficher moins'
-                                          : 'Afficher plus',
+                                          ? AppStrings.t('bot_logs_show_less')
+                                          : AppStrings.t('bot_logs_show_more'),
                                     ),
                                   ),
                                 ),
@@ -289,7 +324,10 @@ class _BotLogsPageState extends State<BotLogsPage> {
         },
       ),
       floatingActionButton: FloatingActionButton.small(
-        tooltip: _showNewestFirst ? 'Aller au dernier log' : 'Aller au bas',
+        tooltip:
+            _showNewestFirst
+                ? AppStrings.t('bot_logs_go_to_latest')
+                : AppStrings.t('bot_logs_go_to_bottom'),
         onPressed: _jumpToEdge,
         child: Icon(
           _showNewestFirst

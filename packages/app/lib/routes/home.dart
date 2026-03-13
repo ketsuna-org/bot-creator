@@ -6,9 +6,11 @@ import 'package:bot_creator/routes/app.dart';
 import 'package:bot_creator/routes/app/bot_logs.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer' as developer;
 
 class HomePage extends StatefulWidget {
@@ -107,19 +109,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final app = await appManager.getApp(botId);
       final token = app['token']?.toString();
       if (token == null || token.trim().isEmpty) {
-        throw Exception('Token introuvable pour $botName');
+        throw Exception(
+          AppStrings.tr('home_token_missing', params: {'botName': botName}),
+        );
       }
 
       if (!isRunning) {
         clearBotBaselineRss();
         startBotLogSession(botId: botId);
-        appendBotLog('Démarrage du bot demandé', botId: botId);
+        appendBotLog(AppStrings.t('home_log_start_requested'), botId: botId);
       }
 
       if (_supportsForegroundTask) {
         // ── Mobile (Android / iOS) ─────────────────────────────────────────
         if (isRunning) {
-          appendBotLog('Arrêt du bot demandé', botId: botId);
+          appendBotLog(AppStrings.t('home_log_stop_requested'), botId: botId);
           await FlutterForegroundTask.stopService();
           try {
             await FlutterForegroundTask.removeData(key: 'token');
@@ -138,7 +142,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               perm = await FlutterForegroundTask.checkNotificationPermission();
               if (perm != NotificationPermission.granted) {
                 throw Exception(
-                  'Permission notification requise pour lancer le bot.',
+                  AppStrings.t('home_notification_permission_required'),
                 );
               }
             }
@@ -153,7 +157,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           try {
             final running = await FlutterForegroundTask.isRunningService;
             if (!running) {
-              throw Exception("Le service foreground n'a pas démarré.");
+              throw Exception(
+                AppStrings.t('home_foreground_service_not_started'),
+              );
             }
           } on MissingPluginException {
             // Accepter sur les plateformes de dev.
@@ -165,7 +171,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       } else {
         // ── Desktop (Linux / Windows / macOS) ─────────────────────────────
         if (isRunning) {
-          appendBotLog('Arrêt du bot desktop demandé', botId: botId);
+          appendBotLog(
+            AppStrings.t('home_log_desktop_stop_requested'),
+            botId: botId,
+          );
           await stopDesktopBot();
           setBotRuntimeActive(false);
           clearBotBaselineRss();
@@ -179,9 +188,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _syncPulse(_runningBotId);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppStrings.tr(
+                'error_with_details',
+                params: {'error': e.toString()},
+              ),
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isTogglingBot = false);
@@ -196,17 +212,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final int crossAxisCount;
-        if (width >= 1200) {
-          crossAxisCount = 4;
-        } else if (width >= 900) {
-          crossAxisCount = 3;
-        } else {
+        final double horizontalPadding;
+        final double cardHeight;
+
+        // Responsive grid based on screen width
+        if (width < 420) {
+          // Small phone - single column
+          crossAxisCount = 1;
+          horizontalPadding = 12.0;
+          cardHeight = 280.0;
+        } else if (width < 600) {
+          // Mobile - 2 columns
           crossAxisCount = 2;
+          horizontalPadding = 12.0;
+          cardHeight = 300.0;
+        } else if (width >= 1200) {
+          // Large desktop - 4 columns
+          crossAxisCount = 4;
+          horizontalPadding = 24.0;
+          cardHeight = 340.0;
+        } else if (width >= 900) {
+          // Tablet - 3 columns
+          crossAxisCount = 3;
+          horizontalPadding = 24.0;
+          cardHeight = 320.0;
+        } else {
+          // Tablet/small desktop - 2-3 columns
+          crossAxisCount = 2;
+          horizontalPadding = 16.0;
+          cardHeight = 300.0;
         }
 
-        final horizontalPadding = width >= 900 ? 24.0 : 12.0;
-        final cardHeight =
-            width >= 1200 ? 340.0 : (width >= 900 ? 320.0 : 300.0);
         final cardWidth =
             (width - (horizontalPadding * 2) - ((crossAxisCount - 1) * 12)) /
             crossAxisCount;
@@ -223,12 +259,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   'Error loading data: ${snapshot.error}',
                   name: 'HomePage',
                 );
-                return const Center(child: Text('Erreur de chargement'));
+                return Center(child: Text(AppStrings.t('app_loading_error')));
               }
 
               final apps = snapshot.data;
               if (apps == null || apps.isEmpty) {
-                return const Center(child: Text('Aucune application trouvée'));
+                return const _EmptyStateWithSupport();
               }
 
               return GridView.builder(
@@ -241,7 +277,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 itemCount: apps.length,
                 itemBuilder: (context, index) {
                   final app = apps[index];
-                  final name = app['name']?.toString() ?? 'Inconnu';
+                  final name =
+                      app['name']?.toString() ??
+                      AppStrings.t('home_unknown_app');
                   final id = app['id']?.toString() ?? '';
                   final avatar = app['avatar']?.toString();
                   final guildCount = app['guild_count'] as int?;
@@ -322,6 +360,12 @@ class _BotCard extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback? onLogs;
 
+  String _serverCountLabel() {
+    final count = guildCount ?? 0;
+    final key = count > 1 ? 'home_server_count_other' : 'home_server_count_one';
+    return AppStrings.tr(key, params: {'count': count.toString()});
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -385,7 +429,9 @@ class _BotCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        isRunning ? 'En ligne' : 'Hors ligne',
+                        isRunning
+                            ? AppStrings.t('home_status_online')
+                            : AppStrings.t('home_status_offline'),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
@@ -412,7 +458,7 @@ class _BotCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 3),
                   Text(
-                    '$guildCount serveur${guildCount! > 1 ? 's' : ''}',
+                    _serverCountLabel(),
                     style: TextStyle(
                       fontSize: 11,
                       color: colorScheme.onSurfaceVariant,
@@ -445,7 +491,11 @@ class _BotCard extends StatelessWidget {
                               : Icons.play_arrow_rounded,
                           size: 16,
                         ),
-                label: Text(isRunning ? 'Arrêter' : 'Lancer'),
+                label: Text(
+                  isRunning
+                      ? AppStrings.t('home_stop')
+                      : AppStrings.t('home_start'),
+                ),
                 style: ElevatedButton.styleFrom(
                   shape: const StadiumBorder(),
                   backgroundColor: isRunning ? Colors.red : Colors.green,
@@ -466,7 +516,7 @@ class _BotCard extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: onManage,
                     icon: const Icon(Icons.tune, size: 14),
-                    label: const Text('Gérer'),
+                    label: Text(AppStrings.t('home_manage')),
                     style: ElevatedButton.styleFrom(
                       shape: const StadiumBorder(),
                       backgroundColor: Colors.blue,
@@ -479,7 +529,7 @@ class _BotCard extends StatelessWidget {
                 IconButton.filled(
                   onPressed: onLogs,
                   icon: const Icon(Icons.article_outlined, size: 18),
-                  tooltip: 'Logs du bot',
+                  tooltip: AppStrings.t('home_logs_tooltip'),
                   style: IconButton.styleFrom(
                     backgroundColor:
                         onLogs != null
@@ -490,6 +540,71 @@ class _BotCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Empty state avec CTA support ──────────────────────────────────────────
+
+class _EmptyStateWithSupport extends StatelessWidget {
+  const _EmptyStateWithSupport();
+
+  static const _discordUrl = 'https://discord.gg/gyEGNBUZdA';
+  static const _discordColor = Color(0xFF5865F2);
+
+  Future<void> _openDiscord() async {
+    final uri = Uri.parse(_discordUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.smart_toy_outlined,
+              size: 64,
+              color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              AppStrings.t('app_no_apps'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: scheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            const Divider(),
+            const SizedBox(height: 16),
+            Text(
+              AppStrings.t('home_empty_support_hint'),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _openDiscord,
+              icon: const Icon(Icons.forum_rounded, size: 18),
+              label: Text(AppStrings.t('home_empty_support_btn')),
+              style: FilledButton.styleFrom(
+                backgroundColor: _discordColor,
+                foregroundColor: Colors.white,
+                textStyle: const TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),

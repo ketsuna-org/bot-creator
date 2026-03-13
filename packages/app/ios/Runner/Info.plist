@@ -48,6 +48,10 @@
         </array>
       </dict>
     </array>
+    <key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS</key>
+    <false />
+    <key>GOOGLE_ANALYTICS_IDFV_COLLECTION_ENABLED</key>
+    <false />
     <key>NSLocalNetworkUsageDescription</key>
     <string>This app requires access to devices on your local network for debugging.</string>
     <key>UIMainStoryboardFile</key>

@@ -1,6 +1,7 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
 import 'package:bot_creator/routes/app/workflow_docs.page.dart';
+import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/workflow_call.dart';
 import 'package:flutter/material.dart';
 
@@ -62,7 +63,9 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
             builder: (context, setDialogState) {
               return AlertDialog(
                 title: Text(
-                  initial == null ? 'Create Workflow' : 'Edit Workflow',
+                  initial == null
+                      ? AppStrings.t('workflows_create')
+                      : AppStrings.t('workflows_edit'),
                 ),
                 content: SizedBox(
                   width: double.maxFinite,
@@ -72,31 +75,35 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                       children: [
                         TextField(
                           controller: nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Workflow Name',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: AppStrings.t('workflows_name'),
+                            border: const OutlineInputBorder(),
                           ),
                         ),
                         const SizedBox(height: 10),
                         TextField(
                           controller: entryPointController,
-                          decoration: const InputDecoration(
-                            labelText: 'Default Entry Point',
-                            border: OutlineInputBorder(),
-                            helperText: 'Used if caller does not override it',
+                          decoration: InputDecoration(
+                            labelText: AppStrings.t('workflows_entry_point'),
+                            border: const OutlineInputBorder(),
+                            helperText: AppStrings.t(
+                              'workflows_entry_point_hint',
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: Text(
-                                'Arguments',
-                                style: TextStyle(fontWeight: FontWeight.w600),
+                                AppStrings.t('workflows_arguments'),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                             IconButton(
-                              tooltip: 'Add argument',
+                              tooltip: AppStrings.t('workflows_add_arg'),
                               onPressed: () {
                                 setDialogState(() {
                                   editableArgs.add(
@@ -120,9 +127,11 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                                   flex: 4,
                                   child: TextFormField(
                                     initialValue: value.name,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Name',
-                                      border: OutlineInputBorder(),
+                                    decoration: InputDecoration(
+                                      labelText: AppStrings.t(
+                                        'workflows_arg_name',
+                                      ),
+                                      border: const OutlineInputBorder(),
                                       isDense: true,
                                     ),
                                     onChanged: (next) {
@@ -136,9 +145,11 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                                   flex: 4,
                                   child: TextFormField(
                                     initialValue: value.defaultValue,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Default value',
-                                      border: OutlineInputBorder(),
+                                    decoration: InputDecoration(
+                                      labelText: AppStrings.t(
+                                        'workflows_arg_default',
+                                      ),
+                                      border: const OutlineInputBorder(),
                                       isDense: true,
                                     ),
                                     onChanged: (next) {
@@ -160,9 +171,11 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                                         setDialogState(() {});
                                       },
                                     ),
-                                    const Text(
-                                      'Req',
-                                      style: TextStyle(fontSize: 11),
+                                    Text(
+                                      AppStrings.t(
+                                        'workflows_arg_required_short',
+                                      ),
+                                      style: const TextStyle(fontSize: 11),
                                     ),
                                   ],
                                 ),
@@ -185,9 +198,12 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                             ),
                           );
                         }),
-                        const Text(
-                          'Arguments become runtime variables as ((arg.name)) and ((workflow.arg.name)).',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        Text(
+                          AppStrings.t('workflows_arg_hint'),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
@@ -196,11 +212,11 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
+                    child: Text(AppStrings.t('cancel')),
                   ),
                   FilledButton(
                     onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Continue'),
+                    child: Text(AppStrings.t('workflows_continue')),
                   ),
                 ],
               );
@@ -294,10 +310,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Workflows'),
+        title: Text(AppStrings.t('workflows_title')),
         actions: [
           IconButton(
-            tooltip: 'Workflow Documentation',
+            tooltip: AppStrings.t('workflows_docs_tooltip'),
             onPressed: () {
               Navigator.push(
                 context,
@@ -318,7 +334,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
           _loading
               ? const Center(child: CircularProgressIndicator())
               : _workflows.isEmpty
-              ? const Center(child: Text('No workflows yet'))
+              ? Center(child: Text(AppStrings.t('workflows_empty')))
               : ListView.separated(
                 itemCount: _workflows.length,
                 separatorBuilder:
@@ -341,7 +357,14 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                   return ListTile(
                     title: Text(name),
                     subtitle: Text(
-                      '$actions action(s) • entry: $entryPoint • args: $argsCount',
+                      AppStrings.tr(
+                        'workflows_subtitle',
+                        params: {
+                          'count': actions.toString(),
+                          'entry': entryPoint,
+                          'args': argsCount.toString(),
+                        },
+                      ),
                     ),
                     trailing: Wrap(
                       spacing: 4,

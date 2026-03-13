@@ -336,6 +336,7 @@ class _CommandResponseWorkflowPageState
                     const SizedBox(height: 8),
                     ResponseEmbedsEditor(
                       embeds: _whenTrueEmbeds,
+                      variableSuggestions: widget.variableSuggestions,
                       onChanged: (embeds) {
                         setState(() {
                           _whenTrueEmbeds = embeds;
@@ -410,6 +411,7 @@ class _CommandResponseWorkflowPageState
                     const SizedBox(height: 8),
                     ResponseEmbedsEditor(
                       embeds: _whenFalseEmbeds,
+                      variableSuggestions: widget.variableSuggestions,
                       onChanged: (embeds) {
                         setState(() {
                           _whenFalseEmbeds = embeds;

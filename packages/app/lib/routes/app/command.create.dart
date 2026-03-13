@@ -1,11 +1,13 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
-import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/analytics.dart';
+import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
 import 'package:bot_creator/widgets/command_create_cards/basic_info_card.dart';
 import 'package:bot_creator/widgets/command_create_cards/reply_card.dart';
 import 'package:bot_creator/widgets/command_create_cards/actions_card.dart';
+import 'package:bot_creator/widgets/response_embeds_editor.dart';
 import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
@@ -20,6 +22,9 @@ class CommandCreatePage extends StatefulWidget {
 }
 
 class _CommandCreatePageState extends State<CommandCreatePage> {
+  static const String _editorModeSimple = 'simple';
+  static const String _editorModeAdvanced = 'advanced';
+
   String _commandName = "";
   String _commandDescription = "";
   List<CommandOptionBuilder> _options = [];
@@ -37,6 +42,17 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   ];
   List<InteractionContextType> _contexts = [InteractionContextType.guild];
   String _defaultMemberPermissions = '';
+  String _editorMode = _editorModeSimple;
+  bool _simpleModeLocked = false;
+  bool _simpleDeleteMessages = false;
+  bool _simpleKickUser = false;
+  bool _simpleBanUser = false;
+  bool _simpleMuteUser = false;
+  bool _simpleAddRole = false;
+  bool _simpleRemoveRole = false;
+  bool _simpleSendMessage = false;
+  final TextEditingController _simpleSendMessageController =
+      TextEditingController();
 
   static Map<String, dynamic> _defaultWorkflow() {
     return {
@@ -61,6 +77,214 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       },
     };
   }
+
+  bool get _isSimpleMode => _editorMode == _editorModeSimple;
+
+  bool get _requiresSimpleUserOption =>
+      _simpleKickUser ||
+      _simpleBanUser ||
+      _simpleMuteUser ||
+      _simpleAddRole ||
+      _simpleRemoveRole;
+
+  bool get _requiresSimpleRoleOption => _simpleAddRole || _simpleRemoveRole;
+
+  Map<String, dynamic> _normalizeSimpleConfig(Map<String, dynamic> input) {
+    return {
+      'deleteMessages': input['deleteMessages'] == true,
+      'kickUser': input['kickUser'] == true,
+      'banUser': input['banUser'] == true,
+      'muteUser': input['muteUser'] == true,
+      'addRole': input['addRole'] == true,
+      'removeRole': input['removeRole'] == true,
+      'sendMessage': input['sendMessage'] == true,
+      'sendMessageText': (input['sendMessageText'] ?? '').toString(),
+    };
+  }
+
+  void _applySimpleConfig(Map<String, dynamic> config) {
+    final normalized = _normalizeSimpleConfig(config);
+    _simpleDeleteMessages = normalized['deleteMessages'] == true;
+    _simpleKickUser = normalized['kickUser'] == true;
+    _simpleBanUser = normalized['banUser'] == true;
+    _simpleMuteUser = normalized['muteUser'] == true;
+    _simpleAddRole = normalized['addRole'] == true;
+    _simpleRemoveRole = normalized['removeRole'] == true;
+    _simpleSendMessage = normalized['sendMessage'] == true;
+    _simpleSendMessageController.text =
+        (normalized['sendMessageText'] ?? '').toString();
+  }
+
+  Map<String, dynamic> _currentSimpleConfig() {
+    return _normalizeSimpleConfig({
+      'deleteMessages': _simpleDeleteMessages,
+      'kickUser': _simpleKickUser,
+      'banUser': _simpleBanUser,
+      'muteUser': _simpleMuteUser,
+      'addRole': _simpleAddRole,
+      'removeRole': _simpleRemoveRole,
+      'sendMessage': _simpleSendMessage,
+      'sendMessageText': _simpleSendMessageController.text,
+    });
+  }
+
+  List<CommandOptionBuilder> _buildSimpleModeOptions() {
+    final options = <CommandOptionBuilder>[];
+
+    if (_requiresSimpleUserOption) {
+      options.add(
+        CommandOptionBuilder(
+          type: CommandOptionType.user,
+          name: 'user',
+          description: AppStrings.t('cmd_simple_option_user_desc'),
+          isRequired: true,
+        ),
+      );
+    }
+
+    if (_requiresSimpleRoleOption) {
+      options.add(
+        CommandOptionBuilder(
+          type: CommandOptionType.role,
+          name: 'role',
+          description: AppStrings.t('cmd_simple_option_role_desc'),
+          isRequired: true,
+        ),
+      );
+    }
+
+    if (_simpleDeleteMessages) {
+      options.add(
+        CommandOptionBuilder(
+          type: CommandOptionType.integer,
+          name: 'count',
+          description: AppStrings.t('cmd_simple_option_count_desc'),
+          isRequired: false,
+          minValue: 1,
+          maxValue: 100,
+        ),
+      );
+    }
+
+    return options;
+  }
+
+  List<Map<String, dynamic>> _buildSimpleModeActions() {
+    final actions = <Map<String, dynamic>>[];
+
+    Map<String, dynamic> makeAction({
+      required String key,
+      required String type,
+      required Map<String, dynamic> payload,
+    }) {
+      return {
+        'id': key,
+        'type': type,
+        'enabled': true,
+        'key': key,
+        'depend_on': <String>[],
+        'error': {'mode': 'stop'},
+        'payload': payload,
+      };
+    }
+
+    if (_simpleDeleteMessages) {
+      actions.add(
+        makeAction(
+          key: 'delete_messages',
+          type: 'deleteMessages',
+          payload: {'channelId': '', 'messageCount': '((opts.count | 1))'},
+        ),
+      );
+    }
+
+    if (_simpleKickUser) {
+      actions.add(
+        makeAction(
+          key: 'kick_user',
+          type: 'kickUser',
+          payload: {'userId': '((opts.user.id))', 'reason': ''},
+        ),
+      );
+    }
+
+    if (_simpleBanUser) {
+      actions.add(
+        makeAction(
+          key: 'ban_user',
+          type: 'banUser',
+          payload: {
+            'userId': '((opts.user.id))',
+            'reason': '',
+            'deleteMessageDays': 0,
+          },
+        ),
+      );
+    }
+
+    if (_simpleMuteUser) {
+      actions.add(
+        makeAction(
+          key: 'mute_user',
+          type: 'muteUser',
+          payload: {
+            'userId': '((opts.user.id))',
+            'duration': '10m',
+            'reason': '',
+          },
+        ),
+      );
+    }
+
+    if (_simpleAddRole) {
+      actions.add(
+        makeAction(
+          key: 'add_role',
+          type: 'addRole',
+          payload: {
+            'userId': '((opts.user.id))',
+            'roleId': '((opts.role.id))',
+            'reason': '',
+          },
+        ),
+      );
+    }
+
+    if (_simpleRemoveRole) {
+      actions.add(
+        makeAction(
+          key: 'remove_role',
+          type: 'removeRole',
+          payload: {
+            'userId': '((opts.user.id))',
+            'roleId': '((opts.role.id))',
+            'reason': '',
+          },
+        ),
+      );
+    }
+
+    if (_simpleSendMessage) {
+      actions.add(
+        makeAction(
+          key: 'send_message',
+          type: 'sendMessage',
+          payload: {
+            'channelId': '',
+            'content': _simpleSendMessageController.text.trim(),
+          },
+        ),
+      );
+    }
+
+    return actions;
+  }
+
+  List<CommandOptionBuilder> get _effectiveOptions =>
+      _isSimpleMode ? _buildSimpleModeOptions() : _options;
+
+  List<Map<String, dynamic>> get _effectiveActions =>
+      _isSimpleMode ? _buildSimpleModeActions() : _actions;
 
   List<Map<String, dynamic>> _normalizeEmbedsPayload(dynamic rawEmbeds) {
     if (rawEmbeds is! List) {
@@ -191,6 +415,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   @override
   void dispose() {
     _responseController.dispose();
+    _simpleSendMessageController.dispose();
     super.dispose();
   }
 
@@ -207,6 +432,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     );
     // first let's check if the command is already created or not
     if (!widget.id.isZero) {
+      _editorMode = _editorModeAdvanced;
+      _simpleModeLocked = true;
       ApplicationCommand? command;
       try {
         final commandsList = await widget.client?.commands.list(
@@ -233,6 +460,20 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         );
         final normalizedData = Map<String, dynamic>.from(
           normalized["data"] ?? const {},
+        );
+        final persistedEditorMode =
+            (normalizedData['editorMode'] ?? _editorModeAdvanced)
+                .toString()
+                .toLowerCase();
+        final editorMode =
+            persistedEditorMode == _editorModeSimple
+                ? _editorModeSimple
+                : _editorModeAdvanced;
+        final simpleConfig = _normalizeSimpleConfig(
+          Map<String, dynamic>.from(
+            (normalizedData['simpleConfig'] as Map?)?.cast<String, dynamic>() ??
+                const {},
+          ),
         );
         final response = Map<String, dynamic>.from(
           (normalizedData["response"] as Map?)?.cast<String, dynamic>() ??
@@ -269,6 +510,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         }
 
         setState(() {
+          _editorMode = editorMode;
+          _simpleModeLocked = editorMode == _editorModeAdvanced;
+          _applySimpleConfig(simpleConfig);
           _responseType = (response['type'] ?? 'normal').toString();
           _response = (response["text"] ?? "").toString();
           _responseController.text = _response;
@@ -362,18 +606,337 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     }
   }
 
+  Future<void> _switchToAdvancedMode() async {
+    if (_simpleModeLocked || !_isSimpleMode) {
+      return;
+    }
+
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: Text(AppStrings.t('cmd_editor_mode_switch_adv_title')),
+                content: Text(
+                  AppStrings.t('cmd_editor_mode_switch_adv_content'),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text(AppStrings.t('cancel')),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: Text(
+                      AppStrings.t('cmd_editor_mode_switch_adv_confirm'),
+                    ),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _editorMode = _editorModeAdvanced;
+      _simpleModeLocked = true;
+    });
+  }
+
+  Widget _buildSimpleActionToggle({
+    required bool value,
+    required String title,
+    required String subtitle,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return CheckboxListTile(
+      value: value,
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      title: Text(title),
+      subtitle: Text(subtitle),
+      onChanged: (next) => onChanged(next == true),
+    );
+  }
+
+  Widget _buildEditorModeCard(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              AppStrings.t('cmd_editor_mode_title'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _isSimpleMode
+                  ? AppStrings.t('cmd_editor_mode_simple_desc')
+                  : AppStrings.t('cmd_editor_mode_advanced_desc'),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isSimpleMode ? Icons.auto_awesome : Icons.tune,
+                    color:
+                        _isSimpleMode
+                            ? const Color.fromRGBO(106, 15, 162, 1)
+                            : Colors.blueGrey,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _isSimpleMode
+                          ? AppStrings.t('cmd_editor_mode_simple')
+                          : AppStrings.t('cmd_editor_mode_advanced'),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_isSimpleMode) ...[
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: _simpleModeLocked ? null : _switchToAdvancedMode,
+                icon: const Icon(Icons.upgrade),
+                label: Text(AppStrings.t('cmd_editor_mode_switch_adv')),
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              Text(
+                AppStrings.t('cmd_editor_mode_locked'),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleActionsCard() {
+    final generatedOptionLabels = <String>[];
+    if (_requiresSimpleUserOption) {
+      generatedOptionLabels.add(AppStrings.t('cmd_simple_option_user'));
+    }
+    if (_requiresSimpleRoleOption) {
+      generatedOptionLabels.add(AppStrings.t('cmd_simple_option_role'));
+    }
+    if (_simpleDeleteMessages) {
+      generatedOptionLabels.add(AppStrings.t('cmd_simple_option_count'));
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              AppStrings.t('cmd_simple_actions_title'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              AppStrings.t('cmd_simple_actions_desc'),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            _buildSimpleActionToggle(
+              value: _simpleDeleteMessages,
+              title: AppStrings.t('cmd_simple_action_delete'),
+              subtitle: AppStrings.t('cmd_simple_action_delete_desc'),
+              onChanged: (value) {
+                setState(() {
+                  _simpleDeleteMessages = value;
+                });
+              },
+            ),
+            _buildSimpleActionToggle(
+              value: _simpleKickUser,
+              title: AppStrings.t('cmd_simple_action_kick'),
+              subtitle: AppStrings.t('cmd_simple_action_kick_desc'),
+              onChanged: (value) {
+                setState(() {
+                  _simpleKickUser = value;
+                });
+              },
+            ),
+            _buildSimpleActionToggle(
+              value: _simpleBanUser,
+              title: AppStrings.t('cmd_simple_action_ban'),
+              subtitle: AppStrings.t('cmd_simple_action_ban_desc'),
+              onChanged: (value) {
+                setState(() {
+                  _simpleBanUser = value;
+                });
+              },
+            ),
+            _buildSimpleActionToggle(
+              value: _simpleMuteUser,
+              title: AppStrings.t('cmd_simple_action_mute'),
+              subtitle: AppStrings.t('cmd_simple_action_mute_desc'),
+              onChanged: (value) {
+                setState(() {
+                  _simpleMuteUser = value;
+                });
+              },
+            ),
+            _buildSimpleActionToggle(
+              value: _simpleAddRole,
+              title: AppStrings.t('cmd_simple_action_add_role'),
+              subtitle: AppStrings.t('cmd_simple_action_add_role_desc'),
+              onChanged: (value) {
+                setState(() {
+                  _simpleAddRole = value;
+                });
+              },
+            ),
+            _buildSimpleActionToggle(
+              value: _simpleRemoveRole,
+              title: AppStrings.t('cmd_simple_action_remove_role'),
+              subtitle: AppStrings.t('cmd_simple_action_remove_role_desc'),
+              onChanged: (value) {
+                setState(() {
+                  _simpleRemoveRole = value;
+                });
+              },
+            ),
+            _buildSimpleActionToggle(
+              value: _simpleSendMessage,
+              title: AppStrings.t('cmd_simple_action_send_message'),
+              subtitle: AppStrings.t('cmd_simple_action_send_message_desc'),
+              onChanged: (value) {
+                setState(() {
+                  _simpleSendMessage = value;
+                });
+              },
+            ),
+            if (_simpleSendMessage) ...[
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _simpleSendMessageController,
+                minLines: 2,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  labelText: AppStrings.t(
+                    'cmd_simple_action_send_message_label',
+                  ),
+                  hintText: AppStrings.t('cmd_simple_action_send_message_hint'),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) {
+                  if (mounted) {
+                    setState(() {});
+                  }
+                },
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              AppStrings.t('cmd_simple_generated_options'),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            if (generatedOptionLabels.isEmpty)
+              Text(
+                AppStrings.t('cmd_simple_generated_none'),
+                style: TextStyle(color: Colors.grey.shade600),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children:
+                    generatedOptionLabels
+                        .map((label) => Chip(label: Text(label)))
+                        .toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleResponseCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              AppStrings.t('cmd_simple_response_title'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              AppStrings.t('cmd_simple_response_desc'),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _responseController,
+              minLines: 3,
+              maxLines: 6,
+              decoration: InputDecoration(
+                hintText: AppStrings.t('cmd_simple_response_hint'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            _buildVariableSuggestionBar(_responseController),
+            const SizedBox(height: 12),
+            Text(
+              AppStrings.t('cmd_simple_response_embeds_title'),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              AppStrings.t('cmd_simple_response_embeds_desc'),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            ResponseEmbedsEditor(
+              embeds: _responseEmbeds,
+              variableSuggestions: _actionVariableSuggestions,
+              onChanged: (embeds) {
+                setState(() {
+                  _responseEmbeds = embeds;
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _updateOrCreate() async {
     // check if any field is empty
     if (_commandName.isEmpty || _commandDescription.isEmpty) {
       final dialog = AlertDialog(
-        title: const Text("Error"),
-        content: const Text("Please fill all fields"),
+        title: Text(AppStrings.t('error')),
+        content: Text(AppStrings.t('cmd_error_fill_fields')),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
             },
-            child: const Text("OK"),
+            child: Text(AppStrings.t('ok')),
           ),
         ],
       );
@@ -381,8 +944,32 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       return;
     }
 
+    if (_isSimpleMode &&
+        _simpleSendMessage &&
+        _simpleSendMessageController.text.trim().isEmpty) {
+      final dialog = AlertDialog(
+        title: Text(AppStrings.t('error')),
+        content: Text(AppStrings.t('cmd_simple_send_message_required')),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text(AppStrings.t('ok')),
+          ),
+        ],
+      );
+      showDialog(context: context, builder: (context) => dialog);
+      return;
+    }
+
+    final effectiveOptions = _effectiveOptions;
+    final effectiveActions = _effectiveActions;
+
     final commandData = {
       "version": 1,
+      "editorMode": _editorMode,
+      "simpleConfig": _currentSimpleConfig(),
       "defaultMemberPermissions": _defaultMemberPermissions.trim(),
       "response": {
         "mode": _responseEmbeds.isNotEmpty ? "embed" : "text",
@@ -397,7 +984,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         "modal": _responseModal,
         "workflow": _normalizeWorkflow(_responseWorkflow),
       },
-      "actions": _actions,
+      "actions": effectiveActions,
     };
 
     final client = widget.client;
@@ -423,8 +1010,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         if (_contexts.isNotEmpty) {
           commandBuilder.contexts = _contexts;
         }
-        if (_options.isNotEmpty) {
-          commandBuilder.options = _options;
+        if (effectiveOptions.isNotEmpty) {
+          commandBuilder.options = effectiveOptions;
         }
         await createCommand(client, commandBuilder, data: commandData);
       } else {
@@ -443,8 +1030,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         } else {
           commandBuilder.contexts = [];
         }
-        if (_options.isNotEmpty) {
-          commandBuilder.options = _options;
+        if (effectiveOptions.isNotEmpty) {
+          commandBuilder.options = effectiveOptions;
         } else {
           commandBuilder.options = [];
         }
@@ -533,7 +1120,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         .whereType<String>()
         .toList(growable: true);
 
-    for (final option in _options) {
+    for (final option in _effectiveOptions) {
       final optionName = option.name;
       if (optionName.isEmpty) {
         continue;
@@ -590,8 +1177,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   List<String> _actionOutputVariableNames() {
     final outputVariables = <String>{};
 
-    for (var i = 0; i < _actions.length; i++) {
-      final action = _actions[i];
+    final actions = _effectiveActions;
+    for (var i = 0; i < actions.length; i++) {
+      final action = actions[i];
       final actionKey = _resolveActionKey(action, i);
       if (actionKey.isEmpty) {
         continue;
@@ -659,7 +1247,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       );
     }
 
-    for (final option in _options) {
+    for (final option in _effectiveOptions) {
       final optionName = option.name.trim();
       if (optionName.isEmpty) {
         continue;
@@ -707,8 +1295,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       }
     }
 
-    for (var i = 0; i < _actions.length; i++) {
-      final action = _actions[i];
+    final actions = _effectiveActions;
+    for (var i = 0; i < actions.length; i++) {
+      final action = actions[i];
       final actionKey = _resolveActionKey(action, i);
       if (actionKey.isEmpty) {
         continue;
@@ -781,6 +1370,13 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     final afterCursor = controller.text.substring(cursor);
     final start = beforeCursor.lastIndexOf('((');
     if (start == -1) {
+      final token = '(($variableName))';
+      final nextText = '$beforeCursor$token$afterCursor';
+      final nextCursor = beforeCursor.length + token.length;
+      controller.value = TextEditingValue(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: nextCursor),
+      );
       return;
     }
 
@@ -880,7 +1476,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               final dialogFullscren = Dialog.fullscreen(
                 child: Scaffold(
                   appBar: AppBar(
-                    title: const Text("Command Variables"),
+                    title: Text(AppStrings.t('cmd_variables_title')),
                     leading: IconButton(
                       icon: const Icon(Icons.arrow_back),
                       onPressed: () {
@@ -930,13 +1526,13 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 builder: (context) => dialogFullscren,
               );
             },
-            tooltip: "Show variables",
+            tooltip: AppStrings.t('cmd_show_variables'),
             icon: const Icon(Icons.info_outline),
           ),
           if (widget.id.isZero)
             IconButton(
               icon: const Icon(Icons.add),
-              tooltip: "Create command",
+              tooltip: AppStrings.t('cmd_create_tooltip'),
               onPressed: () {
                 if (_formKey.currentState!.validate()) {
                   _updateOrCreate();
@@ -944,14 +1540,14 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 } else {
                   // Form is invalid, show error message
                   final dialog = AlertDialog(
-                    title: const Text("Error"),
-                    content: const Text("Please fill all fields"),
+                    title: Text(AppStrings.t('error')),
+                    content: Text(AppStrings.t('cmd_error_fill_fields')),
                     actions: [
                       TextButton(
                         onPressed: () {
                           Navigator.of(context).pop();
                         },
-                        child: const Text("OK"),
+                        child: Text(AppStrings.t('ok')),
                       ),
                     ],
                   );
@@ -965,7 +1561,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             icon: Icon(
               widget.id.isZero ? Icons.cancel : Icons.save,
             ), // Change icon based on command existence
-            tooltip: widget.id.isZero ? "Cancel" : "Save command",
+            tooltip:
+                widget.id.isZero
+                    ? AppStrings.t('cancel')
+                    : AppStrings.t('cmd_create_tooltip'),
             onPressed: () async {
               if (widget.id.isZero) {
                 Navigator.pop(context);
@@ -985,14 +1584,14 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 } else {
                   // Form is invalid, show error message
                   final dialog = AlertDialog(
-                    title: const Text("Error"),
-                    content: const Text("Please fill all fields"),
+                    title: Text(AppStrings.t('error')),
+                    content: Text(AppStrings.t('cmd_error_fill_fields')),
                     actions: [
                       TextButton(
                         onPressed: () {
                           Navigator.of(context).pop();
                         },
-                        child: const Text("OK"),
+                        child: Text(AppStrings.t('ok')),
                       ),
                     ],
                   );
@@ -1005,7 +1604,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           if (!widget.id.isZero)
             IconButton(
               icon: const Icon(Icons.delete),
-              tooltip: "Delete command",
+              tooltip: AppStrings.t('cmd_delete_tooltip'),
               onPressed: () async {
                 await widget.client?.commands.delete(widget.id);
                 await appManager.deleteAppCommand(
@@ -1086,95 +1685,103 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               nameValidator: _validateName,
                             ),
                             const SizedBox(height: 12),
-                            ReplyCard(
-                              responseType: _responseType,
-                              onResponseTypeChanged: (type) {
-                                setState(() {
-                                  _responseType = type;
-                                });
-                              },
-                              responseController: _responseController,
-                              variableSuggestionBar:
-                                  _buildVariableSuggestionBar(
-                                    _responseController,
+                            _buildEditorModeCard(context),
+                            const SizedBox(height: 12),
+                            if (_isSimpleMode) ...[
+                              _buildSimpleActionsCard(),
+                              const SizedBox(height: 12),
+                              _buildSimpleResponseCard(),
+                            ] else ...[
+                              ReplyCard(
+                                responseType: _responseType,
+                                onResponseTypeChanged: (type) {
+                                  setState(() {
+                                    _responseType = type;
+                                  });
+                                },
+                                responseController: _responseController,
+                                variableSuggestionBar:
+                                    _buildVariableSuggestionBar(
+                                      _responseController,
+                                    ),
+                                responseEmbeds: _responseEmbeds,
+                                onEmbedsChanged: (embeds) {
+                                  setState(() {
+                                    _responseEmbeds = embeds;
+                                  });
+                                },
+                                responseComponents: _responseComponents,
+                                onComponentsChanged: (components) {
+                                  setState(() {
+                                    _responseComponents = components;
+                                  });
+                                },
+                                responseModal: _responseModal,
+                                onModalChanged: (modal) {
+                                  setState(() {
+                                    _responseModal = modal;
+                                  });
+                                },
+                                responseWorkflow: _responseWorkflow,
+                                normalizeWorkflow: _normalizeWorkflow,
+                                variableSuggestions: _actionVariableSuggestions,
+                                botIdForConfig: _botIdForConfig,
+                                onWorkflowChanged: (workflow) {
+                                  setState(() {
+                                    _responseWorkflow = workflow;
+                                  });
+                                },
+                                workflowSummary: _workflowSummary(),
+                              ),
+                              const SizedBox(height: 16),
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      const Text(
+                                        "Command Options",
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "Slash-command parameters",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      OptionWidget(
+                                        initialOptions: _options,
+                                        onChange: (options) {
+                                          setState(() {
+                                            _options = options;
+                                          });
+                                        },
+                                      ),
+                                    ],
                                   ),
-                              responseEmbeds: _responseEmbeds,
-                              onEmbedsChanged: (embeds) {
-                                setState(() {
-                                  _responseEmbeds = embeds;
-                                });
-                              },
-                              responseComponents: _responseComponents,
-                              onComponentsChanged: (components) {
-                                setState(() {
-                                  _responseComponents = components;
-                                });
-                              },
-                              responseModal: _responseModal,
-                              onModalChanged: (modal) {
-                                setState(() {
-                                  _responseModal = modal;
-                                });
-                              },
-                              responseWorkflow: _responseWorkflow,
-                              normalizeWorkflow: _normalizeWorkflow,
-                              variableSuggestions: _actionVariableSuggestions,
-                              botIdForConfig: _botIdForConfig,
-                              onWorkflowChanged: (workflow) {
-                                setState(() {
-                                  _responseWorkflow = workflow;
-                                });
-                              },
-                              workflowSummary: _workflowSummary(),
-                            ),
-                            const SizedBox(height: 16),
-                            Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    const Text(
-                                      "Command Options",
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      "Slash-command parameters",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    OptionWidget(
-                                      initialOptions: _options,
-                                      onChange: (options) {
-                                        setState(() {
-                                          _options = options;
-                                        });
-                                      },
-                                    ),
-                                  ],
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            ActionsCard(
-                              actions: _actions,
-                              onActionsChanged: (val) {
-                                setState(() {
-                                  _actions = val;
-                                });
-                              },
-                              actionVariableSuggestions:
-                                  _actionVariableSuggestions,
-                              botIdForConfig: _botIdForConfig,
-                            ),
+                              const SizedBox(height: 16),
+                              ActionsCard(
+                                actions: _actions,
+                                onActionsChanged: (val) {
+                                  setState(() {
+                                    _actions = val;
+                                  });
+                                },
+                                actionVariableSuggestions:
+                                    _actionVariableSuggestions,
+                                botIdForConfig: _botIdForConfig,
+                              ),
+                            ],
                             const SizedBox(height: 20),
                           ],
                         ),

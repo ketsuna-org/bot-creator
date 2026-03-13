@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:bot_creator/types/variable_suggestion.dart';
+import 'package:bot_creator/widgets/variable_text_field.dart';
 
 class ResponseEmbedsEditor extends StatefulWidget {
   final List<Map<String, dynamic>> embeds;
   final ValueChanged<List<Map<String, dynamic>>> onChanged;
   final int maxEmbeds;
+  final List<VariableSuggestion> variableSuggestions;
 
   const ResponseEmbedsEditor({
     super.key,
     required this.embeds,
     required this.onChanged,
     this.maxEmbeds = 10,
+    this.variableSuggestions = const [],
   });
 
   @override
@@ -206,36 +210,30 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    TextFormField(
+                    VariableTextField(
+                      label: 'Title',
                       initialValue: embed['title']?.toString() ?? '',
                       maxLength: 256,
-                      decoration: const InputDecoration(
-                        labelText: 'Title',
-                        border: OutlineInputBorder(),
-                      ),
+                      suggestions: widget.variableSuggestions,
                       onChanged:
                           (value) => _setEmbedValue(index, 'title', value),
                     ),
                     const SizedBox(height: 8),
-                    TextFormField(
+                    VariableTextField(
+                      label: 'Description',
                       initialValue: embed['description']?.toString() ?? '',
                       maxLength: 2000,
                       maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        border: OutlineInputBorder(),
-                      ),
+                      suggestions: widget.variableSuggestions,
                       onChanged:
                           (value) =>
                               _setEmbedValue(index, 'description', value),
                     ),
                     const SizedBox(height: 8),
-                    TextFormField(
+                    VariableTextField(
+                      label: 'URL',
                       initialValue: embed['url']?.toString() ?? '',
-                      decoration: const InputDecoration(
-                        labelText: 'URL',
-                        border: OutlineInputBorder(),
-                      ),
+                      suggestions: widget.variableSuggestions,
                       onChanged: (value) => _setEmbedValue(index, 'url', value),
                     ),
                     const SizedBox(height: 8),
@@ -245,12 +243,10 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                       children: [
                         SizedBox(
                           width: 280,
-                          child: TextFormField(
+                          child: VariableTextField(
+                            label: 'Timestamp (ISO8601)',
                             initialValue: embed['timestamp']?.toString() ?? '',
-                            decoration: const InputDecoration(
-                              labelText: 'Timestamp (ISO8601)',
-                              border: OutlineInputBorder(),
-                            ),
+                            suggestions: widget.variableSuggestions,
                             onChanged:
                                 (value) =>
                                     _setEmbedValue(index, 'timestamp', value),
@@ -258,12 +254,10 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                         ),
                         SizedBox(
                           width: 220,
-                          child: TextFormField(
+                          child: VariableTextField(
+                            label: 'Color (int or #hex)',
                             initialValue: embed['color']?.toString() ?? '',
-                            decoration: const InputDecoration(
-                              labelText: 'Color (int or #hex)',
-                              border: OutlineInputBorder(),
-                            ),
+                            suggestions: widget.variableSuggestions,
                             onChanged:
                                 (value) =>
                                     _setEmbedValue(index, 'color', value),
@@ -276,12 +270,10 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                       tilePadding: EdgeInsets.zero,
                       title: const Text('Footer'),
                       children: [
-                        TextFormField(
+                        VariableTextField(
+                          label: 'Footer Text',
                           initialValue: footer['text']?.toString() ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'Footer Text',
-                            border: OutlineInputBorder(),
-                          ),
+                          suggestions: widget.variableSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -291,12 +283,10 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                               ),
                         ),
                         const SizedBox(height: 8),
-                        TextFormField(
+                        VariableTextField(
+                          label: 'Footer Icon URL',
                           initialValue: footer['icon_url']?.toString() ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'Footer Icon URL',
-                            border: OutlineInputBorder(),
-                          ),
+                          suggestions: widget.variableSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -312,12 +302,10 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                       tilePadding: EdgeInsets.zero,
                       title: const Text('Author'),
                       children: [
-                        TextFormField(
+                        VariableTextField(
+                          label: 'Author Name',
                           initialValue: author['name']?.toString() ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'Author Name',
-                            border: OutlineInputBorder(),
-                          ),
+                          suggestions: widget.variableSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -327,12 +315,10 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                               ),
                         ),
                         const SizedBox(height: 8),
-                        TextFormField(
+                        VariableTextField(
+                          label: 'Author URL',
                           initialValue: author['url']?.toString() ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'Author URL',
-                            border: OutlineInputBorder(),
-                          ),
+                          suggestions: widget.variableSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -342,12 +328,10 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                               ),
                         ),
                         const SizedBox(height: 8),
-                        TextFormField(
+                        VariableTextField(
+                          label: 'Author Icon URL',
                           initialValue: author['icon_url']?.toString() ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'Author Icon URL',
-                            border: OutlineInputBorder(),
-                          ),
+                          suggestions: widget.variableSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -363,23 +347,19 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                       tilePadding: EdgeInsets.zero,
                       title: const Text('Media'),
                       children: [
-                        TextFormField(
+                        VariableTextField(
+                          label: 'Image URL',
                           initialValue: image['url']?.toString() ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'Image URL',
-                            border: OutlineInputBorder(),
-                          ),
+                          suggestions: widget.variableSuggestions,
                           onChanged:
                               (value) =>
                                   _setNestedValue(index, 'image', 'url', value),
                         ),
                         const SizedBox(height: 8),
-                        TextFormField(
+                        VariableTextField(
+                          label: 'Thumbnail URL',
                           initialValue: thumbnail['url']?.toString() ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'Thumbnail URL',
-                            border: OutlineInputBorder(),
-                          ),
+                          suggestions: widget.variableSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -432,13 +412,11 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                                         ),
                                       ],
                                     ),
-                                    TextFormField(
+                                    VariableTextField(
+                                      label: 'Name',
                                       initialValue:
                                           field['name']?.toString() ?? '',
-                                      decoration: const InputDecoration(
-                                        labelText: 'Name',
-                                        border: OutlineInputBorder(),
-                                      ),
+                                      suggestions: widget.variableSuggestions,
                                       onChanged:
                                           (value) => _setFieldValue(
                                             index,
@@ -448,14 +426,12 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                                           ),
                                     ),
                                     const SizedBox(height: 8),
-                                    TextFormField(
+                                    VariableTextField(
+                                      label: 'Value',
                                       initialValue:
                                           field['value']?.toString() ?? '',
                                       maxLines: 3,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Value',
-                                        border: OutlineInputBorder(),
-                                      ),
+                                      suggestions: widget.variableSuggestions,
                                       onChanged:
                                           (value) => _setFieldValue(
                                             index,

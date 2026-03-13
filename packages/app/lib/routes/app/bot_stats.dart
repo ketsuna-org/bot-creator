@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
 
 class BotStatsPage extends StatefulWidget {
@@ -99,19 +100,19 @@ class _BotStatsPageState extends State<BotStatsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Bot Stats')),
+      appBar: AppBar(title: Text(AppStrings.t('bot_stats_title'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _MetricCard(
-            title: 'RAM process bot',
+            title: AppStrings.t('bot_stats_ram_process'),
             value: _formatBytes(_rssBytes),
             icon: Icons.memory,
             history: _ramHistory,
           ),
           const SizedBox(height: 12),
           _MetricCard(
-            title: 'RAM bot only (estimée)',
+            title: AppStrings.t('bot_stats_ram_estimated'),
             value: _formatBytes(_rssEstimatedBytes),
             icon: Icons.auto_graph,
             history: _ramEstimatedHistory,
@@ -119,21 +120,21 @@ class _BotStatsPageState extends State<BotStatsPage> {
           ),
           const SizedBox(height: 12),
           _MetricCard(
-            title: 'CPU process bot',
+            title: AppStrings.t('bot_stats_cpu'),
             value: _formatCpu(_cpuPercent),
             icon: Icons.speed,
             history: _cpuHistory,
           ),
           const SizedBox(height: 12),
           _MetricCard(
-            title: 'Stockage bot (app data)',
+            title: AppStrings.t('bot_stats_storage'),
             value: _formatBytes(_storageBytes),
             icon: Icons.storage,
             history: _storageHistory,
           ),
           const SizedBox(height: 20),
           Text(
-            'Notes: CPU dispo sur Android/Linux. Stockage = fichiers de données du bot dans l’app.',
+            AppStrings.t('bot_stats_notes'),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -246,7 +247,10 @@ class _Sparkline extends StatelessWidget {
     if (values.length < 2) {
       return Container(
         alignment: Alignment.centerLeft,
-        child: Text('Collecte…', style: Theme.of(context).textTheme.labelSmall),
+        child: Text(
+          AppStrings.t('bot_stats_collecting'),
+          style: Theme.of(context).textTheme.labelSmall,
+        ),
       );
     }
 
