@@ -850,6 +850,7 @@ class ActionCard extends StatelessWidget {
             const SizedBox(height: 8),
             ResponseEmbedsEditor(
               embeds: embeds,
+              variableSuggestions: variableSuggestions,
               onChanged: (updated) {
                 onParameterChanged(paramDef.key, updated);
               },

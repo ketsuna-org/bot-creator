@@ -7,9 +7,17 @@ on:
     branches: [ "master", "main" ]
   workflow_dispatch:
 
+env:
+  APP_DIR: packages/app
+
 jobs:
   build_android_release:
     runs-on: ubuntu-latest
+    env:
+      HAS_ANDROID_SIGNING: ${{ secrets.KEYSTORE_BASE64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_PASSWORD != '' && secrets.KEY_ALIAS != '' }}
+    defaults:
+      run:
+        working-directory: packages/app
 
     steps:
       - name: Checkout code
@@ -40,11 +48,17 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Skip Android release build when signing secrets are unavailable
+        if: ${{ env.HAS_ANDROID_SIGNING != 'true' }}
+        run: echo "Android signing secrets are unavailable; skipping Android release artifacts."
+
       - name: Decode Keystore
+        if: ${{ env.HAS_ANDROID_SIGNING == 'true' }}
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
 
       - name: Create key.properties
+        if: ${{ env.HAS_ANDROID_SIGNING == 'true' }}
         run: |
           cat <<EOF > android/key.properties
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
@@ -54,25 +68,32 @@ jobs:
           EOF
 
       - name: Build release APK
+        if: ${{ env.HAS_ANDROID_SIGNING == 'true' }}
         run: flutter build apk --release
 
       - name: Archive APK
+        if: ${{ env.HAS_ANDROID_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ env.APP_DIR }}/build/app/outputs/flutter-apk/app-release.apk
 
       - name: Build release AAB
+        if: ${{ env.HAS_ANDROID_SIGNING == 'true' }}
         run: flutter build appbundle --release
 
       - name: Archive AAB
+        if: ${{ env.HAS_ANDROID_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: release-aab
-          path: build/app/outputs/bundle/release/app-release.aab
+          path: ${{ env.APP_DIR }}/build/app/outputs/bundle/release/app-release.aab
 
   build_linux_release:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/app
 
     steps:
       - name: Checkout code
@@ -81,7 +102,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake git ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+          sudo apt-get install -y clang cmake curl git ninja-build pkg-config zip libgtk-3-dev liblzma-dev libstdc++-12-dev
 
       - name: Cache Flutter dependencies
         uses: actions/cache@v4
@@ -116,7 +137,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-portable-zip
-          path: build/bot_creator-linux-x64-portable.zip
+          path: ${{ env.APP_DIR }}/build/bot_creator-linux-x64-portable.zip
 
       - name: Build Linux AppImage
         run: bash packaging/linux/appimage/build_appimage.sh
@@ -125,10 +146,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: build/appimage/bot_creator-linux-x86_64.AppImage
+          path: ${{ env.APP_DIR }}/build/appimage/bot_creator-linux-x86_64.AppImage
 
   build_windows_release:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: packages/app
 
     steps:
       - name: Checkout code
@@ -167,13 +191,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-portable-zip
-          path: build/bot_creator-windows-x64-portable.zip
+          path: ${{ env.APP_DIR }}/build/bot_creator-windows-x64-portable.zip
 
       - name: Archive Windows EXE
         uses: actions/upload-artifact@v4
         with:
           name: windows-exe
-          path: build/windows/x64/runner/Release/*.exe
+          path: ${{ env.APP_DIR }}/build/windows/x64/runner/Release/*.exe
 
       - name: Set Store-compatible MSIX version
         shell: pwsh
@@ -199,9 +223,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-msix
-          path: build/windows/x64/runner/Release/*.msix
+          path: ${{ env.APP_DIR }}/build/windows/x64/runner/Release/*.msix
 
   create_release:
+    if: ${{ github.event_name != 'pull_request' }}
     needs: [build_android_release, build_linux_release, build_windows_release]
     runs-on: ubuntu-latest
     permissions:

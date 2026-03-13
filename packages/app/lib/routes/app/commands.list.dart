@@ -1,5 +1,6 @@
 import 'package:bot_creator/routes/app/command.create.dart';
 import 'package:bot_creator/utils/analytics.dart';
+import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -36,7 +37,7 @@ class _AppCommandsPageState extends State<AppCommandsPage>
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
-        title: const Text("Commands"),
+        title: Text(AppStrings.t('commands_title')),
         centerTitle: true,
       ),
       body: LayoutBuilder(
@@ -56,12 +57,19 @@ class _AppCommandsPageState extends State<AppCommandsPage>
               }
 
               if (snapshot.hasError) {
-                return Center(child: Text("Error: ${snapshot.error}"));
+                return Center(
+                  child: Text(
+                    AppStrings.tr(
+                      'commands_error',
+                      params: {'error': snapshot.error.toString()},
+                    ),
+                  ),
+                );
               }
 
               final commands = snapshot.data ?? const <ApplicationCommand>[];
               if (commands.isEmpty) {
-                return const Center(child: Text("No commands found"));
+                return Center(child: Text(AppStrings.t('commands_empty')));
               }
 
               return Center(
@@ -134,7 +142,8 @@ class _AppCommandsPageState extends State<AppCommandsPage>
           }
           setState(() {});
         },
-        label: const Text("Create command"),
+        tooltip: AppStrings.t('commands_create_button'),
+        label: Text(AppStrings.t('commands_create_button')),
         icon: const Icon(Icons.add),
       ),
     );

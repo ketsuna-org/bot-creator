@@ -13,6 +13,8 @@ enum BotCreatorActionType {
   kickUser,
   muteUser,
   unmuteUser,
+  addRole,
+  removeRole,
   pinMessage,
   updateAutoMod,
   updateGuild,

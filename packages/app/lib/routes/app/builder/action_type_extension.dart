@@ -34,6 +34,10 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return 'Mute User';
       case BotCreatorActionType.unmuteUser:
         return 'Unmute User';
+      case BotCreatorActionType.addRole:
+        return 'Add Role';
+      case BotCreatorActionType.removeRole:
+        return 'Remove Role';
       case BotCreatorActionType.pinMessage:
         return 'Pin Message';
       case BotCreatorActionType.updateAutoMod:
@@ -117,6 +121,10 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.volume_off;
       case BotCreatorActionType.unmuteUser:
         return Icons.volume_up;
+      case BotCreatorActionType.addRole:
+        return Icons.person_add_alt_1;
+      case BotCreatorActionType.removeRole:
+        return Icons.person_remove_alt_1;
       case BotCreatorActionType.pinMessage:
         return Icons.push_pin;
       case BotCreatorActionType.updateAutoMod:
@@ -499,6 +507,52 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: '',
             hint: 'Unmute reason',
+          ),
+        ];
+      case BotCreatorActionType.addRole:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'User/Member receiving the role',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'roleId',
+            type: ParameterType.roleId,
+            defaultValue: '',
+            hint: 'Role to add',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+      case BotCreatorActionType.removeRole:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'User/Member losing the role',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'roleId',
+            type: ParameterType.roleId,
+            defaultValue: '',
+            hint: 'Role to remove',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
           ),
         ];
       case BotCreatorActionType.makeList:

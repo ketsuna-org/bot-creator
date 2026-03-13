@@ -8,8 +8,8 @@ import 'dart:ui' as ui;
 import 'package:bot_creator/actions/handler.dart';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/types/action.dart';
-import 'package:bot_creator/actions/handle_component_interaction.dart';
-import 'package:bot_creator/actions/interaction_response.dart';
+import 'package:bot_creator_shared/actions/handle_component_interaction.dart';
+import 'package:bot_creator_shared/actions/interaction_response.dart';
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/template_resolver.dart';
@@ -27,6 +27,11 @@ part 'bot.commands.dart';
 NyxxGateway? _desktopGateway;
 StreamSubscription<LogRecord>? _desktopNyxxLogsSubscription;
 Timer? _desktopMetricsTimer;
+String? _desktopRunningBotId;
+String? get desktopRunningBotId => _desktopRunningBotId;
+String? _mobileRunningBotId;
+String? get mobileRunningBotId => _mobileRunningBotId;
+void setMobileRunningBotId(String? id) => _mobileRunningBotId = id;
 
 const int _maxBotLogLines = 500;
 final StreamController<List<String>> _botLogsController =
@@ -158,8 +163,10 @@ Future<void> startDesktopBot(String token) async {
 
   gateway.onReady.listen((event) async {
     final botId = event.gateway.client.user.id.toString();
+    _desktopRunningBotId = botId;
     setBotRuntimeActive(true);
     appendBotLog('Bot desktop connecté et prêt', botId: botId);
+    unawaited(appManager.updateGuildCount(botId, event.guilds.length));
     unawaited(_refreshBotMetrics(botId: botId));
     _desktopMetricsTimer?.cancel();
     _desktopMetricsTimer = Timer.periodic(const Duration(seconds: 5), (_) {
@@ -180,6 +187,7 @@ Future<void> stopDesktopBot() async {
   _desktopMetricsTimer = null;
   await _desktopGateway?.close();
   _desktopGateway = null;
+  _desktopRunningBotId = null;
   await _desktopNyxxLogsSubscription?.cancel();
   _desktopNyxxLogsSubscription = null;
   _updateBotMetrics(

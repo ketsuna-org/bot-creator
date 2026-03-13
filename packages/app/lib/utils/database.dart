@@ -181,6 +181,28 @@ class AppManager implements BotDataStore {
     await file.writeAsString(jsonEncode(data));
   }
 
+  Future<void> updateGuildCount(String id, int count) async {
+    final path = await _path();
+    final appFile = File("$path/apps/$id.json");
+    if (await appFile.exists()) {
+      final content = await appFile.readAsString();
+      if (content.isNotEmpty) {
+        final data = jsonDecode(content) as Map<String, dynamic>;
+        data['guild_count'] = count;
+        await appFile.writeAsString(jsonEncode(data));
+      }
+    }
+    final index = _apps.indexWhere((a) => a['id'] == id);
+    if (index >= 0) {
+      _apps[index]['guild_count'] = count;
+      final allAppsFile = File("$path/apps/all_apps.json");
+      if (await allAppsFile.exists()) {
+        await allAppsFile.writeAsString(jsonEncode(_apps));
+      }
+      _appsStreamController.add(List<dynamic>.from(_apps));
+    }
+  }
+
   @override
   Future<Map<String, String>> getGlobalVariables(String id) async {
     final app = await getApp(id);
@@ -419,6 +441,24 @@ class AppManager implements BotDataStore {
             )
             : <Map<String, dynamic>>[];
 
+    final rawEditorMode =
+        (rawData['editorMode'] ?? 'advanced').toString().toLowerCase();
+    final editorMode = rawEditorMode == 'simple' ? 'simple' : 'advanced';
+
+    final simpleConfigRaw = Map<String, dynamic>.from(
+      (rawData['simpleConfig'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final simpleConfig = <String, dynamic>{
+      'deleteMessages': simpleConfigRaw['deleteMessages'] == true,
+      'kickUser': simpleConfigRaw['kickUser'] == true,
+      'banUser': simpleConfigRaw['banUser'] == true,
+      'muteUser': simpleConfigRaw['muteUser'] == true,
+      'addRole': simpleConfigRaw['addRole'] == true,
+      'removeRole': simpleConfigRaw['removeRole'] == true,
+      'sendMessage': simpleConfigRaw['sendMessage'] == true,
+      'sendMessageText': (simpleConfigRaw['sendMessageText'] ?? '').toString(),
+    };
+
     final rawWorkflow = Map<String, dynamic>.from(
       (response['workflow'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
@@ -484,6 +524,8 @@ class AppManager implements BotDataStore {
 
     normalized['data'] = {
       'version': 1,
+      'editorMode': editorMode,
+      'simpleConfig': simpleConfig,
       'defaultMemberPermissions':
           (rawData['defaultMemberPermissions'] ?? '').toString().trim(),
       'response': {

@@ -2,6 +2,7 @@ import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/workflow_docs.page.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/global.dart';
+import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 import 'dart:developer' as developer;
@@ -78,7 +79,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
     };
 
     return Scaffold(
-      appBar: AppBar(title: Text("Application Settings")),
+      appBar: AppBar(title: Text(AppStrings.t('bot_settings_title'))),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final contentMaxWidth = constraints.maxWidth >= 900 ? 760.0 : 640.0;
@@ -96,9 +97,9 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                     Card(
                       child: ListTile(
                         leading: const Icon(Icons.menu_book_outlined),
-                        title: const Text('Workflow Documentation'),
-                        subtitle: const Text(
-                          'Detailed guide for entry points, call arguments, and runtime behavior.',
+                        title: Text(AppStrings.t('bot_settings_workflow_docs')),
+                        subtitle: Text(
+                          AppStrings.t('bot_settings_workflow_docs_desc'),
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
@@ -114,12 +115,11 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // Application Flags Section
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Text(
-                        "Application Flags",
-                        style: TextStyle(
+                        AppStrings.t('bot_settings_app_flags'),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -153,21 +153,24 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
 
                     const SizedBox(height: 30),
                     // Intents Configuration Section
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Text(
-                        "Gateway Intents Configuration",
-                        style: TextStyle(
+                        AppStrings.t('bot_settings_gateway_intents'),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 12),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
                       child: Text(
-                        "Select which intents your bot needs. Configure these in the Discord Developer Portal.",
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                        AppStrings.t('bot_settings_gateway_intents_desc'),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
                     ListView.separated(
@@ -194,11 +197,11 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
 
                     const SizedBox(height: 30),
                     // Token Update Section
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Text(
-                        "Bot Token",
-                        style: TextStyle(
+                        AppStrings.t('bot_settings_token_title'),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -206,10 +209,10 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                     ),
                     TextField(
                       decoration: InputDecoration(
-                        labelText: "Update Bot Token",
-                        border: OutlineInputBorder(),
+                        labelText: AppStrings.t('bot_settings_update_token'),
+                        border: const OutlineInputBorder(),
                         contentPadding: const EdgeInsets.all(8),
-                        hintText: "Enter your bot token here",
+                        hintText: AppStrings.t('bot_settings_token_hint'),
                       ),
                       onChanged:
                           (value) => setState(() {
@@ -229,27 +232,28 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                             intents: _intentsMap,
                           );
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Settings saved successfully"),
+                            SnackBar(
+                              content: Text(
+                                AppStrings.t('bot_settings_save_success'),
+                              ),
                             ),
                           );
                           Navigator.pop(context);
                         } catch (e) {
-                          // Handle error
                           developer.log(
                             "Error creating app: $e",
                             name: "AppSettingsPage",
                           );
                           final errorText = e.toString();
                           final dialog = AlertDialog(
-                            title: const Text("Error"),
+                            title: Text(AppStrings.t('error')),
                             content: Text(errorText),
                             actions: [
                               TextButton(
                                 onPressed: () {
                                   Navigator.of(context).pop();
                                 },
-                                child: const Text("OK"),
+                                child: Text(AppStrings.t('ok')),
                               ),
                             ],
                           );
@@ -262,7 +266,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                           );
                         }
                       },
-                      child: const Text("Save Changes"),
+                      child: Text(AppStrings.t('app_save')),
                     ),
                   ],
                 ),

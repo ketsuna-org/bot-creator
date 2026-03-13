@@ -89,12 +89,10 @@ class ReplyCard extends StatelessWidget {
             if (responseType == 'normal') ...[
               VariableTextField(
                 label: "Response Text",
-                initialValue: responseController.text,
+                controller: responseController,
                 maxLines: 4,
                 suggestions: variableSuggestions,
-                onChanged: (v) {
-                  responseController.text = v;
-                },
+                onChanged: (_) {},
                 helperText:
                     "Used as slash-command reply text. Supports ((variable)) syntax.",
               ),
@@ -103,6 +101,7 @@ class ReplyCard extends StatelessWidget {
               const SizedBox(height: 12),
               ResponseEmbedsEditor(
                 embeds: responseEmbeds,
+                variableSuggestions: variableSuggestions,
                 onChanged: onEmbedsChanged,
               ),
               const SizedBox(height: 12),

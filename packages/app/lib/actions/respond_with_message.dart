@@ -112,16 +112,19 @@ Future<Map<String, dynamic>> respondWithMessageAction(
         (embedJson['image'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
       final imageUrl = resolve((imageJson['url'] ?? '').toString());
-      if (imageUrl.isNotEmpty) {
-        embed.image = EmbedImageBuilder(url: Uri.parse(imageUrl));
+      final imageUri = imageUrl.isNotEmpty ? Uri.tryParse(imageUrl) : null;
+      if (imageUri != null && imageUri.hasScheme) {
+        embed.image = EmbedImageBuilder(url: imageUri);
       }
 
       final thumbnailJson = Map<String, dynamic>.from(
         (embedJson['thumbnail'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
       final thumbnailUrl = resolve((thumbnailJson['url'] ?? '').toString());
-      if (thumbnailUrl.isNotEmpty) {
-        embed.thumbnail = EmbedThumbnailBuilder(url: Uri.parse(thumbnailUrl));
+      final thumbnailUri =
+          thumbnailUrl.isNotEmpty ? Uri.tryParse(thumbnailUrl) : null;
+      if (thumbnailUri != null && thumbnailUri.hasScheme) {
+        embed.thumbnail = EmbedThumbnailBuilder(url: thumbnailUri);
       }
 
       final fieldList =

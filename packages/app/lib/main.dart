@@ -6,15 +6,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import 'package:nyxx/nyxx.dart';
+import 'package:nyxx/nyxx.dart' hide Locale;
 import "routes/home.dart";
 import "routes/settings.dart";
 import 'package:provider/provider.dart';
 import 'routes/create.dart';
+import 'routes/onboarding.dart';
 import 'utils/app_diagnostics.dart';
 import 'utils/database.dart';
 import 'utils/analytics.dart';
+import 'utils/i18n.dart';
+import 'utils/onboarding_manager.dart';
 
 @pragma('vm:entry-point')
 late AppManager appManager;
@@ -174,8 +178,18 @@ Future<void> _bootstrapAndRunApp() async {
 
   try {
     appManager = AppManager();
+    final prefs = await SharedPreferences.getInstance();
+    final onboardingManager = OnboardingManager(prefs);
+
     runApp(
-      ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
+          ChangeNotifierProvider(create: (_) => LocaleProvider()),
+          Provider(create: (_) => onboardingManager),
+        ],
+        child: const MyApp(),
+      ),
     );
   } catch (error, stack) {
     await AppDiagnostics.logError(
@@ -197,8 +211,19 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     AppAnalytics.logAppOpen();
     final themeProvider = context.watch<ThemeProvider>();
+    final localeProvider = context.watch<LocaleProvider>();
+    final onboardingManager = context.read<OnboardingManager>();
+
     return MaterialApp(
-      title: 'Bot Creator',
+      navigatorKey: navigatorKey,
+      title: AppStrings.t('app_title'),
+      locale: Locale(localeProvider.locale.code),
+      supportedLocales: const [Locale('en'), Locale('fr')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
@@ -206,7 +231,23 @@ class MyApp extends StatelessWidget {
       darkTheme: ThemeData.dark(useMaterial3: true),
       themeMode: themeProvider.themeMode,
       debugShowCheckedModeBanner: false,
-      home: const MyMainPage(title: 'Bot Creator'),
+      home:
+          onboardingManager.isFirstRun
+              ? OnboardingPage(
+                onComplete: () {
+                  // When onboarding completes, navigate to main app.
+                  // Use the app navigator key instead of outer build context.
+                  final navigator = MyApp.navigatorKey.currentState;
+                  if (navigator != null) {
+                    navigator.pushNamedAndRemoveUntil(
+                      '/home',
+                      (route) => false,
+                    );
+                  }
+                },
+              )
+              : const MyMainPage(title: 'Bot Creator'),
+      routes: {'/home': (context) => const MyMainPage(title: 'Bot Creator')},
     );
   }
 }
@@ -241,7 +282,7 @@ class _MyMainPageState extends State<MyMainPage> {
       ),
       body: const HomePage(),
       floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
             context,
@@ -249,7 +290,8 @@ class _MyMainPageState extends State<MyMainPage> {
           );
         },
         backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: Text(AppStrings.t('app_create_button')),
       ),
     );
   }
@@ -258,7 +300,7 @@ class _MyMainPageState extends State<MyMainPage> {
 class ThemeProvider extends ChangeNotifier {
   static const _key = 'theme_mode';
 
-  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode _themeMode = ThemeMode.dark;
 
   ThemeMode get themeMode => _themeMode;
 
@@ -269,10 +311,8 @@ class ThemeProvider extends ChangeNotifier {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_key);
-    if (saved == 'dark') {
-      _themeMode = ThemeMode.dark;
-      notifyListeners();
-    }
+    _themeMode = saved == 'light' ? ThemeMode.light : ThemeMode.dark;
+    notifyListeners();
   }
 
   Future<void> toggleTheme() async {
@@ -284,6 +324,13 @@ class ThemeProvider extends ChangeNotifier {
       _key,
       _themeMode == ThemeMode.dark ? 'dark' : 'light',
     );
+  }
+
+  Future<void> resetToDefault() async {
+    _themeMode = ThemeMode.dark;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_key);
   }
 }
 

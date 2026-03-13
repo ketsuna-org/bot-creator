@@ -13,6 +13,8 @@ import 'package:bot_creator_shared/actions/unban_user.dart';
 import 'package:bot_creator_shared/actions/kick_user.dart';
 import 'package:bot_creator_shared/actions/mute_user.dart';
 import 'package:bot_creator_shared/actions/unmute_user.dart';
+import 'package:bot_creator_shared/actions/add_role.dart';
+import 'package:bot_creator_shared/actions/remove_role.dart';
 import 'package:bot_creator_shared/actions/pin_message.dart';
 import 'package:bot_creator_shared/actions/update_automod.dart';
 import 'package:bot_creator_shared/actions/update_guild.dart';
@@ -410,6 +412,8 @@ Future<Map<String, String>> handleActions(
         case BotCreatorActionType.kickUser:
         case BotCreatorActionType.muteUser:
         case BotCreatorActionType.unmuteUser:
+        case BotCreatorActionType.addRole:
+        case BotCreatorActionType.removeRole:
           final result = await _executeUserAction(() async {
             return switch (action.type) {
               BotCreatorActionType.banUser => banUserAction(
@@ -433,6 +437,16 @@ Future<Map<String, String>> handleActions(
                 payload: action.payload,
               ),
               BotCreatorActionType.unmuteUser => unmuteUserAction(
+                client,
+                guildId: guildId,
+                payload: action.payload,
+              ),
+              BotCreatorActionType.addRole => addRoleAction(
+                client,
+                guildId: guildId,
+                payload: action.payload,
+              ),
+              BotCreatorActionType.removeRole => removeRoleAction(
                 client,
                 guildId: guildId,
                 payload: action.payload,
