@@ -244,22 +244,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           // Mobile - 2 columns
           crossAxisCount = 2;
           horizontalPadding = 12.0;
-          cardHeight = 300.0;
+          cardHeight = 295.0;
+        } else if (width >= 1500) {
+          // Extra large desktop - 5 columns
+          crossAxisCount = 5;
+          horizontalPadding = 24.0;
+          cardHeight = 282.0;
         } else if (width >= 1200) {
           // Large desktop - 4 columns
           crossAxisCount = 4;
           horizontalPadding = 24.0;
-          cardHeight = 340.0;
+          cardHeight = 285.0;
         } else if (width >= 900) {
           // Tablet - 3 columns
           crossAxisCount = 3;
-          horizontalPadding = 24.0;
-          cardHeight = 320.0;
+          horizontalPadding = 20.0;
+          cardHeight = 276.0;
+        } else if (width >= 760) {
+          // Medium tablet - 3 columns
+          crossAxisCount = 3;
+          horizontalPadding = 16.0;
+          cardHeight = 272.0;
         } else {
-          // Tablet/small desktop - 2-3 columns
+          // Small tablet - 2 columns
           crossAxisCount = 2;
           horizontalPadding = 16.0;
-          cardHeight = 300.0;
+          cardHeight = 274.0;
         }
 
         final cardWidth =
@@ -314,6 +324,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     id: id,
                     avatar: avatar,
                     guildCount: guildCount,
+                    compact: width >= 760,
                     isRunning: isRunning,
                     canToggle: canToggle,
                     isTogglingThisBot: _isTogglingBot && isRunning,
@@ -358,6 +369,7 @@ class _BotCard extends StatelessWidget {
     required this.id,
     required this.avatar,
     required this.guildCount,
+    required this.compact,
     required this.isRunning,
     required this.canToggle,
     required this.isTogglingThisBot,
@@ -371,6 +383,7 @@ class _BotCard extends StatelessWidget {
   final String id;
   final String? avatar;
   final int? guildCount;
+  final bool compact;
   final bool isRunning;
   final bool canToggle;
   final bool isTogglingThisBot;
@@ -388,6 +401,13 @@ class _BotCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final avatarRadius = compact ? 30.0 : 36.0;
+    final avatarFallbackSize = compact ? 60.0 : 72.0;
+    final contentPadding = compact ? 9.0 : 12.0;
+    final titleFontSize = compact ? 13.5 : 15.0;
+    final statusFontSize = compact ? 9.5 : 11.0;
+    final serverFontSize = compact ? 9.5 : 11.0;
+    final buttonVerticalPadding = compact ? 6.0 : 8.0;
 
     return Card(
       shape: RoundedRectangleBorder(
@@ -399,32 +419,32 @@ class _BotCard extends StatelessWidget {
       ),
       elevation: isRunning ? 6 : 4,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(contentPadding),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // ── Avatar ──────────────────────────────────────────────────────
             avatar != null && avatar!.isNotEmpty
                 ? CircleAvatar(
-                  radius: 36,
+                  radius: avatarRadius,
                   backgroundImage: NetworkImage(avatar!),
                 )
-                : const Icon(Icons.account_circle, size: 72),
+                : Icon(Icons.account_circle, size: avatarFallbackSize),
 
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 6 : 8),
 
             // ── Nom ─────────────────────────────────────────────────────────
             Text(
               name,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 15,
+              style: TextStyle(
+                fontSize: titleFontSize,
                 fontWeight: FontWeight.w600,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
 
-            const SizedBox(height: 4),
+            SizedBox(height: compact ? 3 : 4),
 
             // ── Statut avec animation pulse ──────────────────────────────────
             AnimatedBuilder(
@@ -452,7 +472,7 @@ class _BotCard extends StatelessWidget {
                             ? AppStrings.t('home_status_online')
                             : AppStrings.t('home_status_offline'),
                         style: TextStyle(
-                          fontSize: 11,
+                            fontSize: statusFontSize,
                           fontWeight: FontWeight.w500,
                           color: isRunning ? Colors.green : Colors.grey,
                         ),
@@ -465,7 +485,7 @@ class _BotCard extends StatelessWidget {
 
             // ── Compteur de serveurs ─────────────────────────────────────────
             if (guildCount != null && guildCount! > 0) ...[
-              const SizedBox(height: 4),
+              SizedBox(height: compact ? 3 : 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
@@ -479,7 +499,7 @@ class _BotCard extends StatelessWidget {
                   Text(
                     _serverCountLabel(),
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: serverFontSize,
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -521,12 +541,12 @@ class _BotCard extends StatelessWidget {
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: Colors.grey.shade300,
                   disabledForegroundColor: Colors.white70,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: EdgeInsets.symmetric(vertical: buttonVerticalPadding),
                 ),
               ),
             ),
 
-            const SizedBox(height: 6),
+            SizedBox(height: compact ? 5 : 6),
 
             // ── Ligne inférieure : Gérer + Logs ──────────────────────────────
             Row(
@@ -540,11 +560,11 @@ class _BotCard extends StatelessWidget {
                       shape: const StadiumBorder(),
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: EdgeInsets.symmetric(vertical: buttonVerticalPadding),
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: compact ? 5 : 6),
                 IconButton.filled(
                   onPressed: onLogs,
                   icon: const Icon(Icons.article_outlined, size: 18),

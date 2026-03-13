@@ -194,6 +194,9 @@ class AppStrings {
       'settings_view_startup_logs': 'View startup logs',
       'settings_clear_logs': 'Clear logs',
       'settings_logs_cleared': 'Diagnostics log cleared',
+      'settings_legal_title': 'Legal',
+      'settings_legal_desc': 'Review how your data is handled and stored.',
+      'settings_privacy_policy': 'Privacy Policy',
 
       'home_token_missing': 'Token not found for {botName}',
       'home_log_start_requested': 'Bot start requested',
@@ -554,6 +557,10 @@ class AppStrings {
       'settings_view_startup_logs': 'Voir les logs de démarrage',
       'settings_clear_logs': 'Effacer les logs',
       'settings_logs_cleared': 'Logs de diagnostic effacés',
+      'settings_legal_title': 'Légal',
+      'settings_legal_desc':
+          'Consultez la manière dont vos données sont traitées et stockées.',
+      'settings_privacy_policy': 'Politique de confidentialité',
 
       'home_token_missing': 'Token introuvable pour {botName}',
       'home_log_start_requested': 'Démarrage du bot demandé',

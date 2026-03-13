@@ -561,6 +561,8 @@ class _SettingPageState extends State<SettingPage> {
                   // ── Support Discord card ────────────────────────────────────
                   _SupportDiscordCard(),
                   const SizedBox(height: 16),
+                  _PrivacyPolicyCard(),
+                  const SizedBox(height: 16),
 
                   Card(
                     child: Padding(
@@ -1439,6 +1441,62 @@ class _SettingPageState extends State<SettingPage> {
         padding: EdgeInsets.symmetric(
           vertical: isMobile ? 10 : 12,
           horizontal: isMobile ? 12 : 16,
+        ),
+      ),
+    );
+  }
+}
+
+class _PrivacyPolicyCard extends StatelessWidget {
+  const _PrivacyPolicyCard();
+
+  static const _privacyPolicyUrl = 'https://bot-creator.fr/privacy-policy.html';
+
+  Future<void> _open(BuildContext context) async {
+    final uri = Uri.parse(_privacyPolicyUrl);
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(AppStrings.t('app_open_link_error'))),
+        );
+      }
+    } catch (_) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(content: Text(AppStrings.t('app_open_link_error'))),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              AppStrings.t('settings_legal_title'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              AppStrings.t('settings_legal_desc'),
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _open(context),
+                icon: const Icon(Icons.privacy_tip_outlined),
+                label: Text(AppStrings.t('settings_privacy_policy')),
+              ),
+            ),
+          ],
         ),
       ),
     );
