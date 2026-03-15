@@ -1,7 +1,34 @@
+import 'dart:io';
+
 import 'package:nyxx/nyxx.dart';
 import 'dart:developer' as developer;
 
 const String discordUrl = "https://discord.com/api/v10";
+
+const List<String> supportedDiscordAvatarFormats = <String>[
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'gif',
+];
+
+String? avatarFileExtension(String path) {
+  final index = path.lastIndexOf('.');
+  if (index < 0 || index == path.length - 1) {
+    return null;
+  }
+  return path.substring(index + 1).toLowerCase();
+}
+
+bool isSupportedDiscordAvatarPath(String path) {
+  final extension = avatarFileExtension(path);
+  return extension != null && supportedDiscordAvatarFormats.contains(extension);
+}
+
+String supportedDiscordAvatarFormatsLabel() {
+  return supportedDiscordAvatarFormats.join(', ');
+}
 
 Future<User> getDiscordUser(String botToken) async {
   try {
@@ -9,6 +36,61 @@ Future<User> getDiscordUser(String botToken) async {
     return await client.user.fetch();
   } catch (e) {
     throw Exception("Failed to fetch user: $e");
+  }
+}
+
+Future<User> updateDiscordBotProfile(
+  String botToken, {
+  String? username,
+  String? avatarPath,
+}) async {
+  final trimmedUsername = username?.trim();
+  final trimmedAvatarPath = avatarPath?.trim();
+  final hasUsername = trimmedUsername != null && trimmedUsername.isNotEmpty;
+  final hasAvatarPath =
+      trimmedAvatarPath != null && trimmedAvatarPath.isNotEmpty;
+
+  if (!hasUsername && !hasAvatarPath) {
+    throw Exception('Nothing to update: username/avatar are empty');
+  }
+
+  NyxxRest? client;
+  try {
+    client = await Nyxx.connectRest(botToken);
+
+    final builder = UserUpdateBuilder();
+    if (hasUsername) {
+      builder.username = trimmedUsername;
+    }
+
+    if (hasAvatarPath) {
+      final avatarFile = File(trimmedAvatarPath);
+      if (!await avatarFile.exists()) {
+        throw Exception('Avatar file not found: $trimmedAvatarPath');
+      }
+      if (!isSupportedDiscordAvatarPath(trimmedAvatarPath)) {
+        final extension = avatarFileExtension(trimmedAvatarPath) ?? 'unknown';
+        throw Exception(
+          "Unsupported avatar format '$extension'. Supported formats: ${supportedDiscordAvatarFormatsLabel()}",
+        );
+      }
+      builder.avatar = await ImageBuilder.fromFile(avatarFile);
+    }
+
+    return await client.users.updateCurrentUser(builder);
+  } catch (e) {
+    throw Exception('Failed to update bot profile: $e');
+  } finally {
+    if (client != null) {
+      try {
+        await client.close();
+      } catch (error) {
+        developer.log(
+          'Failed to close Nyxx REST client: $error',
+          name: 'updateDiscordBotProfile',
+        );
+      }
+    }
   }
 }
 

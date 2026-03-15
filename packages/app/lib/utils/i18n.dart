@@ -256,6 +256,53 @@ class AppStrings {
       'bot_settings_update_token': 'Update Bot Token',
       'bot_settings_token_hint': 'Enter your bot token here',
       'bot_settings_save_success': 'Settings saved successfully',
+      'bot_settings_save_token_btn': 'Save token and intents',
+      'bot_settings_save_token_only_btn': 'Save token',
+      'bot_settings_save_intents_btn': 'Save intents',
+      'bot_settings_save_profile_status_btn': 'Save profile and statuses',
+      'bot_settings_save_token_caption':
+          'Token changes are protected. Click "Edit token" first, then save.',
+      'bot_settings_save_intents_caption':
+          'This only updates gateway intents configuration.',
+      'bot_settings_save_profile_caption':
+          'This applies username/avatar instantly and saves status rotation.',
+      'bot_settings_token_saved': 'Token saved successfully',
+      'bot_settings_intents_saved': 'Intents saved successfully',
+      'bot_settings_profile_saved': 'Profile/statuses applied successfully',
+      'bot_settings_edit_token_btn': 'Edit token',
+      'bot_settings_cancel_token_edit_btn': 'Cancel token edit',
+      'bot_settings_token_hidden_desc':
+          'Token input is hidden by default for safety.',
+      'bot_settings_token_required': 'Bot token is required.',
+      'bot_settings_save_token_first':
+          'Please save the token first before applying profile/status changes.',
+      'bot_settings_profile_title': 'Bot Profile',
+      'bot_settings_username_override': 'Username override',
+      'bot_settings_username_hint': 'Leave empty to keep current username',
+      'bot_settings_avatar_local_path': 'Avatar local file path',
+      'bot_settings_avatar_path_hint': '/absolute/path/to/avatar.png',
+      'bot_settings_browse': 'Browse',
+      'bot_settings_avatar_selected_file': 'Selected file: {path}',
+      'bot_settings_avatar_preview_label': 'Avatar preview',
+      'bot_settings_avatar_preview_error': 'Unable to preview image',
+      'bot_settings_avatar_unsupported_format':
+          'Unsupported avatar format: {ext}. Supported formats: {formats}.',
+      'bot_settings_avatar_clear_selection': 'Clear selection',
+      'bot_settings_status_rotation_title': 'Status Rotation',
+      'bot_settings_status_rotation_desc':
+          'Add one or more statuses. Each status needs a type, text, and min/max interval (seconds).',
+      'bot_settings_add_status': 'Add status',
+      'bot_settings_status_item_title': 'Status {index}',
+      'bot_settings_remove_status': 'Remove status',
+      'bot_settings_status_type_label': 'Type',
+      'bot_settings_status_type_playing': 'Playing',
+      'bot_settings_status_type_streaming': 'Streaming',
+      'bot_settings_status_type_listening': 'Listening',
+      'bot_settings_status_type_watching': 'Watching',
+      'bot_settings_status_type_competing': 'Competing',
+      'bot_settings_status_text_label': 'Status text',
+      'bot_settings_status_min_interval': 'Min interval (s)',
+      'bot_settings_status_max_interval': 'Max interval (s)',
 
       // Bot logs page
       'bot_logs_title': 'Bot Logs',
@@ -621,6 +668,55 @@ class AppStrings {
       'bot_settings_update_token': 'Mettre à jour le token du bot',
       'bot_settings_token_hint': 'Entrez votre token de bot ici',
       'bot_settings_save_success': 'Paramètres enregistrés avec succès',
+      'bot_settings_save_token_btn': 'Sauvegarder token et intents',
+      'bot_settings_save_token_only_btn': 'Sauvegarder le token',
+      'bot_settings_save_intents_btn': 'Sauvegarder les intents',
+      'bot_settings_save_profile_status_btn': 'Sauvegarder profil et statuts',
+      'bot_settings_save_token_caption':
+          'Le token est protege. Cliquez d\'abord sur "Modifier le token", puis sauvegardez.',
+      'bot_settings_save_intents_caption':
+          'Cette action met a jour uniquement la configuration des intents.',
+      'bot_settings_save_profile_caption':
+          'Cette action applique le nom/avatar immediatement et enregistre la rotation des statuts.',
+      'bot_settings_token_saved': 'Token sauvegarde avec succes',
+      'bot_settings_intents_saved': 'Intents sauvegardes avec succes',
+      'bot_settings_profile_saved': 'Profil/statuts appliqués avec succès',
+      'bot_settings_edit_token_btn': 'Modifier le token',
+      'bot_settings_cancel_token_edit_btn': 'Annuler la modification du token',
+      'bot_settings_token_hidden_desc':
+          'Le champ du token est masque par defaut pour plus de securite.',
+      'bot_settings_token_required': 'Le token du bot est requis.',
+      'bot_settings_save_token_first':
+          'Veuillez d\'abord sauvegarder le token avant d\'appliquer les changements de profil/statuts.',
+      'bot_settings_profile_title': 'Profil du bot',
+      'bot_settings_username_override': 'Nom d\'utilisateur personnalisé',
+      'bot_settings_username_hint':
+          'Laisser vide pour conserver le nom d\'utilisateur actuel',
+      'bot_settings_avatar_local_path': 'Chemin local de l\'avatar',
+      'bot_settings_avatar_path_hint': '/chemin/absolu/vers/avatar.png',
+      'bot_settings_browse': 'Parcourir',
+      'bot_settings_avatar_selected_file': 'Fichier selectionne : {path}',
+      'bot_settings_avatar_preview_label': "Apercu de l'avatar",
+      'bot_settings_avatar_preview_error':
+          'Impossible d\'afficher l\'aperçu de l\'image',
+      'bot_settings_avatar_unsupported_format':
+          'Format d\'avatar non supporte : {ext}. Formats supportes : {formats}.',
+      'bot_settings_avatar_clear_selection': 'Effacer la selection',
+      'bot_settings_status_rotation_title': 'Rotation des statuts',
+      'bot_settings_status_rotation_desc':
+          'Ajoutez un ou plusieurs statuts. Chaque statut nécessite un type, un texte et un intervalle min/max (secondes).',
+      'bot_settings_add_status': 'Ajouter un statut',
+      'bot_settings_status_item_title': 'Statut {index}',
+      'bot_settings_remove_status': 'Supprimer le statut',
+      'bot_settings_status_type_label': 'Type',
+      'bot_settings_status_type_playing': 'Joue a',
+      'bot_settings_status_type_streaming': 'Diffuse',
+      'bot_settings_status_type_listening': 'Ecoute',
+      'bot_settings_status_type_watching': 'Regarde',
+      'bot_settings_status_type_competing': 'Participe',
+      'bot_settings_status_text_label': 'Texte du statut',
+      'bot_settings_status_min_interval': 'Intervalle min (s)',
+      'bot_settings_status_max_interval': 'Intervalle max (s)',
 
       // Page logs du bot
       'bot_logs_title': 'Logs du bot',

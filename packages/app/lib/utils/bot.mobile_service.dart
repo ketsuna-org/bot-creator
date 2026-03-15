@@ -54,6 +54,113 @@ class DiscordBotTaskHandler extends TaskHandler {
   String? _botId;
   StreamSubscription<LogRecord>? _mobileNyxxLogsSubscription;
   bool? _lastKnownDebugEnabled;
+  Timer? _mobileStatusRotationTimer;
+  final Random _mobileStatusRandom = Random();
+
+  void _startMobileStatusRotation(
+    NyxxGateway gateway,
+    Map<String, dynamic> appData,
+  ) {
+    _mobileStatusRotationTimer?.cancel();
+    _mobileStatusRotationTimer = null;
+
+    final statuses = _normalizeStatuses(appData['statuses']);
+    if (statuses.isEmpty) {
+      unawaited(
+        _emitTaskLogToMain(
+          'Aucun status configure pour la presence mobile',
+          botId: _botId,
+        ),
+      );
+      return;
+    }
+
+    unawaited(_applyMobileInitialStatusThenRotate(gateway, statuses));
+  }
+
+  Future<void> _applyMobileInitialStatusThenRotate(
+    NyxxGateway gateway,
+    List<Map<String, dynamic>> statuses,
+  ) async {
+    if (statuses.isEmpty) {
+      return;
+    }
+
+    final firstStatus = statuses.first;
+    await _applyMobileStatus(gateway, firstStatus);
+
+    // Re-send once after READY to avoid occasional dropped first presence frame.
+    Timer(const Duration(seconds: 3), () {
+      unawaited(_applyMobileStatus(gateway, firstStatus));
+    });
+
+    final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
+    final max = (firstStatus['maxIntervalSeconds'] as int?) ?? min;
+    final delaySeconds =
+        max <= min ? min : min + _mobileStatusRandom.nextInt(max - min + 1);
+
+    _mobileStatusRotationTimer?.cancel();
+    _mobileStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
+      unawaited(_applyMobileRandomStatus(gateway, statuses));
+    });
+  }
+
+  Future<void> _applyMobileRandomStatus(
+    NyxxGateway gateway,
+    List<Map<String, dynamic>> statuses,
+  ) async {
+    if (statuses.isEmpty) {
+      return;
+    }
+
+    final picked = statuses[_mobileStatusRandom.nextInt(statuses.length)];
+    await _applyMobileStatus(gateway, picked);
+
+    final min = (picked['minIntervalSeconds'] as int?) ?? 60;
+    final max = (picked['maxIntervalSeconds'] as int?) ?? min;
+    final delaySeconds =
+        max <= min ? min : min + _mobileStatusRandom.nextInt(max - min + 1);
+
+    _mobileStatusRotationTimer?.cancel();
+    _mobileStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
+      unawaited(_applyMobileRandomStatus(gateway, statuses));
+    });
+  }
+
+  Future<void> _applyMobileStatus(
+    NyxxGateway gateway,
+    Map<String, dynamic> status,
+  ) async {
+    final type = (status['type'] ?? 'playing').toString();
+    final text = _sanitizeDesktopActivityText(
+      (status['text'] ?? '').toString(),
+    );
+
+    if (text.isEmpty) {
+      return;
+    }
+
+    try {
+      gateway.updatePresence(
+        PresenceBuilder(
+          status: CurrentUserStatus.online,
+          isAfk: false,
+          activities: <ActivityBuilder>[
+            ActivityBuilder(name: text, type: _mapDesktopActivityType(type)),
+          ],
+        ),
+      );
+      await _emitTaskLogToMain(
+        'Presence mobile appliquee: $type $text',
+        botId: _botId,
+      );
+    } catch (error) {
+      await _emitTaskDebugLogToMain(
+        'Echec update presence mobile: $error',
+        botId: _botId,
+      );
+    }
+  }
 
   Future<void> _syncDebugFlagFromMain() async {
     try {
@@ -141,6 +248,7 @@ class DiscordBotTaskHandler extends TaskHandler {
             'Bot mobile connecté et prêt',
             botId: _botId,
           );
+          _startMobileStatusRotation(gateway, appData);
           await _emitTaskMetricsToMain(botId: _botId);
           isReady = true;
           gateway.onInteractionCreate.listen((event) async {
@@ -185,6 +293,8 @@ class DiscordBotTaskHandler extends TaskHandler {
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     await _emitTaskLifecycleToMain('stopped', botId: _botId);
+    _mobileStatusRotationTimer?.cancel();
+    _mobileStatusRotationTimer = null;
     await _mobileNyxxLogsSubscription?.cancel();
     _mobileNyxxLogsSubscription = null;
     await client?.close();

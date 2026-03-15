@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math';
 
 import 'package:bot_creator_shared/actions/handle_component_interaction.dart';
 import 'package:bot_creator_shared/actions/handler.dart';
@@ -20,6 +22,8 @@ class DiscordRunner {
   final RunnerDataStore store;
 
   NyxxGateway? _gateway;
+  Timer? _statusRotationTimer;
+  final Random _random = Random();
 
   DiscordRunner(this.config) : store = RunnerDataStore(config);
 
@@ -36,9 +40,12 @@ class DiscordRunner {
       ),
     );
 
-    _gateway!.onReady.listen((event) {
+    _gateway!.onReady.listen((event) async {
       final botId = event.gateway.client.user.id.toString();
       _log.info('Bot ready — bot ID: $botId');
+
+      await _reconcileCurrentBotProfile(event.gateway.client);
+      _startStatusRotation(event.gateway.client);
     });
 
     _gateway!.onInteractionCreate.listen((event) async {
@@ -49,6 +56,8 @@ class DiscordRunner {
   }
 
   Future<void> stop() async {
+    _statusRotationTimer?.cancel();
+    _statusRotationTimer = null;
     await _gateway?.close();
     _gateway = null;
     _log.info('Runner stopped.');
@@ -319,5 +328,167 @@ class DiscordRunner {
     return intents == GatewayIntents.none
         ? GatewayIntents.allUnprivileged
         : intents;
+  }
+
+  Future<void> _reconcileCurrentBotProfile(NyxxGateway client) async {
+    final username = config.username?.trim();
+    final avatarPath = config.avatarPath?.trim();
+    final shouldUpdateUsername = username != null && username.isNotEmpty;
+    final shouldUpdateAvatar = avatarPath != null && avatarPath.isNotEmpty;
+
+    if (!shouldUpdateUsername && !shouldUpdateAvatar) {
+      return;
+    }
+
+    try {
+      final builder = UserUpdateBuilder();
+      var hasPayload = false;
+      if (shouldUpdateUsername) {
+        builder.username = username;
+        hasPayload = true;
+      }
+
+      if (shouldUpdateAvatar) {
+        final file = File(avatarPath);
+        if (!await file.exists()) {
+          _log.warning(
+            'Avatar file not found for profile reconciliation: $avatarPath',
+          );
+        } else {
+          builder.avatar = await ImageBuilder.fromFile(file);
+          hasPayload = true;
+        }
+      }
+
+      if (!hasPayload) {
+        return;
+      }
+
+      await client.users.updateCurrentUser(builder);
+      _log.info('Bot profile reconciled from config (username/avatar).');
+    } catch (error, stackTrace) {
+      _log.warning(
+        'Failed to reconcile bot profile: $error',
+        error,
+        stackTrace,
+      );
+    }
+  }
+
+  void _startStatusRotation(NyxxGateway client) {
+    _statusRotationTimer?.cancel();
+    _statusRotationTimer = null;
+
+    if (config.statuses.isEmpty) {
+      _log.info('No statuses configured, skipping rotation.');
+      return;
+    }
+
+    unawaited(_applyInitialStatusThenRotate(client));
+  }
+
+  Future<void> _applyInitialStatusThenRotate(NyxxGateway client) async {
+    if (config.statuses.isEmpty) {
+      return;
+    }
+
+    final firstStatus = config.statuses.first;
+    await _applyStatus(client, firstStatus);
+
+    // Some sessions ignore the first presence packet right after READY.
+    // Re-sending shortly after improves reliability.
+    Timer(const Duration(seconds: 3), () {
+      unawaited(_applyStatus(client, firstStatus));
+    });
+
+    final nextDelaySeconds = _randomDelaySeconds(
+      min: firstStatus.minIntervalSeconds,
+      max: firstStatus.maxIntervalSeconds,
+    );
+    _statusRotationTimer?.cancel();
+    _statusRotationTimer = Timer(Duration(seconds: nextDelaySeconds), () {
+      unawaited(_applyRandomStatus(client));
+    });
+  }
+
+  Future<void> _applyStatus(NyxxGateway client, BotStatusConfig status) async {
+    final activityType = _mapActivityType(status.type);
+    final activityText = _sanitizeActivityText(status.text);
+    if (activityText.isEmpty) {
+      _log.warning('Skipped status update because activity text is empty.');
+      return;
+    }
+
+    try {
+      client.updatePresence(
+        PresenceBuilder(
+          status: CurrentUserStatus.online,
+          isAfk: false,
+          activities: <ActivityBuilder>[
+            ActivityBuilder(name: activityText, type: activityType),
+          ],
+        ),
+      );
+      _log.info('Presence updated: ${status.type} $activityText');
+    } catch (error, stackTrace) {
+      _log.warning('Failed to update presence: $error', error, stackTrace);
+    }
+  }
+
+  Future<void> _applyRandomStatus(NyxxGateway client) async {
+    if (config.statuses.isEmpty) {
+      return;
+    }
+
+    final status = config.statuses[_random.nextInt(config.statuses.length)];
+    await _applyStatus(client, status);
+
+    final nextDelaySeconds = _randomDelaySeconds(
+      min: status.minIntervalSeconds,
+      max: status.maxIntervalSeconds,
+    );
+    _statusRotationTimer?.cancel();
+    _statusRotationTimer = Timer(Duration(seconds: nextDelaySeconds), () {
+      unawaited(_applyRandomStatus(client));
+    });
+  }
+
+  int _randomDelaySeconds({required int min, required int max}) {
+    if (max <= min) {
+      return min;
+    }
+    return min + _random.nextInt(max - min + 1);
+  }
+
+  ActivityType _mapActivityType(String rawType) {
+    switch (rawType.trim().toLowerCase()) {
+      case 'streaming':
+        // Streaming activities require a valid stream URL; until URL is
+        // configurable we fallback to game so Discord reliably displays status.
+        return ActivityType.game;
+      case 'listening':
+        return ActivityType.listening;
+      case 'watching':
+        return ActivityType.watching;
+      case 'competing':
+        return ActivityType.competing;
+      case 'playing':
+      default:
+        return ActivityType.game;
+    }
+  }
+
+  String _sanitizeActivityText(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+
+    // Discord activity names should be short; keep a safe cap.
+    if (trimmed.length > 120) {
+      return trimmed.substring(0, 120);
+    }
+
+    return trimmed;
   }
 }
