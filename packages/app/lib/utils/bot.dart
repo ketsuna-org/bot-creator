@@ -3,6 +3,7 @@ library;
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:bot_creator/actions/handler.dart';
@@ -27,6 +28,7 @@ part 'bot.commands.dart';
 NyxxGateway? _desktopGateway;
 StreamSubscription<LogRecord>? _desktopNyxxLogsSubscription;
 Timer? _desktopMetricsTimer;
+Timer? _desktopStatusRotationTimer;
 String? _desktopRunningBotId;
 String? get desktopRunningBotId => _desktopRunningBotId;
 String? _mobileRunningBotId;
@@ -55,10 +57,26 @@ int? _botEstimatedRssBytes;
 double? _botProcessCpuPercent;
 int? _botProcessStorageBytes;
 bool _botRuntimeActive = false;
+final Random _desktopStatusRandom = Random();
 
 bool get isDesktopBotRunning => _desktopGateway != null;
 bool get isBotDebugLogsEnabled => _debugBotLogsEnabled;
 bool get isBotRuntimeActive => _botRuntimeActive;
+
+void applyDesktopRuntimeSettings({
+  required String botId,
+  required Map<String, dynamic> appData,
+}) {
+  final gateway = _desktopGateway;
+  if (gateway == null) {
+    return;
+  }
+  if (_desktopRunningBotId != null && _desktopRunningBotId != botId) {
+    return;
+  }
+
+  _startDesktopStatusRotation(gateway, appData);
+}
 
 void setBotDebugLogsEnabled(bool enabled) {
   _debugBotLogsEnabled = enabled;
@@ -172,6 +190,7 @@ Future<void> startDesktopBot(String token) async {
     _desktopMetricsTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       unawaited(_refreshBotMetrics(botId: botId));
     });
+    _startDesktopStatusRotation(gateway, appData);
     appManager = AppManager();
     gateway.onInteractionCreate.listen((event) async {
       await handleLocalCommands(event, appManager);
@@ -185,6 +204,8 @@ Future<void> stopDesktopBot() async {
   appendBotLog('Arrêt du bot desktop demandé');
   _desktopMetricsTimer?.cancel();
   _desktopMetricsTimer = null;
+  _desktopStatusRotationTimer?.cancel();
+  _desktopStatusRotationTimer = null;
   await _desktopGateway?.close();
   _desktopGateway = null;
   _desktopRunningBotId = null;
@@ -197,6 +218,156 @@ Future<void> stopDesktopBot() async {
     overwriteNulls: true,
   );
   setBotRuntimeActive(false);
+}
+
+void _startDesktopStatusRotation(
+  NyxxGateway gateway,
+  Map<String, dynamic> appData,
+) {
+  _desktopStatusRotationTimer?.cancel();
+  _desktopStatusRotationTimer = null;
+
+  final statuses = _normalizeStatuses(appData['statuses']);
+  if (statuses.isEmpty) {
+    return;
+  }
+
+  unawaited(_applyDesktopInitialStatusThenRotate(gateway, statuses));
+}
+
+Future<void> _applyDesktopInitialStatusThenRotate(
+  NyxxGateway gateway,
+  List<Map<String, dynamic>> statuses,
+) async {
+  if (statuses.isEmpty) {
+    return;
+  }
+
+  final firstStatus = statuses.first;
+  await _applyDesktopStatus(gateway, firstStatus);
+
+  // Re-send once after READY to avoid occasional dropped first presence frame.
+  Timer(const Duration(seconds: 3), () {
+    unawaited(_applyDesktopStatus(gateway, firstStatus));
+  });
+
+  final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
+  final max = (firstStatus['maxIntervalSeconds'] as int?) ?? min;
+  final delaySeconds =
+      max <= min ? min : min + _desktopStatusRandom.nextInt(max - min + 1);
+
+  _desktopStatusRotationTimer?.cancel();
+  _desktopStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
+    unawaited(_applyDesktopRandomStatus(gateway, statuses));
+  });
+}
+
+Future<void> _applyDesktopStatus(
+  NyxxGateway gateway,
+  Map<String, dynamic> status,
+) async {
+  final type = (status['type'] ?? 'playing').toString();
+  final text = _sanitizeDesktopActivityText((status['text'] ?? '').toString());
+
+  if (text.isEmpty) {
+    return;
+  }
+
+  try {
+    gateway.updatePresence(
+      PresenceBuilder(
+        status: CurrentUserStatus.online,
+        isAfk: false,
+        activities: <ActivityBuilder>[
+          ActivityBuilder(name: text, type: _mapDesktopActivityType(type)),
+        ],
+      ),
+    );
+    appendBotLog(
+      'Presence desktop appliquée: $type $text',
+      botId: _desktopRunningBotId,
+    );
+  } catch (error) {
+    appendBotDebugLog('Status rotation update failed: $error');
+  }
+}
+
+Future<void> _applyDesktopRandomStatus(
+  NyxxGateway gateway,
+  List<Map<String, dynamic>> statuses,
+) async {
+  if (statuses.isEmpty) {
+    return;
+  }
+
+  final picked = statuses[_desktopStatusRandom.nextInt(statuses.length)];
+  final min = (picked['minIntervalSeconds'] as int?) ?? 60;
+  final max = (picked['maxIntervalSeconds'] as int?) ?? min;
+
+  await _applyDesktopStatus(gateway, picked);
+
+  final delaySeconds =
+      max <= min ? min : min + _desktopStatusRandom.nextInt(max - min + 1);
+  _desktopStatusRotationTimer?.cancel();
+  _desktopStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
+    unawaited(_applyDesktopRandomStatus(gateway, statuses));
+  });
+}
+
+List<Map<String, dynamic>> _normalizeStatuses(dynamic raw) {
+  if (raw is! List) {
+    return const <Map<String, dynamic>>[];
+  }
+
+  final normalized = <Map<String, dynamic>>[];
+  for (final entry in raw.whereType<Map>()) {
+    final map = Map<String, dynamic>.from(entry);
+    final text = (map['text'] ?? '').toString().trim();
+    if (text.isEmpty) {
+      continue;
+    }
+    final min =
+        int.tryParse((map['minIntervalSeconds'] ?? '').toString()) ?? 60;
+    final maxRaw =
+        int.tryParse((map['maxIntervalSeconds'] ?? '').toString()) ?? min;
+    final max = maxRaw < min ? min : maxRaw;
+    normalized.add({
+      'type': (map['type'] ?? 'playing').toString().trim().toLowerCase(),
+      'text': text,
+      'minIntervalSeconds': min > 0 ? min : 60,
+      'maxIntervalSeconds': max > 0 ? max : 60,
+    });
+  }
+
+  return normalized;
+}
+
+ActivityType _mapDesktopActivityType(String rawType) {
+  switch (rawType.trim().toLowerCase()) {
+    case 'streaming':
+      // Streaming requires URL support; fallback to game for reliable display.
+      return ActivityType.game;
+    case 'listening':
+      return ActivityType.listening;
+    case 'watching':
+      return ActivityType.watching;
+    case 'competing':
+      return ActivityType.competing;
+    case 'playing':
+    default:
+      return ActivityType.game;
+  }
+}
+
+String _sanitizeDesktopActivityText(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) {
+    return '';
+  }
+  if (trimmed.length > 120) {
+    return trimmed.substring(0, 120);
+  }
+  return trimmed;
 }
 
 Future<void> createCommand(

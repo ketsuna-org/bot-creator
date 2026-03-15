@@ -92,6 +92,12 @@ class AppManager implements BotDataStore {
             ) ??
             const <Map<String, dynamic>>[],
       ),
+      "statuses": List<Map<String, dynamic>>.from(
+        (existingData?["statuses"] as List?)?.whereType<Map>().map(
+              (status) => Map<String, dynamic>.from(status),
+            ) ??
+            const <Map<String, dynamic>>[],
+      ),
     };
 
     await file.writeAsString(jsonEncode(data));

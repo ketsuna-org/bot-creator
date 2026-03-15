@@ -154,9 +154,12 @@ BotConfig _buildBotConfigFromSnapshotZip(
 
   final config = BotConfig(
     token: (appJson['token'] ?? '').toString(),
+    username: _optionalString(appJson['username']),
+    avatarPath: _optionalString(appJson['avatarPath']),
     intents: _toBoolMap(appJson['intents']),
     globalVariables: _toStringMap(appJson['globalVariables']),
     workflows: _toMapList(appJson['workflows']),
+    statuses: _toStatusList(appJson['statuses']),
     commands: commands,
   );
   config.validate();
@@ -199,6 +202,22 @@ List<Map<String, dynamic>> _toMapList(dynamic raw) {
       .whereType<Map>()
       .map((item) => Map<String, dynamic>.from(item))
       .toList();
+}
+
+List<BotStatusConfig> _toStatusList(dynamic raw) {
+  if (raw is! List) {
+    return const <BotStatusConfig>[];
+  }
+
+  return raw
+      .whereType<Map>()
+      .map((item) => BotStatusConfig.fromJson(Map<String, dynamic>.from(item)))
+      .toList(growable: false);
+}
+
+String? _optionalString(dynamic value) {
+  final text = (value ?? '').toString().trim();
+  return text.isEmpty ? null : text;
 }
 
 Future<gdrive.File?> _selectSnapshotFolder(
