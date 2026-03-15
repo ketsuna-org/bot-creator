@@ -54,6 +54,8 @@
     <false />
     <key>NSLocalNetworkUsageDescription</key>
     <string>This app requires access to devices on your local network for debugging.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app requires access to your photo library to select an avatar image for your bot.</string>
     <key>UIMainStoryboardFile</key>
     <string>Main</string>
     <key>UISupportedInterfaceOrientations</key>
